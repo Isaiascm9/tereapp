@@ -111,6 +111,15 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   </div>
 </div>
 
+<div id="connection-error-overlay" class="hidden fixed inset-0 bg-app z-[100] items-center justify-center p-4">
+  <div class="card p-8 w-full max-w-sm text-center space-y-4">
+    <span class="msi" style="font-size:40px; color:var(--danger)">cloud_off</span>
+    <h2 class="font-medium text-lg t-primary">No se pudo conectar</h2>
+    <p class="text-sm t-secondary">No logramos cargar tus datos desde la nube. Por seguridad, la app no va a guardar nada hasta reconectar — así protegemos tu información real.</p>
+    <button onclick="retryConnection()" class="btn-primary w-full py-2.5">Reintentar</button>
+  </div>
+</div>
+
 <header class="app-header sticky top-0 z-50">
   <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
     <div class="flex items-center space-x-2.5">
@@ -699,27 +708,92 @@ function monthKey(iso){ return iso.slice(0,7); }
 function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString(); }
 
 let storageInitialized = false;
+let dataLoadSafe = false;
+
 async function initStorage(){
   if(storageInitialized) return;
   storageInitialized = true;
+
+  let loadResult;
   try{
-    const loaded = await window.dbLoad();
-    if(loaded){
-      appData = Object.assign(appData, loaded);
-      if(!appData.rates) appData.rates = { usdBcv:null, eurBcv:null, binanceP2P:null, updatedAt:null };
-      if(!appData.orders) appData.orders = [];
-      if(!appData.settings.fabricPricePerMeter) appData.settings.fabricPricePerMeter = 4.00;
-      if(!appData.fabrics || appData.fabrics.length===0){
-        appData.fabrics = [{ id:'f-default', name:'Tela principal', pricePerMeter: appData.settings.fabricPricePerMeter }];
-        appData.products.forEach(p=>{ if(p.fabricMeters!=null && !p.fabricId){ p.fabricId = 'f-default'; } });
-      }
+    loadResult = await window.dbLoad();
+  }catch(e){
+    console.error('No se pudo cargar la información desde Firebase:', e);
+    storageInitialized = false;
+    showConnectionError();
+    return;
+  }
+
+  if(loadResult && loadResult.exists){
+    appData = Object.assign(appData, loadResult.data);
+    if(!appData.rates) appData.rates = { usdBcv:null, eurBcv:null, binanceP2P:null, updatedAt:null };
+    if(!appData.orders) appData.orders = [];
+    if(!appData.settings.fabricPricePerMeter) appData.settings.fabricPricePerMeter = 4.00;
+    if(!appData.fabrics || appData.fabrics.length===0){
+      appData.fabrics = [{ id:'f-default', name:'Tela principal', pricePerMeter: appData.settings.fabricPricePerMeter }];
+      appData.products.forEach(p=>{ if(p.fabricMeters!=null && !p.fabricId){ p.fabricId = 'f-default'; } });
     }
-  }catch(e){ console.log('Sin datos guardados aún, usando datos de ejemplo.', e); }
+  }
+  // Si loadResult.exists es false, es realmente la primera vez que se usa la app: no hay nada que perder.
+
+  dataLoadSafe = true;
   applyDarkMode();
   if(appData.settings.pin){ showPinLock(); } else { document.getElementById('pin-overlay').classList.add('hidden'); }
   renderAll();
   renderRatesCard();
   fetchRates();
+}
+
+const FIREBASE_ERROR_MESSAGES = {
+  'permission-denied': 'Sin permiso para guardar (revisá las reglas de Firestore)',
+  'unavailable': 'Servidor no disponible, reintentando…',
+  'not-found': 'No se encontró el documento en la base de datos',
+  'resource-exhausted': 'Se alcanzó el límite de uso de Firebase',
+  'unauthenticated': 'Sesión no autenticada, recargá la página',
+  'deadline-exceeded': 'La conexión tardó demasiado, reintentando…',
+  'cancelled': 'La operación se canceló'
+};
+
+function updateSyncStatus(state, error){
+  const el = document.getElementById('sync-status');
+  if(!el) return;
+  if(state==='saved'){
+    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado';
+    el.title = '';
+  } else if(state==='offline-queued'){
+    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión, se sincroniza solo';
+    el.title = 'Los cambios se guardaron en este dispositivo y se van a subir automáticamente cuando vuelva la conexión.';
+  } else if(state==='blocked'){
+    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin guardar';
+    el.title = 'Todavía no se confirmó la carga de datos desde la nube.';
+  } else if(state==='error'){
+    const code = error && error.code;
+    const msg = (code && FIREBASE_ERROR_MESSAGES[code]) || (error && error.message) || 'Error desconocido al guardar';
+    el.innerHTML = `<span class="msi mr-1" style="font-size:14px">error</span> ${msg}`;
+    el.title = code ? `Código: ${code}` : '';
+  }
+}
+
+window.addEventListener('online', ()=>{
+  const el = document.getElementById('sync-status');
+  if(el){ el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_sync</span> Reconectando…'; }
+});
+window.addEventListener('offline', ()=>{
+  const el = document.getElementById('sync-status');
+  if(el){ el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión, se sincroniza solo'; el.title = 'Los cambios se guardan en este dispositivo y se suben cuando vuelva la conexión.'; }
+});
+
+function showConnectionError(){
+  const el = document.getElementById('sync-status');
+  if(el) el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión';
+  const overlay = document.getElementById('connection-error-overlay');
+  if(overlay){ overlay.classList.remove('hidden'); overlay.classList.add('flex'); }
+}
+
+function retryConnection(){
+  const overlay = document.getElementById('connection-error-overlay');
+  if(overlay){ overlay.classList.add('hidden'); overlay.classList.remove('flex'); }
+  initStorage();
 }
 
 async function fetchRates(){
@@ -836,13 +910,33 @@ function getSelectedRate(){
 }
 
 async function saveData(){
+  if(!dataLoadSafe){
+    console.warn('Guardado bloqueado: los datos todavía no se cargaron con éxito desde Firebase.');
+    updateSyncStatus('blocked');
+    return;
+  }
   try{
     await window.dbSave(appData);
-    document.getElementById('sync-status').innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado';
+    updateSyncStatus(navigator.onLine ? 'saved' : 'offline-queued');
   }catch(e){
     console.error('Error al guardar en Firebase:', e);
-    document.getElementById('sync-status').innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Error al guardar';
+    updateSyncStatus('error', e);
   }
+  syncPublicCatalog();
+}
+
+async function syncPublicCatalog(){
+  if(!dataLoadSafe) return;
+  try{
+    const catalogProducts = appData.products.map(p=>({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      photo: p.photo || '',
+      available: p.stock > 0
+    }));
+    await window.dbSaveCatalog({ updatedAt: new Date().toISOString(), products: catalogProducts });
+  }catch(e){ console.error('Error al sincronizar catálogo público:', e); }
 }
 
 function showAlert(message, type='success'){
@@ -2320,7 +2414,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -2335,7 +2429,16 @@ setReportPeriod('monthly');
   const auth = getAuth(app);
   const db = getFirestore(app);
   const DOC_REF = doc(db, 'tereapp', 'data');
+  const CATALOG_REF = doc(db, 'tereapp', 'catalog');
   let authReady = false;
+
+  enableIndexedDbPersistence(db).catch((err) => {
+    if(err.code === 'failed-precondition'){
+      console.warn('Modo offline no disponible: la app está abierta en otra pestaña al mismo tiempo.');
+    } else if(err.code === 'unimplemented'){
+      console.warn('Este navegador no soporta el modo offline.');
+    }
+  });
 
   window.dbSave = async function(data){
     if(!authReady) throw new Error('Firebase todavía no está listo');
@@ -2344,9 +2447,15 @@ setReportPeriod('monthly');
   };
 
   window.dbLoad = async function(){
-    if(!authReady) return null;
+    if(!authReady) throw new Error('Firebase todavía no está listo');
     const snap = await getDoc(DOC_REF);
-    return snap.exists() ? snap.data() : null;
+    return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
+  };
+
+  window.dbSaveCatalog = async function(data){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await setDoc(CATALOG_REF, data);
+    return true;
   };
 
   onAuthStateChanged(auth, (user) => {
