@@ -2,13 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Téreapp</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --bg:#FFF8F2; --surface:#ffffff; --surface-alt:#F3E7D9; --border:#DDCBBB;
@@ -30,19 +32,33 @@ html.dark{
   --header-bg:#4A2E14; --header-text:#F5E9DA;
   --btn-secondary-bg:#3A2E20; --btn-secondary-text:#EAD9C4; --btn-secondary-border:transparent;
 }
-*{font-family:'Roboto',Arial,sans-serif;}
+*{font-family:'Roboto',Arial,sans-serif; touch-action:manipulation;}
 body{background:var(--bg); color:var(--text-primary); transition:background .25s ease, color .25s ease;}
-@keyframes fadeSlideIn{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+/* M3 motion tokens: valores oficiales de m3.material.io */
+:root{
+  --md-ease-standard:cubic-bezier(0.2,0,0,1);
+  --md-ease-standard-decel:cubic-bezier(0,0,0,1);
+  --md-ease-standard-accel:cubic-bezier(0.3,0,1,1);
+  --md-ease-emph-decel:cubic-bezier(0.05,0.7,0.1,1);
+  --md-ease-emph-accel:cubic-bezier(0.3,0,0.8,0.15);
+  --md-dur-short2:100ms; --md-dur-short4:200ms;
+  --md-dur-medium1:250ms; --md-dur-medium2:300ms; --md-dur-medium4:400ms;
+  --md-dur-long1:450ms;
+}
+/* Fade through: usado al cambiar de sección/pestaña (destinos no relacionados jerárquicamente) */
+@keyframes fadeThroughIn{ from{opacity:0; transform:scale(.96);} to{opacity:1; transform:scale(1);} }
+main > section:not(.hidden){ animation:fadeThroughIn var(--md-dur-medium2) var(--md-ease-standard-decel); }
+/* Fade: usado en diálogos y hojas que aparecen dentro de la pantalla */
 @keyframes overlayIn{ from{opacity:0;} to{opacity:1;} }
-@keyframes modalPop{ from{opacity:0; transform:scale(.94) translateY(12px);} to{opacity:1; transform:scale(1) translateY(0);} }
+@keyframes modalPop{ from{opacity:0; transform:scale(.9);} to{opacity:1; transform:scale(1);} }
+[id$="-modal"]:not(.hidden), #more-sheet:not(.hidden){ animation:overlayIn var(--md-dur-short4) var(--md-ease-standard); }
+[id$="-modal"]:not(.hidden) > .card, #more-sheet:not(.hidden) > .card{ animation:modalPop var(--md-dur-medium1) var(--md-ease-emph-decel); }
+/* Shared axis (Y), sutil: usado para ítems que entran en listas */
 @keyframes itemIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
-main > section:not(.hidden){ animation:fadeSlideIn .3s cubic-bezier(.22,.8,.32,1); }
-[id$="-modal"]:not(.hidden), #more-sheet:not(.hidden){ animation:overlayIn .18s ease; }
-[id$="-modal"]:not(.hidden) > .card, #more-sheet:not(.hidden) > .card{ animation:modalPop .28s cubic-bezier(.22,.85,.32,1.15); }
-.anim-item{ animation:itemIn .25s ease backwards; }
-.card, .btn-primary, .btn-secondary, .surface-alt, .input, .tab-btn, .bottom-nav-btn, .fab{ transition:background .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .15s ease; }
-.btn-primary:active, .btn-secondary:active{ transform:scale(.97); }
-.fab:active{ transform:scale(.93); }
+.anim-item{ animation:itemIn var(--md-dur-short4) var(--md-ease-standard-decel) backwards; }
+.card, .btn-primary, .btn-secondary, .surface-alt, .input, .tab-btn, .bottom-nav-btn, .fab{ transition:background var(--md-dur-short4) var(--md-ease-standard), color var(--md-dur-short4) var(--md-ease-standard), border-color var(--md-dur-short4) var(--md-ease-standard), box-shadow var(--md-dur-short4) var(--md-ease-standard), transform var(--md-dur-short2) var(--md-ease-standard);}
+.btn-primary:active, .btn-secondary:active{ transform:scale(.97); transition:transform var(--md-dur-short2) var(--md-ease-emph-accel); }
+.fab:active{ transform:scale(.92); transition:transform var(--md-dur-short2) var(--md-ease-emph-accel); }
 .card{background:var(--surface); border:none; border-radius:16px; box-shadow:0 1px 2px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.08);}
 html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 .surface-alt{background:var(--surface-alt);}
@@ -71,9 +87,10 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 .nav-icon-wrap{padding:2px 18px; border-radius:16px; transition:background .2s ease;}
 .bottom-nav-btn.active .nav-icon-wrap{background:var(--accent-bg);}
 .fab{background:var(--accent); color:#fff; box-shadow:0 3px 6px rgba(0,0,0,.28); border-radius:16px!important; width:56px; height:56px; display:flex; align-items:center; justify-content:center;}
-.input{background:var(--surface); border:1.5px solid var(--border); border-radius:4px!important; color:var(--text-primary); padding:.55rem .75rem; font-size:.875rem; width:100%;}
+.input{background:var(--surface); border:1.5px solid var(--border); border-radius:4px!important; color:var(--text-primary); padding:.55rem .75rem; font-size:1rem; width:100%;}
 .input:focus{outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent);}
-.msi{font-family:'Material Symbols Outlined'; font-weight:normal; font-style:normal; font-size:20px; line-height:1; display:inline-block; vertical-align:middle;}
+.msi{font-family:'Material Symbols Outlined'; font-weight:normal; font-style:normal; font-size:20px; line-height:1; display:inline-block; vertical-align:middle; font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; transition:font-variation-settings var(--md-dur-short4) var(--md-ease-standard);}
+.bottom-nav-btn.active .msi, .tab-btn.active .msi{ font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24; }
 .tab-btn{color:var(--text-secondary); border-bottom:2px solid transparent; font-weight:500; white-space:nowrap;}
 .tab-btn.active{color:var(--accent); border-bottom:2px solid var(--accent);}
 .tab-btn:hover{color:var(--text-primary);}
@@ -329,6 +346,26 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 </section>
 
 <section id="tab-reports" class="hidden space-y-6">
+  <div class="card p-5 space-y-4">
+    <h3 class="text-sm font-medium t-secondary flex items-center gap-1.5"><span class="msi accent" style="font-size:18px">description</span>Generar reporte para descargar</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <button onclick="setReportPeriod('daily')" id="period-daily" class="btn-secondary py-2 text-xs">Diario</button>
+      <button onclick="setReportPeriod('weekly')" id="period-weekly" class="btn-secondary py-2 text-xs">Semanal</button>
+      <button onclick="setReportPeriod('monthly')" id="period-monthly" class="btn-secondary py-2 text-xs">Mensual</button>
+      <button onclick="setReportPeriod('custom')" id="period-custom" class="btn-secondary py-2 text-xs">Personalizado</button>
+    </div>
+    <div id="custom-range-inputs" class="hidden grid grid-cols-2 gap-3">
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Desde</label><input type="date" id="report-from" class="input" onchange="updateReportRangeLabel()"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Hasta</label><input type="date" id="report-to" class="input" onchange="updateReportRangeLabel()"></div>
+    </div>
+    <p id="report-range-label" class="text-xs t-muted"></p>
+    <div class="flex flex-wrap gap-2 pt-3 border-t b">
+      <button onclick="downloadReportPDF()" class="btn-primary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">picture_as_pdf</span>PDF</button>
+      <button onclick="downloadReportExcel()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">table_chart</span>Excel</button>
+      <button onclick="shareReportText()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">share</span>Compartir mensaje</button>
+    </div>
+  </div>
+
   <div class="card p-5">
     <h3 class="text-sm font-medium t-secondary mb-3">Ventas de los últimos 14 días</h3>
     <div style="height:240px"><canvas id="chart-reports"></canvas></div>
@@ -466,7 +503,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Nombre</label>
         <input type="text" id="client-name" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Teléfono</label>
-        <input type="text" id="client-phone" class="input"></div>
+        <input type="text" id="client-phone" placeholder="0412 1234567" class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
         <input type="text" id="client-notes" class="input"></div>
       <div class="pt-2 flex space-x-3">
@@ -1130,12 +1167,21 @@ function buildInvoiceText(o){
   return lines.join('\n');
 }
 
+function normalizePhoneVE(raw){
+  if(!raw) return '';
+  let digits = raw.replace(/[^0-9]/g,'');
+  if(!digits) return '';
+  if(digits.startsWith('58')) return digits;
+  if(digits.startsWith('0')) digits = digits.slice(1);
+  return '58'+digits;
+}
+
 function sendOrderWhatsapp(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order) return;
   const text = buildInvoiceText(order);
   const client = appData.clients.find(c=>c.id===order.clientId);
-  const phone = client && client.phone ? client.phone.replace(/[^0-9]/g,'') : '';
+  const phone = client && client.phone ? normalizePhoneVE(client.phone) : '';
   const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, '_blank');
 }
@@ -1482,6 +1528,187 @@ async function deleteExpense(id){
   showAlert('Gasto eliminado','error');
 }
 
+let reportPeriod = 'monthly';
+
+function setReportPeriod(period){
+  reportPeriod = period;
+  ['daily','weekly','monthly','custom'].forEach(p=>{
+    const btn = document.getElementById('period-'+p);
+    if(!btn) return;
+    if(p===period){ btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary'); }
+    else { btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
+  });
+  document.getElementById('custom-range-inputs').classList.toggle('hidden', period!=='custom');
+  if(period==='custom'){
+    const today = todayIso();
+    if(!document.getElementById('report-from').value) document.getElementById('report-from').value = today;
+    if(!document.getElementById('report-to').value) document.getElementById('report-to').value = today;
+  }
+  updateReportRangeLabel();
+}
+
+function getReportRange(){
+  const today = todayIso();
+  if(reportPeriod==='daily') return { from:today, to:today };
+  if(reportPeriod==='weekly'){
+    const d = new Date(); d.setDate(d.getDate()-6);
+    return { from:isoDate(d), to:today };
+  }
+  if(reportPeriod==='monthly'){
+    return { from: today.slice(0,8)+'01', to: today };
+  }
+  const from = document.getElementById('report-from')?.value || today;
+  const to = document.getElementById('report-to')?.value || today;
+  return { from, to };
+}
+
+function updateReportRangeLabel(){
+  const r = getReportRange();
+  const label = document.getElementById('report-range-label');
+  if(label) label.innerText = `Del ${displayDate(r.from)} al ${displayDate(r.to)}`;
+}
+
+function getReportData(from, to){
+  const sales = appData.sales.filter(s => s.dateIso>=from && s.dateIso<=to);
+  const expenses = appData.expenses.filter(e => e.dateIso>=from && e.dateIso<=to);
+  const totalSales = sales.reduce((a,s)=>a+s.total,0);
+  const totalProfit = sales.reduce((a,s)=>a+s.totalProfit,0);
+  const totalExpenses = expenses.reduce((a,e)=>a+e.amount,0);
+  const netProfit = totalProfit - totalExpenses;
+  const productTotals = {};
+  sales.forEach(s=>s.items.forEach(it=>{
+    if(!productTotals[it.name]) productTotals[it.name] = { qty:0, revenue:0 };
+    productTotals[it.name].qty += it.qty;
+    productTotals[it.name].revenue += it.subtotal;
+  }));
+  return { from, to, sales, expenses, totalSales, totalProfit, totalExpenses, netProfit, productTotals };
+}
+
+function downloadReportPDF(){
+  if(!window.jspdf){ showAlert('No se pudo cargar el generador de PDF', 'error'); return; }
+  const r = getReportRange();
+  const data = getReportData(r.from, r.to);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 18;
+  doc.setFontSize(16); doc.text('Reporte Téreapp', 14, y); y+=7;
+  doc.setFontSize(10); doc.setTextColor(90);
+  doc.text(`Periodo: ${displayDate(data.from)} al ${displayDate(data.to)}`, 14, y); y+=10;
+  doc.setTextColor(20);
+
+  doc.setFontSize(12); doc.text('Resumen', 14, y); y+=6;
+  doc.setFontSize(10);
+  doc.text(`Ventas totales: ${fmt(data.totalSales)}`, 14, y); y+=5.5;
+  doc.text(`Ganancia bruta: ${fmt(data.totalProfit)}`, 14, y); y+=5.5;
+  doc.text(`Gastos: ${fmt(data.totalExpenses)}`, 14, y); y+=5.5;
+  doc.text(`Ganancia neta: ${fmt(data.netProfit)}`, 14, y); y+=10;
+
+  doc.setFontSize(12); doc.text('Productos vendidos', 14, y); y+=6;
+  doc.setFontSize(9);
+  const prodEntries = Object.entries(data.productTotals);
+  if(prodEntries.length===0){ doc.text('Sin ventas en este periodo.', 14, y); y+=5; }
+  prodEntries.forEach(([name,d])=>{
+    if(y>280){ doc.addPage(); y=18; }
+    doc.text(`${d.qty}x ${name} — ${fmt(d.revenue)}`, 14, y); y+=5;
+  });
+  y+=6;
+
+  if(y>260){ doc.addPage(); y=18; }
+  doc.setFontSize(12); doc.text('Ventas del periodo', 14, y); y+=6;
+  doc.setFontSize(9);
+  if(data.sales.length===0){ doc.text('Sin ventas registradas.', 14, y); y+=5; }
+  data.sales.forEach(s=>{
+    if(y>280){ doc.addPage(); y=18; }
+    const client = appData.clients.find(c=>c.id===s.clientId);
+    doc.text(`${displayDate(s.dateIso)} — ${client?client.name:'Sin cliente'} — ${s.status} — ${fmt(s.total)}`, 14, y); y+=5;
+  });
+
+  if(data.expenses.length>0){
+    y+=6;
+    if(y>260){ doc.addPage(); y=18; }
+    doc.setFontSize(12); doc.text('Gastos del periodo', 14, y); y+=6;
+    doc.setFontSize(9);
+    data.expenses.forEach(e=>{
+      if(y>280){ doc.addPage(); y=18; }
+      doc.text(`${displayDate(e.dateIso)} — ${e.concept} (${e.category}) — ${fmt(e.amount)}`, 14, y); y+=5;
+    });
+  }
+
+  doc.save(`reporte_tereapp_${data.from}_a_${data.to}.pdf`);
+  showAlert('PDF descargado');
+}
+
+function downloadReportExcel(){
+  if(!window.XLSX){ showAlert('No se pudo cargar el generador de Excel', 'error'); return; }
+  const r = getReportRange();
+  const data = getReportData(r.from, r.to);
+  const wb = XLSX.utils.book_new();
+
+  const summary = [
+    ['Reporte Téreapp'],
+    [`Periodo: ${displayDate(data.from)} al ${displayDate(data.to)}`],
+    [],
+    ['Ventas totales', data.totalSales],
+    ['Ganancia bruta', data.totalProfit],
+    ['Gastos', data.totalExpenses],
+    ['Ganancia neta', data.netProfit]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Resumen');
+
+  const salesRows = [['Fecha','Cliente','Productos','Estado','Pago','Total USD','Total Bs']];
+  data.sales.forEach(s=>{
+    const client = appData.clients.find(c=>c.id===s.clientId);
+    const items = s.items.map(it=>`${it.qty}x ${it.name}`).join(' | ');
+    salesRows.push([displayDate(s.dateIso), client?client.name:'Sin cliente', items, s.status, s.payment, s.total, s.totalVES||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(salesRows), 'Ventas');
+
+  const prodRows = [['Producto','Unidades vendidas','Ingresos']];
+  Object.entries(data.productTotals).forEach(([name,d])=> prodRows.push([name, d.qty, d.revenue]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prodRows), 'Productos');
+
+  const expRows = [['Fecha','Concepto','Categoría','Monto']];
+  data.expenses.forEach(e=> expRows.push([displayDate(e.dateIso), e.concept, e.category, e.amount]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expRows), 'Gastos');
+
+  XLSX.writeFile(wb, `reporte_tereapp_${data.from}_a_${data.to}.xlsx`);
+  showAlert('Excel descargado');
+}
+
+function buildReportText(data){
+  const lines = [];
+  lines.push('*Reporte Téreapp*');
+  lines.push(`Periodo: ${displayDate(data.from)} al ${displayDate(data.to)}`);
+  lines.push('');
+  lines.push(`Ventas totales: ${fmt(data.totalSales)}`);
+  lines.push(`Ganancia bruta: ${fmt(data.totalProfit)}`);
+  lines.push(`Gastos: ${fmt(data.totalExpenses)}`);
+  lines.push(`*Ganancia neta: ${fmt(data.netProfit)}*`);
+  lines.push('');
+  lines.push('*Productos vendidos:*');
+  const prodEntries = Object.entries(data.productTotals);
+  if(prodEntries.length===0) lines.push('Sin ventas en este periodo.');
+  prodEntries.forEach(([name,d])=> lines.push(`${d.qty}x ${name} - ${fmt(d.revenue)}`));
+  return lines.join('\n');
+}
+
+async function shareReportText(){
+  const r = getReportRange();
+  const data = getReportData(r.from, r.to);
+  const text = buildReportText(data);
+  if(navigator.share){
+    try{ await navigator.share({ text, title:'Reporte Téreapp' }); }
+    catch(e){ /* cancelado por el usuario */ }
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    showAlert('Texto copiado. Pegalo en WhatsApp o Notas');
+  }catch(e){
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  }
+}
+
 function renderReports(){
   const revByProduct = {}, qtyByProduct = {};
   appData.sales.forEach(s=>s.items.forEach(it=>{
@@ -1548,6 +1775,7 @@ function importBackup(event){
   event.target.value = '';
 }
 
+setReportPeriod('monthly');
 initStorage();
 </script>
 </body>
