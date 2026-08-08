@@ -757,7 +757,10 @@ const FIREBASE_ERROR_MESSAGES = {
 function updateSyncStatus(state, error){
   const el = document.getElementById('sync-status');
   if(!el) return;
-  if(state==='saved'){
+  if(state==='saving'){
+    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_sync</span> Guardando…';
+    el.title = '';
+  } else if(state==='saved'){
     el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado';
     el.title = '';
   } else if(state==='offline-queued'){
@@ -909,20 +912,18 @@ function getSelectedRate(){
   return null;
 }
 
-async function saveData(){
+function saveData(){
   if(!dataLoadSafe){
     console.warn('Guardado bloqueado: los datos todavía no se cargaron con éxito desde Firebase.');
     updateSyncStatus('blocked');
-    return;
+    return Promise.resolve();
   }
-  try{
-    await window.dbSave(appData);
-    updateSyncStatus(navigator.onLine ? 'saved' : 'offline-queued');
-  }catch(e){
-    console.error('Error al guardar en Firebase:', e);
-    updateSyncStatus('error', e);
-  }
+  updateSyncStatus('saving');
+  window.dbSave(appData)
+    .then(()=> updateSyncStatus(navigator.onLine ? 'saved' : 'offline-queued'))
+    .catch(e=>{ console.error('Error al guardar en Firebase:', e); updateSyncStatus('error', e); });
   syncPublicCatalog();
+  return Promise.resolve();
 }
 
 async function syncPublicCatalog(){
@@ -1222,7 +1223,16 @@ function calculateGrandTotal(){
   }
 }
 
+let lastSubmitTime = 0;
+function isDoubleSubmit(){
+  const now = Date.now();
+  if(now - lastSubmitTime < 800){ return true; }
+  lastSubmitTime = now;
+  return false;
+}
+
 async function handleMultiSaleSubmit(){
+  if(isDoubleSubmit()) return;
   for(const item of currentSaleItems){
     const p = appData.products.find(x=>x.id===item.productId);
     if(!p || p.stock < item.qty){ showAlert(`No hay suficiente stock de "${p?p.name:''}"`, 'error'); return; }
@@ -1458,6 +1468,7 @@ function toggleDueDateField(){
 }
 
 async function handleGenerateOrder(){
+  if(isDoubleSubmit()) return;
   const oldOrder = editingOrderId ? appData.orders.find(o=>o.id===editingOrderId) : null;
   const oldQtyMap = {};
   if(oldOrder) oldOrder.items.forEach(it=>{ oldQtyMap[it.productId] = (oldQtyMap[it.productId]||0) + it.qty; });
@@ -1807,6 +1818,7 @@ function openFabricModal(id=null){
 
 async function handleFabricSubmit(e){
   e.preventDefault();
+  if(isDoubleSubmit()) return;
   const id = document.getElementById('fabric-index').value;
   const fabric = {
     id: id || uid(),
@@ -1890,6 +1902,7 @@ function updateFabricCostPreview(){
 
 async function handleProductSubmit(e){
   e.preventDefault();
+  if(isDoubleSubmit()) return;
   const id = document.getElementById('prod-index').value;
   const product = {
     id: id || uid(),
@@ -1934,6 +1947,7 @@ function updateBatchCost(){
 }
 async function handleBatchSubmit(e){
   e.preventDefault();
+  if(isDoubleSubmit()) return;
   const productId = document.getElementById('batch-product').value;
   const p = appData.products.find(x=>x.id===productId);
   const qty = parseInt(document.getElementById('batch-qty').value)||1;
@@ -2003,6 +2017,7 @@ function openClientModal(id=null, forSale=false){
 }
 async function handleClientSubmit(e){
   e.preventDefault();
+  if(isDoubleSubmit()) return;
   const id = document.getElementById('client-index').value;
   const client = { id: id||uid(), name:document.getElementById('client-name').value, phone:document.getElementById('client-phone').value, notes:document.getElementById('client-notes').value };
   if(id){ const idx=appData.clients.findIndex(x=>x.id===id); appData.clients[idx]=client; showAlert('Cliente actualizado'); }
@@ -2041,6 +2056,7 @@ function renderExpensesList(){
 function openExpenseModal(){ document.getElementById('expense-form').reset(); openModal('expense-modal'); }
 async function handleExpenseSubmit(e){
   e.preventDefault();
+  if(isDoubleSubmit()) return;
   appData.expenses.unshift({ id:uid(), dateIso: todayIso(), concept:document.getElementById('expense-concept').value, category:document.getElementById('expense-category').value, amount:parseFloat(document.getElementById('expense-amount').value) });
   await saveData();
   closeModal('expense-modal');
