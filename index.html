@@ -279,6 +279,13 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 <section id="tab-products" class="hidden space-y-6">
   <div class="card p-6">
     <div class="flex justify-between items-center mb-4">
+      <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">texture</span>Tipos de tela</h2>
+      <button onclick="openFabricModal()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add</span>Nueva tela</button>
+    </div>
+    <div class="space-y-2" id="fabrics-list"></div>
+  </div>
+  <div class="card p-6">
+    <div class="flex justify-between items-center mb-4">
       <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">category</span>Catálogo y costos</h2>
       <button onclick="openProductModal()" class="btn-primary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add</span>Nuevo producto</button>
     </div>
@@ -400,6 +407,10 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <input type="checkbox" id="settings-dark" onchange="toggleDarkMode()" class="w-5 h-5">
     </div>
     <div class="flex justify-between items-center py-2 border-b b">
+      <div><p class="text-sm font-medium">Tipos de tela y precios</p><p class="text-xs t-muted">Gestioná los precios por metro de cada tela desde Catálogo</p></div>
+      <button onclick="switchTab('products')" class="btn-secondary text-xs px-3 py-1.5">Ir a Catálogo</button>
+    </div>
+    <div class="flex justify-between items-center py-2 border-b b">
       <div><p class="text-sm font-medium">Umbral de stock bajo</p><p class="text-xs t-muted">Aviso cuando un producto tenga menos unidades que esto</p></div>
       <input type="number" id="settings-low-stock" min="0" class="input w-20" onchange="updateLowStockDefault()">
     </div>
@@ -467,22 +478,27 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Foto (URL, opcional)</label>
         <input type="text" id="prod-photo" placeholder="https://..." class="input"></div>
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="block text-xs font-medium t-muted uppercase mb-1">Tela ($)</label>
-          <input type="number" step="0.01" id="prod-fabric" value="0" required class="input"></div>
+        <div><label class="block text-xs font-medium t-muted uppercase mb-1">Tipo de tela</label>
+          <select id="prod-fabric-type" class="input" onchange="updateFabricCostPreview()"></select></div>
+        <div><label class="block text-xs font-medium t-muted uppercase mb-1">Metros que usa</label>
+          <input type="number" step="0.01" min="0" id="prod-fabric-meters" value="0" required class="input" oninput="updateFabricCostPreview()"></div>
+      </div>
+      <p id="fabric-cost-preview" class="text-xs t-muted -mt-2">Costo de tela: $0.00</p>
+      <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-medium t-muted uppercase mb-1">Hilo/Elástico ($)</label>
           <input type="number" step="0.01" id="prod-extras" value="0" required class="input"></div>
-      </div>
-      <div class="grid grid-cols-2 gap-3">
         <div><label class="block text-xs font-medium t-muted uppercase mb-1">Mano de obra ($)</label>
           <input type="number" step="0.01" id="prod-labor" value="0" required class="input"></div>
-        <div><label class="block text-xs font-medium t-muted uppercase mb-1">Precio venta ($)</label>
-          <input type="number" step="0.01" id="prod-price" value="0" required class="input"></div>
       </div>
       <div class="grid grid-cols-2 gap-3">
+        <div><label class="block text-xs font-medium t-muted uppercase mb-1">Precio venta ($)</label>
+          <input type="number" step="0.01" id="prod-price" value="0" required class="input"></div>
         <div><label class="block text-xs font-medium t-muted uppercase mb-1">Stock inicial</label>
           <input type="number" id="prod-stock" value="10" min="0" required class="input"></div>
-        <div><label class="block text-xs font-medium t-muted uppercase mb-1">Aviso stock bajo</label>
-          <input type="number" id="prod-lowstock" value="3" min="0" class="input"></div>
+      </div>
+      <div>
+        <label class="block text-xs font-medium t-muted uppercase mb-1">Aviso stock bajo</label>
+        <input type="number" id="prod-lowstock" value="3" min="0" class="input">
       </div>
       <div class="pt-2 flex space-x-3">
         <button type="button" onclick="closeModal('product-modal')" class="btn-secondary flex-1 py-2.5 text-sm">Cancelar</button>
@@ -508,6 +524,26 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
         <input type="text" id="client-notes" class="input"></div>
       <div class="pt-2 flex space-x-3">
         <button type="button" onclick="closeModal('client-modal')" class="btn-secondary flex-1 py-2.5 text-sm">Cancelar</button>
+        <button type="submit" class="btn-primary flex-1 py-2.5 text-sm">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="fabric-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+  <div class="card max-w-sm w-full p-6 space-y-3">
+    <div class="flex justify-between items-center border-b b pb-3">
+      <h3 id="fabric-modal-title" class="font-medium text-lg">Nueva tela</h3>
+      <button onclick="closeModal('fabric-modal')" class="t-muted"><span class="msi">close</span></button>
+    </div>
+    <form id="fabric-form" onsubmit="handleFabricSubmit(event)" class="space-y-3">
+      <input type="hidden" id="fabric-index">
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Nombre</label>
+        <input type="text" id="fabric-name" placeholder="Ej. Satén blanco" required class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Precio por metro ($)</label>
+        <input type="number" step="0.01" min="0" id="fabric-price" required class="input"></div>
+      <div class="pt-2 flex space-x-3">
+        <button type="button" onclick="closeModal('fabric-modal')" class="btn-secondary flex-1 py-2.5 text-sm">Cancelar</button>
         <button type="submit" class="btn-primary flex-1 py-2.5 text-sm">Guardar</button>
       </div>
     </form>
@@ -582,16 +618,17 @@ const STORAGE_KEY = 'saten-app-data-v2';
 
 let appData = {
   products: [
-    { id:'p1', name:"Gorro Doble Faz Reversible", fabric:1.50, extras:0.30, labor:1.50, price:9.00, stock:8, lowStock:3, photo:'' },
-    { id:'p2', name:"Colita de Satén (Scrunchie)", fabric:0.20, extras:0.05, labor:0.30, price:2.00, stock:25, lowStock:5, photo:'' },
-    { id:'p3', name:"Gorro Extra Ancho (Rizado)", fabric:1.20, extras:0.25, labor:1.20, price:7.50, stock:5, lowStock:3, photo:'' }
+    { id:'p1', name:"Gorro Doble Faz Reversible", fabricId:'f-default', fabricMeters:0.38, extras:0.30, labor:1.50, price:9.00, stock:8, lowStock:3, photo:'' },
+    { id:'p2', name:"Colita de Satén (Scrunchie)", fabricId:'f-default', fabricMeters:0.05, extras:0.05, labor:0.30, price:2.00, stock:25, lowStock:5, photo:'' },
+    { id:'p3', name:"Gorro Extra Ancho (Rizado)", fabricId:'f-default', fabricMeters:0.30, extras:0.25, labor:1.20, price:7.50, stock:5, lowStock:3, photo:'' }
   ],
   clients: [],
   sales: [],
   orders: [],
   expenses: [],
   batches: [],
-  settings: { darkMode:false, pin:null, lowStockDefault:3 },
+  settings: { darkMode:false, pin:null, lowStockDefault:3, fabricPricePerMeter:4.00 },
+  fabrics: [{ id:'f-default', name:'Tela principal', pricePerMeter:4.00 }],
   rates: { usdBcv:null, eurBcv:null, binanceP2P:null, updatedAt:null }
 };
 
@@ -610,6 +647,11 @@ async function initStorage(){
       appData = Object.assign(appData, loaded);
       if(!appData.rates) appData.rates = { usdBcv:null, eurBcv:null, binanceP2P:null, updatedAt:null };
       if(!appData.orders) appData.orders = [];
+      if(!appData.settings.fabricPricePerMeter) appData.settings.fabricPricePerMeter = 4.00;
+      if(!appData.fabrics || appData.fabrics.length===0){
+        appData.fabrics = [{ id:'f-default', name:'Tela principal', pricePerMeter: appData.settings.fabricPricePerMeter }];
+        appData.products.forEach(p=>{ if(p.fabricMeters!=null && !p.fabricId){ p.fabricId = 'f-default'; } });
+      }
     }
   }catch(e){ console.log('Sin datos guardados aún, usando datos de ejemplo.'); }
   applyDarkMode();
@@ -820,6 +862,7 @@ function renderAll(){
   renderSaleClientOptions();
   renderSalesItemRows();
   updateSaleCurrencyOptions();
+  renderFabricsList();
   renderProductsGrid();
   renderInventoryList();
   renderBatchesList();
@@ -831,7 +874,15 @@ function renderAll(){
   document.getElementById('settings-low-stock').value = appData.settings.lowStockDefault;
 }
 
-function getCost(p){ return p.fabric + p.extras + p.labor; }
+function getFabricCost(p){
+  if(p.fabricId){
+    const f = appData.fabrics.find(x=>x.id===p.fabricId);
+    if(f) return (f.pricePerMeter||0) * (p.fabricMeters||0);
+  }
+  if(p.fabricMeters!=null) return (appData.settings.fabricPricePerMeter||0) * p.fabricMeters;
+  return p.fabric||0;
+}
+function getCost(p){ return getFabricCost(p) + p.extras + p.labor; }
 
 function lowStockProducts(){
   return appData.products.filter(p => p.stock <= (p.lowStock ?? appData.settings.lowStockDefault));
@@ -1284,6 +1335,7 @@ function renderProductsGrid(){
   appData.products.forEach(p=>{
     const cost = getCost(p);
     const margin = p.price - cost;
+    const fabricName = appData.fabrics.find(f=>f.id===p.fabricId)?.name || 'Tela';
     const low = p.stock <= (p.lowStock ?? appData.settings.lowStockDefault);
     grid.innerHTML += `<div class="surface-alt p-4 rounded-2xl flex flex-col justify-between space-y-3 anim-item">
       <div>
@@ -1292,7 +1344,7 @@ function renderProductsGrid(){
           <span class="${low?'bg-danger-soft':'bg-accent-soft'} text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap">Stock: ${p.stock}</span>
         </div>
         <div class="mt-3 grid grid-cols-2 gap-2 text-xs t-secondary bg-surface p-3 rounded-xl border b">
-          <div>Tela: <span class="font-medium t-primary">${fmt(p.fabric)}</span></div>
+          <div>${fabricName} (${(p.fabricMeters!=null?p.fabricMeters:0)}m): <span class="font-medium t-primary">${fmt(getFabricCost(p))}</span></div>
           <div>Insumos: <span class="font-medium t-primary">${fmt(p.extras)}</span></div>
           <div>Mano de obra: <span class="font-medium t-primary">${fmt(p.labor)}</span></div>
           <div>Costo total: <span class="font-medium" style="color:var(--danger)">${fmt(cost)}</span></div>
@@ -1339,15 +1391,81 @@ async function updateStock(id, change){
   renderAll();
 }
 
+function renderFabricsList(){
+  const list = document.getElementById('fabrics-list');
+  if(!list) return;
+  if(appData.fabrics.length===0){ list.innerHTML = '<p class="text-sm t-muted">No hay tipos de tela cargados.</p>'; return; }
+  list.innerHTML = appData.fabrics.map(f=>{
+    const usedBy = appData.products.filter(p=>p.fabricId===f.id).length;
+    return `<div class="flex items-center justify-between surface-alt p-3 rounded-2xl anim-item">
+      <div>
+        <p class="text-sm font-medium">${f.name}</p>
+        <p class="text-xs t-muted">${fmt(f.pricePerMeter)} el metro${usedBy>0 ? ` · usada en ${usedBy} producto${usedBy>1?'s':''}` : ''}</p>
+      </div>
+      <div class="space-x-1">
+        <button onclick="openFabricModal('${f.id}')" class="btn-secondary p-2 text-xs"><span class="msi" style="font-size:15px">edit</span></button>
+        <button onclick="deleteFabric('${f.id}')" class="btn-secondary p-2 text-xs" style="color:var(--danger)"><span class="msi" style="font-size:15px">delete</span></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openFabricModal(id=null){
+  document.getElementById('fabric-form').reset();
+  if(id){
+    const f = appData.fabrics.find(x=>x.id===id);
+    document.getElementById('fabric-modal-title').innerText='Editar tela';
+    document.getElementById('fabric-index').value=id;
+    document.getElementById('fabric-name').value=f.name;
+    document.getElementById('fabric-price').value=f.pricePerMeter;
+  } else {
+    document.getElementById('fabric-modal-title').innerText='Nueva tela';
+    document.getElementById('fabric-index').value='';
+  }
+  openModal('fabric-modal');
+}
+
+async function handleFabricSubmit(e){
+  e.preventDefault();
+  const id = document.getElementById('fabric-index').value;
+  const fabric = {
+    id: id || uid(),
+    name: document.getElementById('fabric-name').value,
+    pricePerMeter: parseFloat(document.getElementById('fabric-price').value)
+  };
+  if(id){ const idx = appData.fabrics.findIndex(x=>x.id===id); appData.fabrics[idx]=fabric; showAlert('Tela actualizada'); }
+  else { appData.fabrics.push(fabric); showAlert('Tela agregada'); }
+  await saveData();
+  closeModal('fabric-modal');
+  renderAll();
+}
+
+async function deleteFabric(id){
+  const usedBy = appData.products.filter(p=>p.fabricId===id).length;
+  const msg = usedBy>0
+    ? `Esta tela la usan ${usedBy} producto${usedBy>1?'s':''}. Si la eliminás, esos productos quedan sin costo de tela hasta que les asignes otra. ¿Seguro que querés eliminarla?`
+    : '¿Seguro que querés eliminar este tipo de tela?';
+  const ok = await askConfirm(msg);
+  if(!ok) return;
+  appData.fabrics = appData.fabrics.filter(x=>x.id!==id);
+  await saveData();
+  renderAll();
+  showAlert('Tela eliminada','error');
+}
+
 function openProductModal(id=null){
   document.getElementById('product-form').reset();
+  const fabricSel = document.getElementById('prod-fabric-type');
+  fabricSel.innerHTML = appData.fabrics.map(f=>`<option value="${f.id}">${f.name} (${fmt(f.pricePerMeter)}/m)</option>`).join('');
   if(id){
     const p = appData.products.find(x=>x.id===id);
     document.getElementById('modal-title').innerText='Editar producto';
     document.getElementById('prod-index').value=id;
     document.getElementById('prod-name').value=p.name;
     document.getElementById('prod-photo').value=p.photo||'';
-    document.getElementById('prod-fabric').value=p.fabric;
+    if(p.fabricId) fabricSel.value = p.fabricId;
+    const meters = p.fabricMeters!=null ? p.fabricMeters : (appData.settings.fabricPricePerMeter ? (p.fabric||0)/appData.settings.fabricPricePerMeter : 0);
+    document.getElementById('prod-fabric-meters').value = meters.toFixed(2);
     document.getElementById('prod-extras').value=p.extras;
     document.getElementById('prod-labor').value=p.labor;
     document.getElementById('prod-price').value=p.price;
@@ -1356,9 +1474,20 @@ function openProductModal(id=null){
   } else {
     document.getElementById('modal-title').innerText='Nuevo producto';
     document.getElementById('prod-index').value='';
+    document.getElementById('prod-fabric-meters').value=0;
     document.getElementById('prod-lowstock').value=appData.settings.lowStockDefault;
   }
+  updateFabricCostPreview();
   openModal('product-modal');
+}
+
+function updateFabricCostPreview(){
+  const meters = parseFloat(document.getElementById('prod-fabric-meters').value) || 0;
+  const fabricId = document.getElementById('prod-fabric-type').value;
+  const fabric = appData.fabrics.find(f=>f.id===fabricId);
+  const price = fabric ? fabric.pricePerMeter : 0;
+  const cost = meters * price;
+  document.getElementById('fabric-cost-preview').innerText = `Costo de tela: ${fmt(cost)} (a ${fmt(price)} el metro)`;
 }
 
 async function handleProductSubmit(e){
@@ -1368,7 +1497,8 @@ async function handleProductSubmit(e){
     id: id || uid(),
     name: document.getElementById('prod-name').value,
     photo: document.getElementById('prod-photo').value,
-    fabric: parseFloat(document.getElementById('prod-fabric').value),
+    fabricId: document.getElementById('prod-fabric-type').value,
+    fabricMeters: parseFloat(document.getElementById('prod-fabric-meters').value),
     extras: parseFloat(document.getElementById('prod-extras').value),
     labor: parseFloat(document.getElementById('prod-labor').value),
     price: parseFloat(document.getElementById('prod-price').value),
@@ -1737,8 +1867,11 @@ function exportToExcel(){
     const rateLabel = s.rateType==='BCV_USD' ? 'BCV Dólar' : s.rateType==='BCV_EUR' ? 'BCV Euro' : s.rateType==='BINANCE_P2P' ? 'Binance P2P' : '';
     csv += `${displayDate(s.dateIso)},"${items}",${client?client.name:'Sin cliente'},${s.status},${s.payment},${s.total},${rateLabel},${s.totalVES?s.totalVES.toFixed(2):''}\n`;
   });
-  csv += "\n--- CATÁLOGO Y COSTOS ---\nProducto,Tela,Insumos,Mano de obra,Precio,Stock\n";
-  appData.products.forEach(p=>{ csv += `"${p.name}",${p.fabric},${p.extras},${p.labor},${p.price},${p.stock}\n`; });
+  csv += "\n--- CATÁLOGO Y COSTOS ---\nProducto,Tipo de tela,Metros de tela,Costo Tela,Insumos,Mano de obra,Precio,Stock\n";
+  appData.products.forEach(p=>{
+    const fabricName = appData.fabrics.find(f=>f.id===p.fabricId)?.name || '';
+    csv += `"${p.name}","${fabricName}",${p.fabricMeters!=null?p.fabricMeters:''},${getFabricCost(p).toFixed(2)},${p.extras},${p.labor},${p.price},${p.stock}\n`;
+  });
   csv += "\n--- GASTOS ---\nFecha,Concepto,Categoría,Monto\n";
   appData.expenses.forEach(e=>{ csv += `${displayDate(e.dateIso)},"${e.concept}",${e.category},${e.amount}\n`; });
   const link = document.createElement('a');
@@ -1764,7 +1897,7 @@ function importBackup(event){
   reader.onload = async function(e){
     try{
       const imported = JSON.parse(e.target.result);
-      appData = Object.assign({products:[],clients:[],sales:[],expenses:[],batches:[],settings:{darkMode:false,pin:null,lowStockDefault:3}}, imported);
+      appData = Object.assign({products:[],clients:[],sales:[],expenses:[],batches:[],settings:{darkMode:false,pin:null,lowStockDefault:3,fabricPricePerMeter:4.00}}, imported);
       await saveData();
       applyDarkMode();
       renderAll();
