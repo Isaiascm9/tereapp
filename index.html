@@ -1615,6 +1615,7 @@ function renderProductsGrid(){
         </div>
         <div class="space-x-1">
           <button onclick="openProductModal('${p.id}')" class="btn-secondary p-2 text-xs"><span class="msi" style="font-size:15px">edit</span></button>
+          <button onclick="duplicateProduct('${p.id}')" class="btn-secondary p-2 text-xs"><span class="msi" style="font-size:15px">content_copy</span></button>
           <button onclick="deleteProduct('${p.id}')" class="btn-secondary p-2 text-xs" style="color:var(--danger)"><span class="msi" style="font-size:15px">delete</span></button>
         </div>
       </div>
@@ -1710,7 +1711,13 @@ async function deleteFabric(id){
   showAlert('Tela eliminada','error');
 }
 
-function openProductModal(id=null){
+function duplicateProduct(id){
+  const p = appData.products.find(x=>x.id===id);
+  if(!p) return;
+  openProductModal(null, p);
+}
+
+function openProductModal(id=null, duplicateFrom=null){
   document.getElementById('product-form').reset();
   const fabricSel = document.getElementById('prod-fabric-type');
   fabricSel.innerHTML = appData.fabrics.map(f=>`<option value="${f.id}">${f.name} (${fmt(f.pricePerMeter)}/m)</option>`).join('');
@@ -1728,6 +1735,18 @@ function openProductModal(id=null){
     document.getElementById('prod-price').value=p.price;
     document.getElementById('prod-stock').value=p.stock;
     document.getElementById('prod-lowstock').value=p.lowStock ?? appData.settings.lowStockDefault;
+  } else if(duplicateFrom){
+    document.getElementById('modal-title').innerText='Duplicar producto';
+    document.getElementById('prod-index').value='';
+    document.getElementById('prod-name').value=duplicateFrom.name+' (copia)';
+    document.getElementById('prod-photo').value=duplicateFrom.photo||'';
+    if(duplicateFrom.fabricId) fabricSel.value = duplicateFrom.fabricId;
+    document.getElementById('prod-fabric-meters').value=(duplicateFrom.fabricMeters||0).toFixed(2);
+    document.getElementById('prod-extras').value=duplicateFrom.extras;
+    document.getElementById('prod-labor').value=duplicateFrom.labor;
+    document.getElementById('prod-price').value=duplicateFrom.price;
+    document.getElementById('prod-stock').value=0;
+    document.getElementById('prod-lowstock').value=duplicateFrom.lowStock ?? appData.settings.lowStockDefault;
   } else {
     document.getElementById('modal-title').innerText='Nuevo producto';
     document.getElementById('prod-index').value='';
