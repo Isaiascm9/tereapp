@@ -241,6 +241,10 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
+        <label class="block text-xs font-medium t-muted uppercase mb-1">Fecha de la venta</label>
+        <input type="date" id="sale-date" class="input">
+      </div>
+      <div>
         <label class="block text-xs font-medium t-muted uppercase mb-1">Cliente</label>
         <div class="flex gap-1.5">
           <select id="sale-client" class="input flex-1"></select>
@@ -1145,7 +1149,7 @@ async function handleMultiSaleSubmit(){
 
   const sale = {
     id: uid(),
-    dateIso: todayIso(),
+    dateIso: document.getElementById('sale-date').value || todayIso(),
     items: itemsSummary,
     total: finalTotal,
     totalCost, totalProfit,
@@ -1159,10 +1163,12 @@ async function handleMultiSaleSubmit(){
     totalVES: rate ? finalTotal*rate.value : null
   };
   appData.sales.unshift(sale);
+  appData.sales.sort((a,b)=> b.dateIso.localeCompare(a.dateIso));
   await saveData();
 
   currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
   document.getElementById('sale-discount').value=0;
+  document.getElementById('sale-date').value=todayIso();
   document.getElementById('sale-currency').value='USD';
   document.getElementById('sale-notes').value='';
   document.getElementById('sale-due-date').value='';
@@ -1421,6 +1427,7 @@ async function handleGenerateOrder(){
 
   currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
   document.getElementById('sale-discount').value=0;
+  document.getElementById('sale-date').value=todayIso();
   document.getElementById('sale-currency').value='USD';
   document.getElementById('sale-notes').value='';
   document.getElementById('sale-due-date').value='';
@@ -1568,6 +1575,7 @@ function cancelOrderEdit(){
   editingOrderId = null;
   currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
   document.getElementById('sale-discount').value=0;
+  document.getElementById('sale-date').value=todayIso();
   document.getElementById('sale-currency').value='USD';
   document.getElementById('sale-notes').value='';
   document.getElementById('sale-due-date').value='';
@@ -2305,6 +2313,7 @@ function importBackup(event){
   event.target.value = '';
 }
 
+document.getElementById('sale-date').value = todayIso();
 setReportPeriod('monthly');
 </script>
 
