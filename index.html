@@ -2414,7 +2414,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -2448,8 +2448,24 @@ setReportPeriod('monthly');
 
   window.dbLoad = async function(){
     if(!authReady) throw new Error('Firebase todavía no está listo');
-    const snap = await getDoc(DOC_REF);
-    return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
+    if(!navigator.onLine){
+      const snap = await getDocFromCache(DOC_REF);
+      return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
+    }
+    try{
+      const snap = await Promise.race([
+        getDoc(DOC_REF),
+        new Promise((_, reject) => setTimeout(()=>reject(new Error('timeout')), 6000))
+      ]);
+      return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
+    }catch(e){
+      try{
+        const cacheSnap = await getDocFromCache(DOC_REF);
+        return { exists: cacheSnap.exists(), data: cacheSnap.exists() ? cacheSnap.data() : null };
+      }catch(cacheErr){
+        throw e;
+      }
+    }
   };
 
   window.dbSaveCatalog = async function(data){
