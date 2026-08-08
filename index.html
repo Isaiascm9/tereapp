@@ -118,7 +118,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <h1 class="text-xl font-medium">Téreapp</h1>
     </div>
     <div class="flex items-center space-x-2">
-      <span id="sync-status" class="hidden sm:flex text-xs px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2)">
+      <span id="sync-status" class="flex text-xs px-2 sm:px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2)">
         <span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado
       </span>
       <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2 rounded-lg"><span class="msi" id="dark-icon">dark_mode</span></button>
@@ -423,7 +423,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
         <button onclick="removePin()" class="btn-secondary text-xs px-3 py-2">Quitar PIN</button>
       </div>
     </div>
-    <div class="py-2 space-y-2">
+    <div class="py-2 space-y-2 border-b b">
       <p class="text-sm font-medium">Copia de seguridad</p>
       <p class="text-xs t-muted">Exportá todos tus datos a un archivo, o restauralos en otro dispositivo.</p>
       <div class="flex gap-2 flex-wrap">
@@ -432,6 +432,14 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
           <span class="msi" style="font-size:16px">upload</span>Importar respaldo
           <input type="file" accept=".json" class="hidden" onchange="importBackup(event)">
         </label>
+      </div>
+    </div>
+    <div class="py-2 space-y-2">
+      <p class="text-sm font-medium">Archivar período</p>
+      <p class="text-xs t-muted">Descarga un respaldo en PDF y Excel de las ventas, gastos y lotes anteriores a la fecha elegida, y los elimina del documento activo (así se mantiene liviano). El catálogo, clientes, stock y pedidos preliminares no se tocan.</p>
+      <div class="flex gap-2 items-center flex-wrap">
+        <input type="date" id="archive-date" class="input w-44">
+        <button onclick="archivePeriod()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">archive</span>Generar respaldo y archivar</button>
       </div>
     </div>
   </div>
@@ -1878,6 +1886,107 @@ function exportToExcel(){
   link.setAttribute('download','reporte_tereapp.csv');
   document.body.appendChild(link); link.click(); document.body.removeChild(link);
   showAlert('Reporte exportado');
+}
+
+function buildArchivePdf(candidates, cutoff){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 18;
+  doc.setFontSize(16); doc.text('Respaldo de archivo - Téreapp', 14, y); y+=7;
+  doc.setFontSize(10); doc.setTextColor(90);
+  doc.text(`Registros anteriores al ${displayDate(cutoff)}`, 14, y); y+=10;
+  doc.setTextColor(20);
+
+  const totalSales = candidates.sales.reduce((a,s)=>a+s.total,0);
+  const totalProfit = candidates.sales.reduce((a,s)=>a+s.totalProfit,0);
+  const totalExpenses = candidates.expenses.reduce((a,e)=>a+e.amount,0);
+  doc.setFontSize(12); doc.text('Resumen', 14, y); y+=6;
+  doc.setFontSize(10);
+  doc.text(`Ventas: ${candidates.sales.length} — Total: ${fmt(totalSales)}`, 14, y); y+=5.5;
+  doc.text(`Ganancia bruta: ${fmt(totalProfit)}`, 14, y); y+=5.5;
+  doc.text(`Gastos: ${candidates.expenses.length} — Total: ${fmt(totalExpenses)}`, 14, y); y+=5.5;
+  doc.text(`Lotes de producción: ${candidates.batches.length}`, 14, y); y+=10;
+
+  doc.setFontSize(12); doc.text('Detalle de ventas', 14, y); y+=6;
+  doc.setFontSize(9);
+  if(candidates.sales.length===0){ doc.text('Sin ventas.', 14, y); y+=5; }
+  candidates.sales.forEach(s=>{
+    if(y>280){ doc.addPage(); y=18; }
+    const client = appData.clients.find(c=>c.id===s.clientId);
+    doc.text(`${displayDate(s.dateIso)} — ${client?client.name:'Sin cliente'} — ${s.status} — ${fmt(s.total)}`, 14, y); y+=5;
+  });
+
+  y+=6;
+  if(y>260){ doc.addPage(); y=18; }
+  doc.setFontSize(12); doc.text('Detalle de gastos', 14, y); y+=6;
+  doc.setFontSize(9);
+  if(candidates.expenses.length===0){ doc.text('Sin gastos.', 14, y); y+=5; }
+  candidates.expenses.forEach(e=>{
+    if(y>280){ doc.addPage(); y=18; }
+    doc.text(`${displayDate(e.dateIso)} — ${e.concept} (${e.category}) — ${fmt(e.amount)}`, 14, y); y+=5;
+  });
+
+  y+=6;
+  if(y>260){ doc.addPage(); y=18; }
+  doc.setFontSize(12); doc.text('Lotes de producción', 14, y); y+=6;
+  doc.setFontSize(9);
+  if(candidates.batches.length===0){ doc.text('Sin lotes.', 14, y); y+=5; }
+  candidates.batches.forEach(b=>{
+    if(y>280){ doc.addPage(); y=18; }
+    doc.text(`${displayDate(b.dateIso)} — ${b.productName} x${b.qty} — ${fmt(b.cost)}`, 14, y); y+=5;
+  });
+
+  doc.save(`archivo_tereapp_hasta_${cutoff}.pdf`);
+}
+
+function buildArchiveExcel(candidates, cutoff){
+  const wb = XLSX.utils.book_new();
+
+  const salesRows = [['Fecha','Cliente','Productos','Estado','Pago','Total USD','Total Bs']];
+  candidates.sales.forEach(s=>{
+    const client = appData.clients.find(c=>c.id===s.clientId);
+    const items = s.items.map(it=>`${it.qty}x ${it.name}`).join(' | ');
+    salesRows.push([displayDate(s.dateIso), client?client.name:'Sin cliente', items, s.status, s.payment, s.total, s.totalVES||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(salesRows), 'Ventas');
+
+  const expRows = [['Fecha','Concepto','Categoría','Monto']];
+  candidates.expenses.forEach(e=> expRows.push([displayDate(e.dateIso), e.concept, e.category, e.amount]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expRows), 'Gastos');
+
+  const batchRows = [['Fecha','Producto','Cantidad','Costo']];
+  candidates.batches.forEach(b=> batchRows.push([displayDate(b.dateIso), b.productName, b.qty, b.cost]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(batchRows), 'Lotes');
+
+  XLSX.writeFile(wb, `archivo_tereapp_hasta_${cutoff}.xlsx`);
+}
+
+async function archivePeriod(){
+  const cutoff = document.getElementById('archive-date').value;
+  if(!cutoff){ showAlert('Elegí una fecha', 'error'); return; }
+  if(!window.jspdf || !window.XLSX){ showAlert('No se pudieron cargar los generadores de archivo', 'error'); return; }
+
+  const candidates = {
+    sales: appData.sales.filter(s=>s.dateIso<cutoff),
+    expenses: appData.expenses.filter(e=>e.dateIso<cutoff),
+    batches: appData.batches.filter(b=>b.dateIso<cutoff)
+  };
+  const total = candidates.sales.length + candidates.expenses.length + candidates.batches.length;
+  if(total===0){ showAlert('No hay registros anteriores a esa fecha', 'error'); return; }
+
+  const ok = await askConfirm(`Se va a descargar un respaldo y luego eliminar ${candidates.sales.length} ventas, ${candidates.expenses.length} gastos y ${candidates.batches.length} lotes anteriores al ${displayDate(cutoff)}. El catálogo, clientes, stock y pedidos preliminares NO se tocan. ¿Confirmás?`);
+  if(!ok) return;
+
+  buildArchivePdf(candidates, cutoff);
+  buildArchiveExcel(candidates, cutoff);
+
+  appData.sales = appData.sales.filter(s=>s.dateIso>=cutoff);
+  appData.expenses = appData.expenses.filter(e=>e.dateIso>=cutoff);
+  appData.batches = appData.batches.filter(b=>b.dateIso>=cutoff);
+  await saveData();
+  renderAll();
+  document.getElementById('archive-date').value='';
+  showAlert('Período archivado y respaldo descargado');
 }
 
 function exportBackup(){
