@@ -614,8 +614,6 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 </div>
 
 <script>
-const STORAGE_KEY = 'saten-app-data-v2';
-
 let appData = {
   products: [
     { id:'p1', name:"Gorro Doble Faz Reversible", fabricId:'f-default', fabricMeters:0.38, extras:0.30, labor:1.50, price:9.00, stock:8, lowStock:3, photo:'' },
@@ -639,11 +637,13 @@ function todayIso(){ return isoDate(new Date()); }
 function monthKey(iso){ return iso.slice(0,7); }
 function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString(); }
 
+let storageInitialized = false;
 async function initStorage(){
+  if(storageInitialized) return;
+  storageInitialized = true;
   try{
-    const result = await window.storage.get(STORAGE_KEY);
-    if(result && result.value){
-      const loaded = JSON.parse(result.value);
+    const loaded = await window.dbLoad();
+    if(loaded){
       appData = Object.assign(appData, loaded);
       if(!appData.rates) appData.rates = { usdBcv:null, eurBcv:null, binanceP2P:null, updatedAt:null };
       if(!appData.orders) appData.orders = [];
@@ -653,7 +653,7 @@ async function initStorage(){
         appData.products.forEach(p=>{ if(p.fabricMeters!=null && !p.fabricId){ p.fabricId = 'f-default'; } });
       }
     }
-  }catch(e){ console.log('Sin datos guardados aún, usando datos de ejemplo.'); }
+  }catch(e){ console.log('Sin datos guardados aún, usando datos de ejemplo.', e); }
   applyDarkMode();
   if(appData.settings.pin){ showPinLock(); } else { document.getElementById('pin-overlay').classList.add('hidden'); }
   renderAll();
@@ -776,11 +776,10 @@ function getSelectedRate(){
 
 async function saveData(){
   try{
-    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(appData));
-    const el = document.getElementById('sync-status');
-    if(result){ el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado'; }
-    else throw new Error('null result');
+    await window.dbSave(appData);
+    document.getElementById('sync-status').innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado';
   }catch(e){
+    console.error('Error al guardar en Firebase:', e);
     document.getElementById('sync-status').innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Error al guardar';
   }
 }
@@ -1909,7 +1908,53 @@ function importBackup(event){
 }
 
 setReportPeriod('monthly');
-initStorage();
+</script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
+    authDomain: "control-de-ventas-y-stock.firebaseapp.com",
+    projectId: "control-de-ventas-y-stock",
+    storageBucket: "control-de-ventas-y-stock.firebasestorage.app",
+    messagingSenderId: "685310518301",
+    appId: "1:685310518301:web:c1cf15c1ceffc4033f92f4"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const DOC_REF = doc(db, 'tereapp', 'data');
+  let authReady = false;
+
+  window.dbSave = async function(data){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await setDoc(DOC_REF, data);
+    return true;
+  };
+
+  window.dbLoad = async function(){
+    if(!authReady) return null;
+    const snap = await getDoc(DOC_REF);
+    return snap.exists() ? snap.data() : null;
+  };
+
+  onAuthStateChanged(auth, (user) => {
+    if(user){
+      authReady = true;
+      if(window.initStorage) window.initStorage();
+    }
+  });
+
+  signInAnonymously(auth).catch((err) => {
+    console.error('Error de autenticación Firebase:', err);
+    const el = document.getElementById('sync-status');
+    if(el) el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión a Firebase';
+    if(window.initStorage) window.initStorage();
+  });
 </script>
 </body>
 </html>
