@@ -340,7 +340,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">pending_actions</span>Pedidos preliminares</h2>
       <button onclick="switchTab('sales')" class="btn-primary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add</span>Nuevo pedido</button>
     </div>
-    <p class="text-xs t-muted mb-4">Los pedidos preliminares son cotizaciones que aún no descuentan stock. Enviaselos al cliente por WhatsApp y, cuando confirme, convertilos en venta.</p>
+    <p class="text-xs t-muted mb-4">Al generar un pedido, el stock queda apartado automáticamente. Enviaselo al cliente por WhatsApp y, cuando pague, confirmalo como venta. Si lo eliminás, el stock apartado se devuelve.</p>
     <div class="space-y-3" id="orders-list"></div>
   </div>
 </section>
@@ -1358,10 +1358,28 @@ function toggleDueDateField(){
 }
 
 async function handleGenerateOrder(){
-  for(const item of currentSaleItems){
-    const p = appData.products.find(x=>x.id===item.productId);
-    if(!p || p.stock < item.qty){ showAlert(`No hay suficiente stock de "${p?p.name:''}"`, 'error'); return; }
+  const oldOrder = editingOrderId ? appData.orders.find(o=>o.id===editingOrderId) : null;
+  const oldQtyMap = {};
+  if(oldOrder) oldOrder.items.forEach(it=>{ oldQtyMap[it.productId] = (oldQtyMap[it.productId]||0) + it.qty; });
+  const newQtyMap = {};
+  currentSaleItems.forEach(it=>{ newQtyMap[it.productId] = (newQtyMap[it.productId]||0) + it.qty; });
+  const allProductIds = [...new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)])];
+
+  for(const pid of allProductIds){
+    const product = appData.products.find(p=>p.id===pid);
+    if(!product){ showAlert('Uno de los productos ya no existe en el catálogo', 'error'); return; }
+    const oldQty = oldQtyMap[pid]||0;
+    const newQty = newQtyMap[pid]||0;
+    const resultingStock = product.stock + oldQty - newQty;
+    if(resultingStock < 0){ showAlert(`No hay suficiente stock de "${product.name}"`, 'error'); return; }
   }
+  allProductIds.forEach(pid=>{
+    const product = appData.products.find(p=>p.id===pid);
+    const oldQty = oldQtyMap[pid]||0;
+    const newQty = newQtyMap[pid]||0;
+    product.stock = product.stock + oldQty - newQty;
+  });
+
   let itemsSummary=[], total=0, totalCost=0;
   currentSaleItems.forEach(item=>{
     const p = appData.products.find(x=>x.id===item.productId);
@@ -1493,15 +1511,10 @@ function sendOrderWhatsapp(id){
 async function confirmOrderAsSale(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order) return;
-  for(const it of order.items){
-    const p = appData.products.find(x=>x.id===it.productId);
-    if(!p || p.stock < it.qty){ showAlert(`No hay suficiente stock de "${p?p.name:''}" para confirmar este pedido`, 'error'); return; }
-  }
   let totalCost=0;
   order.items.forEach(it=>{
     const p = appData.products.find(x=>x.id===it.productId);
-    p.stock -= it.qty;
-    totalCost += getCost(p)*it.qty;
+    totalCost += p ? getCost(p)*it.qty : it.cost*it.qty;
   });
   const sale = {
     id: uid(),
@@ -1578,12 +1591,19 @@ function closeConfirmDialog(result){
 }
 
 async function deleteOrder(id){
-  const ok = await askConfirm('¿Seguro que querés eliminar este pedido? Esta acción no se puede deshacer.');
+  const order = appData.orders.find(o=>o.id===id);
+  const ok = await askConfirm('¿Seguro que querés eliminar este pedido? Esta acción no se puede deshacer. El stock apartado se va a devolver.');
   if(!ok) return;
+  if(order){
+    order.items.forEach(it=>{
+      const p = appData.products.find(x=>x.id===it.productId);
+      if(p) p.stock += it.qty;
+    });
+  }
   appData.orders = appData.orders.filter(o=>o.id!==id);
   await saveData();
   renderAll();
-  showAlert('Pedido eliminado','error');
+  showAlert('Pedido eliminado y stock devuelto','error');
 }
 
 function renderProductsGrid(){
