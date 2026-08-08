@@ -2414,7 +2414,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -2432,9 +2432,9 @@ setReportPeriod('monthly');
   const CATALOG_REF = doc(db, 'tereapp', 'catalog');
   let authReady = false;
 
-  enableIndexedDbPersistence(db).catch((err) => {
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
     if(err.code === 'failed-precondition'){
-      console.warn('Modo offline no disponible: la app está abierta en otra pestaña al mismo tiempo.');
+      console.warn('Modo offline no se pudo activar en esta pestaña.');
     } else if(err.code === 'unimplemented'){
       console.warn('Este navegador no soporta el modo offline.');
     }
@@ -2442,7 +2442,13 @@ setReportPeriod('monthly');
 
   window.dbSave = async function(data){
     if(!authReady) throw new Error('Firebase todavía no está listo');
-    await setDoc(DOC_REF, data);
+    const writePromise = setDoc(DOC_REF, data).then(()=>'done');
+    const timeoutPromise = new Promise(resolve => setTimeout(()=>resolve('timeout'), 6000));
+    const result = await Promise.race([writePromise, timeoutPromise]);
+    if(result === 'timeout'){
+      writePromise.catch(err => console.error('El guardado en la nube falló en segundo plano:', err));
+      return true;
+    }
     return true;
   };
 
