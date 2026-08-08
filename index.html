@@ -195,6 +195,14 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
     </div>
   </div>
 
+  <div id="upcoming-payments-banner" class="hidden card p-4 bg-warning-soft border-0">
+    <div class="flex items-start gap-2 mb-2">
+      <span class="msi" style="font-size:20px">event_upcoming</span>
+      <p class="font-medium text-sm">Próximos pagos</p>
+    </div>
+    <div id="upcoming-payments-list" class="space-y-1"></div>
+  </div>
+
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
     <div class="card p-5 lg:col-span-2">
       <h3 class="text-sm font-medium t-secondary mb-3">Ventas de los últimos 7 días</h3>
@@ -251,7 +259,11 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       </div>
       <div>
         <label class="block text-xs font-medium t-muted uppercase mb-1">Estado</label>
-        <select id="sale-status" class="input"><option>Pagado</option><option>Pendiente</option></select>
+        <select id="sale-status" class="input" onchange="toggleDueDateField()"><option>Pagado</option><option>Pendiente</option></select>
+      </div>
+      <div id="due-date-wrapper" class="hidden sm:col-span-2">
+        <label class="block text-xs font-medium t-muted uppercase mb-1">¿Cuándo promete pagar? (opcional)</label>
+        <input type="date" id="sale-due-date" class="input">
       </div>
       <div class="sm:col-span-2">
         <label class="block text-xs font-medium t-muted uppercase mb-1">Cobrar en</label>
@@ -581,6 +593,43 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   </div>
 </div>
 
+<div id="edit-sale-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+  <div class="card max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex justify-between items-center border-b b pb-3">
+      <h3 class="font-medium text-lg flex items-center gap-2"><span class="msi accent">edit</span>Editar venta</h3>
+      <button onclick="closeModal('edit-sale-modal')" class="t-muted"><span class="msi">close</span></button>
+    </div>
+    <div class="space-y-2">
+      <label class="block text-xs font-medium t-muted uppercase">Artículos</label>
+      <div id="edit-sale-items-container" class="space-y-2"></div>
+      <button type="button" onclick="addEditSaleItemRow()" class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add</span>Agregar producto</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Cliente</label>
+        <select id="edit-sale-client" class="input"></select></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Método de pago</label>
+        <select id="edit-sale-payment" class="input"><option>Efectivo</option><option>Transferencia</option><option>Pago Móvil</option><option>Otro</option></select></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Descuento ($)</label>
+        <input type="number" step="0.01" id="edit-sale-discount" class="input" oninput="calculateEditSaleTotal()"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Estado</label>
+        <select id="edit-sale-status" class="input"><option>Pagado</option><option>Pendiente</option></select></div>
+      <div class="sm:col-span-2"><label class="block text-xs font-medium t-muted uppercase mb-1">Cobrar en</label>
+        <select id="edit-sale-currency" class="input" onchange="calculateEditSaleTotal()"></select></div>
+      <div class="sm:col-span-2"><label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
+        <input type="text" id="edit-sale-notes" class="input"></div>
+    </div>
+    <div class="bg-accent-soft rounded-xl p-4">
+      <p class="text-xs font-medium uppercase">Total</p>
+      <h3 id="edit-sale-total" class="text-xl font-medium">$0.00</h3>
+      <p id="edit-sale-total-ves" class="text-xs t-secondary hidden"></p>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button onclick="deleteSaleFromEdit()" class="btn-secondary flex-1 py-2.5 text-sm" style="color:var(--danger)">Eliminar venta</button>
+      <button onclick="saveEditedSale()" class="btn-primary flex-1 py-2.5 text-sm">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <div id="batch-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
   <div class="card max-w-sm w-full p-6 space-y-3">
     <div class="flex justify-between items-center border-b b pb-3">
@@ -902,6 +951,34 @@ function expensesInMonth(key){
   return appData.expenses.filter(e => monthKey(e.dateIso) === key);
 }
 
+function renderUpcomingPayments(){
+  const banner = document.getElementById('upcoming-payments-banner');
+  const upcoming = appData.orders
+    .filter(o => o.status==='Pendiente' && o.dueDate)
+    .sort((a,b) => a.dueDate.localeCompare(b.dueDate));
+
+  if(upcoming.length===0){ banner.classList.add('hidden'); return; }
+  banner.classList.remove('hidden');
+
+  const today = todayIso();
+  document.getElementById('upcoming-payments-list').innerHTML = upcoming.map(o=>{
+    const client = appData.clients.find(c=>c.id===o.clientId);
+    const daysDiff = Math.round((new Date(o.dueDate+'T00:00:00') - new Date(today+'T00:00:00')) / 86400000);
+    let label, color;
+    if(daysDiff < 0){ label = `Vencido hace ${Math.abs(daysDiff)} día${Math.abs(daysDiff)!==1?'s':''} (${displayDate(o.dueDate)})`; color='color:var(--danger)'; }
+    else if(daysDiff === 0){ label = `Vence hoy`; color='color:var(--danger)'; }
+    else if(daysDiff <= 3){ label = `Vence en ${daysDiff} día${daysDiff!==1?'s':''} (${displayDate(o.dueDate)})`; color='color:var(--warning)'; }
+    else { label = `Vence el ${displayDate(o.dueDate)}`; color=''; }
+    return `<div class="flex justify-between items-center py-2 border-b b">
+      <div class="cursor-pointer flex-1" onclick="switchTab('orders')">
+        <p class="text-sm font-medium">${client ? client.name : 'Sin cliente'} — ${fmt(o.total)}</p>
+        <p class="text-xs" style="${color}">${label}</p>
+      </div>
+      <button onclick="event.stopPropagation(); confirmOrderAsSale('${o.id}')" class="btn-secondary text-xs px-2.5 py-1.5">Marcar pagado</button>
+    </div>`;
+  }).join('');
+}
+
 function renderDashboard(){
   const currentMonth = monthKey(todayIso());
   const monthSales = salesInMonth(currentMonth);
@@ -924,6 +1001,8 @@ function renderDashboard(){
     banner.classList.remove('hidden');
     document.getElementById('low-stock-list').innerText = low.map(p=>`${p.name} (quedan ${p.stock})`).join(' · ');
   } else { banner.classList.add('hidden'); }
+
+  renderUpcomingPayments();
 
   const qtyByProduct = {};
   appData.sales.forEach(s=>s.items.forEach(it=>{ qtyByProduct[it.name]=(qtyByProduct[it.name]||0)+it.qty; }));
@@ -985,12 +1064,12 @@ function renderRecentSales(){
     const itemsText = sale.items.map(it=>`<span class="bg-accent-soft px-2 py-0.5 rounded text-xs font-medium mr-1">${it.qty}x ${it.name}</span>`).join('');
     const statusBadge = sale.status==='Pagado' ? '<span class="bg-success-soft px-2 py-0.5 rounded-full text-xs font-medium">Pagado</span>' : '<span class="bg-warning-soft px-2 py-0.5 rounded-full text-xs font-medium">Pendiente</span>';
     const vesText = sale.totalVES ? `<div class="text-xs t-muted">Bs ${sale.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>` : '';
-    tbody.innerHTML += `<tr class="border-b b">
+    tbody.innerHTML += `<tr class="border-b b cursor-pointer hover:opacity-80" onclick="openSaleEditModal('${sale.id}')">
       <td class="py-3 t-muted text-xs whitespace-nowrap">${displayDate(sale.dateIso)}</td>
       <td class="py-3">${itemsText}</td>
       <td class="py-3">${statusBadge}</td>
       <td class="py-3 font-medium whitespace-nowrap" style="color:var(--success)">${fmt(sale.total)}${vesText}</td>
-      <td class="py-3 text-right"><button onclick="deleteSale('${sale.id}')" class="t-muted hover:opacity-70"><span class="msi" style="font-size:16px">delete</span></button></td>
+      <td class="py-3 text-right"><button onclick="event.stopPropagation(); deleteSale('${sale.id}')" class="t-muted hover:opacity-70"><span class="msi" style="font-size:16px">delete</span></button></td>
     </tr>`;
   });
 }
@@ -1086,18 +1165,175 @@ async function handleMultiSaleSubmit(){
   document.getElementById('sale-discount').value=0;
   document.getElementById('sale-currency').value='USD';
   document.getElementById('sale-notes').value='';
+  document.getElementById('sale-due-date').value='';
+  document.getElementById('due-date-wrapper').classList.add('hidden');
   renderAll();
   switchTab('dashboard');
   showAlert('Venta registrada y stock actualizado');
 }
 
+let editSaleId = null;
+let editSaleItems = [];
+
+function openSaleEditModal(id){
+  const sale = appData.sales.find(s=>s.id===id);
+  if(!sale) return;
+  editSaleId = id;
+  editSaleItems = sale.items.map(it=>({ productId: it.productId, qty: it.qty }));
+  renderEditSaleItemRows();
+
+  const clientSel = document.getElementById('edit-sale-client');
+  clientSel.innerHTML = '<option value="">Sin cliente</option>' + appData.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  clientSel.value = sale.clientId || '';
+  document.getElementById('edit-sale-payment').value = sale.payment;
+  document.getElementById('edit-sale-discount').value = sale.discount || 0;
+  document.getElementById('edit-sale-status').value = sale.status;
+  document.getElementById('edit-sale-notes').value = sale.notes || '';
+  updateEditSaleCurrencyOptions();
+  document.getElementById('edit-sale-currency').value = sale.rateType || 'USD';
+  calculateEditSaleTotal();
+  openModal('edit-sale-modal');
+}
+
+function updateEditSaleCurrencyOptions(){
+  const sel = document.getElementById('edit-sale-currency');
+  const r = appData.rates;
+  const current = sel.value || 'USD';
+  let options = [{ value:'USD', label:'Dólares (USD) — sin conversión' }];
+  if(r.usdBcv) options.push({ value:'BCV_USD', label:`Bolívares — Tasa BCV Dólar (Bs ${r.usdBcv.value.toFixed(2)})` });
+  if(r.eurBcv) options.push({ value:'BCV_EUR', label:`Bolívares — Tasa BCV Euro (Bs ${r.eurBcv.value.toFixed(2)})` });
+  if(r.binanceP2P) options.push({ value:'BINANCE_P2P', label:`Bolívares — Tasa Binance P2P (Bs ${r.binanceP2P.value.toFixed(2)})` });
+  sel.innerHTML = options.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
+  sel.value = options.some(o=>o.value===current) ? current : 'USD';
+}
+
+function renderEditSaleItemRows(){
+  const container = document.getElementById('edit-sale-items-container');
+  container.innerHTML='';
+  if(appData.products.length===0){ container.innerHTML = '<p class="text-xs" style="color:var(--danger)">No hay productos en el catálogo.</p>'; return; }
+  editSaleItems.forEach((item,idx)=>{
+    if(!item.productId || !appData.products.find(p=>p.id===item.productId)) item.productId = appData.products[0].id;
+    const prod = appData.products.find(p=>p.id===item.productId);
+    const options = appData.products.map(p=>`<option value="${p.id}" ${p.id===item.productId?'selected':''}>${p.name} (Stock: ${p.stock}) - ${fmt(p.price)}</option>`).join('');
+    const row = document.createElement('div');
+    row.className = 'flex flex-col sm:flex-row items-stretch sm:items-center gap-2 surface-alt p-3 rounded-xl';
+    row.innerHTML = `
+      <div class="flex-1"><select onchange="updateEditSaleRowProduct(${idx}, this.value)" class="input py-2 text-xs">${options}</select></div>
+      <div class="flex items-center gap-2">
+        <input type="number" min="1" value="${item.qty}" onchange="updateEditSaleRowQty(${idx}, this.value)" class="input py-2 text-xs text-center w-20 sm:w-16">
+        <div class="flex-1 sm:w-20 text-right font-medium text-xs">${fmt(prod.price*item.qty)}</div>
+        <button type="button" onclick="removeEditSaleRow(${idx})" class="t-muted hover:opacity-70"><span class="msi" style="font-size:18px">delete</span></button>
+      </div>`;
+    container.appendChild(row);
+  });
+  calculateEditSaleTotal();
+}
+function addEditSaleItemRow(){ if(appData.products.length===0) return; editSaleItems.push({productId:appData.products[0].id, qty:1}); renderEditSaleItemRows(); }
+function removeEditSaleRow(idx){ if(editSaleItems.length===1){ showAlert('Debe quedar al menos un artículo', 'error'); return; } editSaleItems.splice(idx,1); renderEditSaleItemRows(); }
+function updateEditSaleRowProduct(idx,id){ editSaleItems[idx].productId=id; renderEditSaleItemRows(); }
+function updateEditSaleRowQty(idx,qty){ editSaleItems[idx].qty = parseInt(qty)||1; renderEditSaleItemRows(); }
+
+function calculateEditSaleTotal(){
+  let total=0;
+  editSaleItems.forEach(item=>{ const p=appData.products.find(x=>x.id===item.productId); if(p) total += p.price*item.qty; });
+  const discount = parseFloat(document.getElementById('edit-sale-discount').value)||0;
+  const finalUsd = Math.max(0,total-discount);
+  document.getElementById('edit-sale-total').innerText = fmt(finalUsd);
+
+  const vesEl = document.getElementById('edit-sale-total-ves');
+  const currency = document.getElementById('edit-sale-currency').value;
+  const r = appData.rates;
+  let rate = null;
+  if(currency==='BCV_USD' && r.usdBcv) rate=r.usdBcv.value;
+  else if(currency==='BCV_EUR' && r.eurBcv) rate=r.eurBcv.value;
+  else if(currency==='BINANCE_P2P' && r.binanceP2P) rate=r.binanceP2P.value;
+  if(rate){ vesEl.innerText = 'Bs ' + (finalUsd*rate).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}); vesEl.classList.remove('hidden'); }
+  else vesEl.classList.add('hidden');
+}
+
+async function saveEditedSale(){
+  const sale = appData.sales.find(s=>s.id===editSaleId);
+  if(!sale) return;
+
+  const oldQtyMap = {};
+  sale.items.forEach(it=>{ oldQtyMap[it.productId] = (oldQtyMap[it.productId]||0) + it.qty; });
+  const newQtyMap = {};
+  editSaleItems.forEach(it=>{ newQtyMap[it.productId] = (newQtyMap[it.productId]||0) + it.qty; });
+  const allProductIds = [...new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)])];
+
+  for(const pid of allProductIds){
+    const product = appData.products.find(p=>p.id===pid);
+    if(!product){ showAlert('Uno de los productos ya no existe en el catálogo', 'error'); return; }
+    const oldQty = oldQtyMap[pid]||0;
+    const newQty = newQtyMap[pid]||0;
+    const resultingStock = product.stock + oldQty - newQty;
+    if(resultingStock < 0){ showAlert(`No hay suficiente stock de "${product.name}" para este cambio`, 'error'); return; }
+  }
+
+  allProductIds.forEach(pid=>{
+    const product = appData.products.find(p=>p.id===pid);
+    const oldQty = oldQtyMap[pid]||0;
+    const newQty = newQtyMap[pid]||0;
+    product.stock = product.stock + oldQty - newQty;
+  });
+
+  let total=0, totalCost=0;
+  const itemsSummary = editSaleItems.map(item=>{
+    const p = appData.products.find(x=>x.id===item.productId);
+    const cost = getCost(p);
+    total += p.price*item.qty;
+    totalCost += cost*item.qty;
+    return { productId:p.id, name:p.name, qty:item.qty, unitPrice:p.price, cost, subtotal:p.price*item.qty };
+  });
+  const discount = parseFloat(document.getElementById('edit-sale-discount').value)||0;
+  const finalTotal = Math.max(0,total-discount);
+  const totalProfit = finalTotal - totalCost;
+
+  const currency = document.getElementById('edit-sale-currency').value;
+  const r = appData.rates;
+  let rateType=null, rateValue=null;
+  if(currency==='BCV_USD' && r.usdBcv){ rateType='BCV_USD'; rateValue=r.usdBcv.value; }
+  else if(currency==='BCV_EUR' && r.eurBcv){ rateType='BCV_EUR'; rateValue=r.eurBcv.value; }
+  else if(currency==='BINANCE_P2P' && r.binanceP2P){ rateType='BINANCE_P2P'; rateValue=r.binanceP2P.value; }
+
+  sale.items = itemsSummary;
+  sale.total = finalTotal;
+  sale.totalCost = totalCost;
+  sale.totalProfit = totalProfit;
+  sale.payment = document.getElementById('edit-sale-payment').value;
+  sale.discount = discount;
+  sale.status = document.getElementById('edit-sale-status').value;
+  sale.clientId = document.getElementById('edit-sale-client').value || null;
+  sale.notes = document.getElementById('edit-sale-notes').value;
+  sale.rateType = rateType;
+  sale.rateValue = rateValue;
+  sale.totalVES = rateType ? finalTotal*rateValue : null;
+
+  await saveData();
+  closeModal('edit-sale-modal');
+  renderAll();
+  showAlert('Venta actualizada');
+}
+
+async function deleteSaleFromEdit(){
+  const deleted = await deleteSale(editSaleId);
+  if(deleted) closeModal('edit-sale-modal');
+}
+
 async function deleteSale(id){
-  const ok = await askConfirm('¿Seguro que querés eliminar esta venta? Esta acción no se puede deshacer.');
-  if(!ok) return;
+  const sale = appData.sales.find(s=>s.id===id);
+  if(!sale) return false;
+  const ok = await askConfirm('¿Seguro que querés eliminar esta venta? Esta acción no se puede deshacer. El stock de los productos vendidos se va a devolver.');
+  if(!ok) return false;
+  sale.items.forEach(it=>{
+    const p = appData.products.find(x=>x.id===it.productId);
+    if(p) p.stock += it.qty;
+  });
   appData.sales = appData.sales.filter(s=>s.id!==id);
   await saveData();
   renderAll();
-  showAlert('Venta eliminada','error');
+  showAlert('Venta eliminada y stock devuelto','error');
+  return true;
 }
 
 function getRateForInvoice(){
@@ -1112,6 +1348,13 @@ function getRateForInvoice(){
 
 function rateLabelText(type){
   return type==='BCV_USD' ? 'BCV Dólar' : type==='BCV_EUR' ? 'BCV Euro' : type==='BINANCE_P2P' ? 'Binance P2P' : '';
+}
+
+function toggleDueDateField(){
+  const status = document.getElementById('sale-status').value;
+  const wrapper = document.getElementById('due-date-wrapper');
+  if(status==='Pendiente'){ wrapper.classList.remove('hidden'); }
+  else { wrapper.classList.add('hidden'); document.getElementById('sale-due-date').value=''; }
 }
 
 async function handleGenerateOrder(){
@@ -1142,6 +1385,7 @@ async function handleGenerateOrder(){
     status: document.getElementById('sale-status').value,
     clientId: document.getElementById('sale-client').value || null,
     notes: document.getElementById('sale-notes').value,
+    dueDate: document.getElementById('sale-status').value==='Pendiente' ? (document.getElementById('sale-due-date').value || null) : null,
     rateType: rate ? rate.type : null,
     rateValue: rate ? rate.value : null,
     totalVES: rate ? finalTotal*rate.value : null
@@ -1161,6 +1405,8 @@ async function handleGenerateOrder(){
   document.getElementById('sale-discount').value=0;
   document.getElementById('sale-currency').value='USD';
   document.getElementById('sale-notes').value='';
+  document.getElementById('sale-due-date').value='';
+  document.getElementById('due-date-wrapper').classList.add('hidden');
   document.getElementById('edit-order-banner').classList.add('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">point_of_sale</span>Registrar venta';
   document.getElementById('order-submit-btn').innerHTML = '<span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar';
@@ -1293,6 +1539,8 @@ function openOrderForEdit(id){
   document.getElementById('sale-discount').value = order.discount || 0;
   document.getElementById('sale-status').value = order.status;
   document.getElementById('sale-notes').value = order.notes || '';
+  document.getElementById('sale-due-date').value = order.dueDate || '';
+  toggleDueDateField();
   document.getElementById('sale-currency').value = order.rateType || 'USD';
   calculateGrandTotal();
   document.getElementById('edit-order-banner').classList.remove('hidden');
@@ -1309,6 +1557,8 @@ function cancelOrderEdit(){
   document.getElementById('sale-discount').value=0;
   document.getElementById('sale-currency').value='USD';
   document.getElementById('sale-notes').value='';
+  document.getElementById('sale-due-date').value='';
+  document.getElementById('due-date-wrapper').classList.add('hidden');
   document.getElementById('edit-order-banner').classList.add('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">point_of_sale</span>Registrar venta';
   document.getElementById('order-submit-btn').innerHTML = '<span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar';
