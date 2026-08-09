@@ -738,7 +738,7 @@ async function initStorage(){
 
   dataLoadSafe = true;
   applyDarkMode();
-  if(appData.settings.pin){ showPinLock(); } else { document.getElementById('pin-overlay').classList.add('hidden'); }
+  if(appData.settings.pin && !isPinUnlockedRecently()){ showPinLock(); } else { document.getElementById('pin-overlay').classList.add('hidden'); }
   renderAll();
   renderRatesCard();
   fetchRates();
@@ -983,12 +983,19 @@ function applyDarkMode(){
   renderCharts();
 }
 
+const PIN_UNLOCK_WINDOW_MS = 12 * 60 * 60 * 1000;
+function isPinUnlockedRecently(){
+  const last = localStorage.getItem('tereapp-pin-unlocked-at');
+  if(!last) return false;
+  return (Date.now() - parseInt(last)) < PIN_UNLOCK_WINDOW_MS;
+}
 function showPinLock(){ const ov=document.getElementById('pin-overlay'); ov.classList.remove('hidden'); ov.classList.add('flex'); }
 function checkPin(){
   const val = document.getElementById('pin-input').value;
   if(val === appData.settings.pin){
     const ov=document.getElementById('pin-overlay'); ov.classList.add('hidden'); ov.classList.remove('flex');
     document.getElementById('pin-error').innerText='';
+    localStorage.setItem('tereapp-pin-unlocked-at', Date.now().toString());
   } else {
     document.getElementById('pin-error').innerText='PIN incorrecto';
   }
@@ -1004,6 +1011,7 @@ function setPin(){
 function removePin(){
   appData.settings.pin = null;
   saveData();
+  localStorage.removeItem('tereapp-pin-unlocked-at');
   showAlert('PIN eliminado', 'error');
 }
 
@@ -1727,8 +1735,12 @@ function renderProductsGrid(){
     const margin = p.price - cost;
     const fabricName = appData.fabrics.find(f=>f.id===p.fabricId)?.name || 'Tela';
     const low = p.stock <= (p.lowStock ?? appData.settings.lowStockDefault);
+    const photoHtml = p.photo
+      ? `<img src="${p.photo}" alt="${p.name}" class="w-full h-32 object-cover rounded-xl mb-3 bg-surface" onerror="this.onerror=null; this.replaceWith(Object.assign(document.createElement('div'), {className:'w-full h-32 rounded-xl mb-3 flex items-center justify-center bg-surface t-muted text-xs', innerText:'No se pudo cargar la imagen'}));">`
+      : `<div class="w-full h-32 rounded-xl mb-3 flex items-center justify-center bg-surface"><span class="msi t-muted" style="font-size:32px">image</span></div>`;
     grid.innerHTML += `<div class="surface-alt p-4 rounded-2xl flex flex-col justify-between space-y-3 anim-item">
       <div>
+        ${photoHtml}
         <div class="flex justify-between items-start gap-2">
           <h4 class="font-medium text-sm">${p.name}</h4>
           <span class="${low?'bg-danger-soft':'bg-accent-soft'} text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap">Stock: ${p.stock}</span>
