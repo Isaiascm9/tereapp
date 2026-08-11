@@ -23,7 +23,7 @@
             getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import {
-            getFirestore, doc, getDoc
+            getFirestore, doc, getDoc, getDocs, collection, setDoc, deleteDoc
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -39,6 +39,8 @@
         const auth = getAuth(fbApp);
         const db = getFirestore(fbApp);
         const googleProvider = new GoogleAuthProvider();
+
+        window.__terea_fb = { db, doc, getDoc, getDocs, collection, setDoc, deleteDoc };
 
         // Expone lo necesario al script normal de abajo (que no es un módulo).
         window.__terea_auth = {
@@ -575,44 +577,132 @@
             ]
         };
 
-        function loadData() {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) {
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (!parsed.categories) {
-                        parsed.categories = JSON.parse(JSON.stringify(seedData.categories));
-                    }
-                    (parsed.products || []).forEach(p => {
-                        if (!p.images) p.images = p.image ? [p.image] : [];
-                    });
-                    (parsed.boosters || []).forEach(b => {
-                        if (!b.scope) b.scope = 'producto';
-                        if (b.expiresAt === undefined) b.expiresAt = null;
-                        if (b.usageLimit === undefined) b.usageLimit = null;
-                        if (b.usageCount === undefined) b.usageCount = 0;
-                    });
-                    if (!parsed.storeConfig) {
-                        parsed.storeConfig = JSON.parse(JSON.stringify(seedData.storeConfig));
-                    }
-                    if (!parsed.sampleOrders) {
-                        parsed.sampleOrders = JSON.parse(JSON.stringify(seedData.sampleOrders));
-                    } else {
-                        parsed.sampleOrders.forEach(o => { if (o.boosterId === undefined) o.boosterId = null; });
-                    }
-                    return parsed;
-                } catch (e) { /* fall through to seed */ }
+        // ============ CONEXIÓN REAL A FIRESTORE ============
+        // Diseño: cada colección se sincroniza completa en cada guardado
+        // (crea/actualiza lo que está en `state`, borra lo que ya no está).
+        // Con la cantidad de productos de una tienda chica esto es rápido
+        // y muy simple de razonar sin tener que rastrear cambios campo a
+        // campo. Si el catálogo crece mucho, se puede optimizar después
+        // para escribir solo el documento que cambió.
+        let knownIds = { categorias: new Set(), productos: new Set(), impulsadores: new Set() };
+        let dataReady = false;
+
+        async function loadStateFromFirestore() {
+            const fb = window.__terea_fb;
+            const [catSnap, prodSnap, boosterSnap, configSnap] = await Promise.all([
+                fb.getDocs(fb.collection(fb.db, 'catalogo_categorias')),
+                fb.getDocs(fb.collection(fb.db, 'catalogo_productos')),
+                fb.getDocs(fb.collection(fb.db, 'catalogo_impulsadores')),
+                fb.getDoc(fb.doc(fb.db, 'catalogo_config', 'general')),
+            ]);
+
+            let categories = catSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            let products = prodSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            products.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            let boosters = boosterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            let storeConfig = configSnap.exists() ? configSnap.data() : null;
+
+            if (categories.length === 0 && products.length === 0) {
+                // Primera vez que alguien entra: Firestore está vacío.
+                // Sembramos con lo que ya tenías guardado en este navegador
+                // (si existe) o, si no, con los datos de ejemplo de siempre.
+                let seed = null;
+                const localBackup = localStorage.getItem(STORAGE_KEY);
+                if (localBackup) {
+                    try { seed = JSON.parse(localBackup); } catch (e) { /* usa el respaldo de abajo */ }
+                }
+                if (!seed) seed = JSON.parse(JSON.stringify(seedData));
+
+                categories = seed.categories || [];
+                products = (seed.products || []).map(p => {
+                    if (!p.images) p.images = p.image ? [p.image] : [];
+                    return p;
+                });
+                boosters = (seed.boosters || []).map(b => ({
+                    scope: 'producto', expiresAt: null, usageLimit: null, usageCount: 0, ...b
+                }));
+                storeConfig = seed.storeConfig || JSON.parse(JSON.stringify(seedData.storeConfig));
+            } else if (!storeConfig) {
+                storeConfig = JSON.parse(JSON.stringify(seedData.storeConfig));
             }
-            return JSON.parse(JSON.stringify(seedData));
+
+            state = { categories, products, boosters, storeConfig, sampleOrders: JSON.parse(JSON.stringify(seedData.sampleOrders)) };
+            knownIds.categorias = new Set(categories.map(c => c.id));
+            knownIds.productos = new Set(products.map(p => p.id));
+            knownIds.impulsadores = new Set(boosters.map(b => b.id));
+            dataReady = true;
+
+            // Si sembramos de cero, lo subimos a Firestore de una vez para
+            // que quede ahí guardado y no solo en memoria.
+            if (catSnap.empty && prodSnap.empty) {
+                await saveData();
+            }
         }
 
-        function saveData() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        async function saveData() {
+            const fb = window.__terea_fb;
+            if (!fb) {
+                showToast('No hay conexión con la base de datos todavía');
+                return;
+            }
+            try {
+                // Configuración de la tienda (un solo documento)
+                await fb.setDoc(fb.doc(fb.db, 'catalogo_config', 'general'), state.storeConfig);
+
+                // Categorías
+                const catIds = new Set();
+                for (let i = 0; i < state.categories.length; i++) {
+                    const c = state.categories[i];
+                    catIds.add(c.id);
+                    await fb.setDoc(fb.doc(fb.db, 'catalogo_categorias', c.id), { name: c.name, order: i });
+                }
+                for (const oldId of knownIds.categorias) {
+                    if (!catIds.has(oldId)) await fb.deleteDoc(fb.doc(fb.db, 'catalogo_categorias', oldId));
+                }
+                knownIds.categorias = catIds;
+
+                // Productos (el orden se guarda dentro de cada categoría)
+                const prodIds = new Set();
+                const orderCounters = {};
+                for (const p of state.products) {
+                    prodIds.add(p.id);
+                    const key = p.category || '';
+                    const orderVal = orderCounters[key] || 0;
+                    orderCounters[key] = orderVal + 1;
+                    const { id, ...rest } = p;
+                    await fb.setDoc(fb.doc(fb.db, 'catalogo_productos', id), { ...rest, order: orderVal });
+                }
+                for (const oldId of knownIds.productos) {
+                    if (!prodIds.has(oldId)) await fb.deleteDoc(fb.doc(fb.db, 'catalogo_productos', oldId));
+                }
+                knownIds.productos = prodIds;
+
+                // Impulsadores de venta
+                const boosterIds = new Set();
+                for (const b of state.boosters) {
+                    boosterIds.add(b.id);
+                    const { id, ...rest } = b;
+                    await fb.setDoc(fb.doc(fb.db, 'catalogo_impulsadores', id), rest);
+                }
+                for (const oldId of knownIds.impulsadores) {
+                    if (!boosterIds.has(oldId)) await fb.deleteDoc(fb.doc(fb.db, 'catalogo_impulsadores', oldId));
+                }
+                knownIds.impulsadores = boosterIds;
+
+                // Respaldo local por si acaso (no es la fuente de verdad, Firestore sí lo es)
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {
+                console.error('Error guardando en Firestore:', e);
+                showToast('No se pudo guardar: ' + (e.code || e.message));
+            }
         }
 
-        let state = loadData();
+        let state = { categories: [], products: [], boosters: [], storeConfig: JSON.parse(JSON.stringify(seedData.storeConfig)), sampleOrders: JSON.parse(JSON.stringify(seedData.sampleOrders)) };
 
-        // ============ LOGIN (demo local; se reemplaza por Firebase Auth en el Paso 5) ============
+        // ============ LOGIN (Google + verificación de admin) ============
         function attemptGoogleLogin() {
             if (!window.__terea_auth) {
                 document.getElementById('login-error').textContent = 'No se pudo cargar el inicio de sesión. Revisa tu conexión e intenta de nuevo.';
@@ -638,10 +728,17 @@
         }
 
         // Se llama automáticamente cuando Firebase confirma el inicio de sesión
-        // (ver el <script type="module"> en el <head>).
-        window.onTereaLogin = function () {
+        // Y que la cuenta es admin (ver el <script type="module"> en el <head>).
+        window.onTereaLogin = async function () {
             switchTab('productos');
-            renderAll();
+            document.getElementById('products-list').innerHTML = `<div class="text-center py-12 text-slate-400 text-sm">Cargando datos...</div>`;
+            try {
+                await loadStateFromFirestore();
+                renderAll();
+            } catch (e) {
+                console.error('Error cargando datos:', e);
+                document.getElementById('products-list').innerHTML = `<div class="text-center py-12 text-rose-600 text-sm bg-white rounded-2xl border border-rose-200">No se pudieron cargar los datos: ${e.code || e.message}. Revisa tu conexión y recarga la página.</div>`;
+            }
         };
 
         // ============ TABS ============
