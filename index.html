@@ -101,13 +101,15 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 </head>
 <body class="min-h-screen pb-24 sm:pb-16">
 
-<div id="pin-overlay" class="hidden fixed inset-0 bg-app z-[100] flex items-center justify-center">
+<div id="login-overlay" class="fixed inset-0 bg-app z-[100] flex items-center justify-center p-4">
   <div class="card p-8 w-full max-w-xs text-center space-y-4">
-    <span class="msi accent" style="font-size:40px">lock</span>
-    <h2 class="font-medium text-lg t-primary">Ingresá tu PIN</h2>
-    <input id="pin-input" type="password" inputmode="numeric" maxlength="4" class="input text-center text-2xl tracking-[0.5em]" placeholder="----">
-    <p id="pin-error" class="text-xs" style="color:var(--danger)"></p>
-    <button onclick="checkPin()" class="btn-primary w-full py-2.5">Entrar</button>
+    <span class="msi accent" style="font-size:40px">workspace_premium</span>
+    <h2 class="font-medium text-lg t-primary">Téreapp</h2>
+    <p class="text-sm t-secondary">Iniciá sesión con tu cuenta de Google para continuar.</p>
+    <button onclick="signInWithGoogle()" class="btn-primary w-full py-2.5 flex items-center justify-center gap-2">
+      <span class="msi" style="font-size:18px">login</span>Iniciar sesión con Google
+    </button>
+    <p id="login-error" class="text-xs" style="color:var(--danger)"></p>
   </div>
 </div>
 
@@ -440,13 +442,9 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <input type="number" id="settings-low-stock" min="0" class="input w-20" onchange="updateLowStockDefault()">
     </div>
     <div class="py-2 border-b b space-y-2">
-      <p class="text-sm font-medium">Bloqueo con PIN</p>
-      <p class="text-xs t-muted">Traba local del navegador, no es autenticación real. Eso llega con Firebase.</p>
-      <div class="flex gap-2 items-center flex-wrap">
-        <input type="password" id="new-pin" maxlength="4" inputmode="numeric" placeholder="Nuevo PIN de 4 dígitos" class="input w-48">
-        <button onclick="setPin()" class="btn-secondary text-xs px-3 py-2">Guardar PIN</button>
-        <button onclick="removePin()" class="btn-secondary text-xs px-3 py-2">Quitar PIN</button>
-      </div>
+      <p class="text-sm font-medium">Cuenta</p>
+      <p class="text-xs t-muted">Conectado como: <span id="settings-account-email" class="t-primary font-medium">—</span></p>
+      <button onclick="signOutGoogle()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">logout</span>Cerrar sesión</button>
     </div>
     <div class="py-2 space-y-2 border-b b">
       <p class="text-sm font-medium">Copia de seguridad</p>
@@ -695,7 +693,7 @@ let appData = {
   orders: [],
   expenses: [],
   batches: [],
-  settings: { darkMode:false, pin:null, lowStockDefault:3, fabricPricePerMeter:4.00 },
+  settings: { darkMode:false, lowStockDefault:3, fabricPricePerMeter:4.00 },
   fabrics: [{ id:'f-default', name:'Tela principal', pricePerMeter:4.00 }],
   rates: { usdBcv:null, eurBcv:null, binanceP2P:null, updatedAt:null }
 };
@@ -738,7 +736,6 @@ async function initStorage(){
 
   dataLoadSafe = true;
   applyDarkMode();
-  if(appData.settings.pin && !isPinUnlockedRecently()){ showPinLock(); } else { document.getElementById('pin-overlay').classList.add('hidden'); }
   renderAll();
   renderRatesCard();
   fetchRates();
@@ -983,38 +980,6 @@ function applyDarkMode(){
   renderCharts();
 }
 
-const PIN_UNLOCK_WINDOW_MS = 12 * 60 * 60 * 1000;
-function isPinUnlockedRecently(){
-  const last = localStorage.getItem('tereapp-pin-unlocked-at');
-  if(!last) return false;
-  return (Date.now() - parseInt(last)) < PIN_UNLOCK_WINDOW_MS;
-}
-function showPinLock(){ const ov=document.getElementById('pin-overlay'); ov.classList.remove('hidden'); ov.classList.add('flex'); }
-function checkPin(){
-  const val = document.getElementById('pin-input').value;
-  if(val === appData.settings.pin){
-    const ov=document.getElementById('pin-overlay'); ov.classList.add('hidden'); ov.classList.remove('flex');
-    document.getElementById('pin-error').innerText='';
-    localStorage.setItem('tereapp-pin-unlocked-at', Date.now().toString());
-  } else {
-    document.getElementById('pin-error').innerText='PIN incorrecto';
-  }
-}
-function setPin(){
-  const val = document.getElementById('new-pin').value;
-  if(!/^\d{4}$/.test(val)){ showAlert('El PIN debe tener 4 dígitos', 'error'); return; }
-  appData.settings.pin = val;
-  saveData();
-  document.getElementById('new-pin').value='';
-  showAlert('PIN guardado');
-}
-function removePin(){
-  appData.settings.pin = null;
-  saveData();
-  localStorage.removeItem('tereapp-pin-unlocked-at');
-  showAlert('PIN eliminado', 'error');
-}
-
 function updateLowStockDefault(){
   appData.settings.lowStockDefault = parseInt(document.getElementById('settings-low-stock').value) || 0;
   saveData();
@@ -1035,6 +1000,7 @@ function renderAll(){
   renderRecentSales();
   renderReports();
   document.getElementById('settings-low-stock').value = appData.settings.lowStockDefault;
+  document.getElementById('settings-account-email').innerText = window.currentUserEmail || '—';
 }
 
 function getFabricCost(p){
@@ -2424,7 +2390,7 @@ function importBackup(event){
   reader.onload = async function(e){
     try{
       const imported = JSON.parse(e.target.result);
-      appData = Object.assign({products:[],clients:[],sales:[],expenses:[],batches:[],settings:{darkMode:false,pin:null,lowStockDefault:3,fabricPricePerMeter:4.00}}, imported);
+      appData = Object.assign({products:[],clients:[],sales:[],expenses:[],batches:[],settings:{darkMode:false,lowStockDefault:3,fabricPricePerMeter:4.00}}, imported);
       await saveData();
       applyDarkMode();
       renderAll();
@@ -2441,7 +2407,7 @@ setReportPeriod('monthly');
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
   import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -2458,6 +2424,7 @@ setReportPeriod('monthly');
   const db = getFirestore(app);
   const DOC_REF = doc(db, 'tereapp', 'data');
   const CATALOG_REF = doc(db, 'tereapp', 'catalog');
+  const provider = new GoogleAuthProvider();
   let authReady = false;
 
   enableMultiTabIndexedDbPersistence(db).catch((err) => {
@@ -2508,18 +2475,49 @@ setReportPeriod('monthly');
     return true;
   };
 
+  function showLoginScreen(){
+    const ov = document.getElementById('login-overlay');
+    if(ov){ ov.classList.remove('hidden'); ov.classList.add('flex'); }
+  }
+  function hideLoginScreen(){
+    const ov = document.getElementById('login-overlay');
+    if(ov){ ov.classList.add('hidden'); ov.classList.remove('flex'); }
+  }
+
+  window.signInWithGoogle = function(){
+    const errEl = document.getElementById('login-error');
+    if(errEl) errEl.innerText = '';
+    signInWithPopup(auth, provider).catch((err) => {
+      const retryCodes = ['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
+      if(retryCodes.includes(err.code)){
+        signInWithRedirect(auth, provider).catch(redirectErr => {
+          console.error('Error de login con Google (redirección):', redirectErr);
+          if(errEl) errEl.innerText = 'No se pudo iniciar sesión. Probá de nuevo.';
+        });
+      } else {
+        console.error('Error de login con Google:', err);
+        if(errEl) errEl.innerText = 'No se pudo iniciar sesión: ' + err.message;
+      }
+    });
+  };
+
+  window.signOutGoogle = async function(){
+    await signOut(auth);
+    location.reload();
+  };
+
+  getRedirectResult(auth).catch(err => console.error('Error al procesar el login con Google:', err));
+
   onAuthStateChanged(auth, (user) => {
     if(user){
       authReady = true;
+      window.currentUserEmail = user.email || user.displayName || 'Cuenta de Google';
+      hideLoginScreen();
       if(window.initStorage) window.initStorage();
+    } else {
+      authReady = false;
+      showLoginScreen();
     }
-  });
-
-  signInAnonymously(auth).catch((err) => {
-    console.error('Error de autenticación Firebase:', err);
-    const el = document.getElementById('sync-status');
-    if(el) el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión a Firebase';
-    if(window.initStorage) window.initStorage();
   });
 </script>
 </body>
