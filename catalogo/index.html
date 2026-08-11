@@ -559,14 +559,24 @@
         }
 
         // ============ ADD-ONS GENÉRICOS (desde los impulsadores del panel) ============
-        function getActiveAddonsFor(productId) {
+        // Un impulsador está "vigente" si: no lo pausaron a mano, ya llegó su
+        // fecha de inicio (si tiene una programada), no venció, y no se agotó
+        // su límite de usos. Se usa igual en add-ons, cross-sell y carrito.
+        function isBoosterCurrentlyActive(b) {
             const today = new Date().toISOString().slice(0, 10);
+            if (b.active === false) return false;
+            if (b.startsAt && b.startsAt > today) return false;
+            if (b.expiresAt && b.expiresAt < today) return false;
+            if (b.usageLimit && (b.usageCount || 0) >= b.usageLimit) return false;
+            return true;
+        }
+
+        function getActiveAddonsFor(productId) {
             return boosters.filter(b =>
                 b.scope === 'producto' &&
                 b.type === 'addon' &&
                 b.triggerId === productId &&
-                (!b.expiresAt || b.expiresAt >= today) &&
-                (!b.usageLimit || (b.usageCount || 0) < b.usageLimit)
+                isBoosterCurrentlyActive(b)
             );
         }
 
@@ -685,12 +695,7 @@
         }
 
         function getCartBoosters() {
-            const today = new Date().toISOString().slice(0, 10);
-            return boosters.filter(b =>
-                b.scope === 'carrito' &&
-                (!b.expiresAt || b.expiresAt >= today) &&
-                (!b.usageLimit || (b.usageCount || 0) < b.usageLimit)
-            );
+            return boosters.filter(b => b.scope === 'carrito' && isBoosterCurrentlyActive(b));
         }
 
         function getAppliedCartBoosters(totalPrice) {
@@ -870,11 +875,9 @@
         let activeCrossSell = null;
 
         function findApplicableCrossSell() {
-            const today = new Date().toISOString().slice(0, 10);
             for (const b of boosters) {
                 if (b.scope !== 'producto' || b.type !== 'crosssell') continue;
-                if (b.expiresAt && b.expiresAt < today) continue;
-                if (b.usageLimit && (b.usageCount || 0) >= b.usageLimit) continue;
+                if (!isBoosterCurrentlyActive(b)) continue;
                 // Ya lo tiene en el carrito -> no lo ofrezcas de nuevo.
                 if (cart.some(i => i.id.startsWith(b.offerId + '-'))) continue;
                 const cartItem = cart.find(i => i.id.startsWith(b.triggerId + '-'));
