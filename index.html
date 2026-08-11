@@ -122,6 +122,19 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   </div>
 </div>
 
+<div id="access-denied-overlay" class="hidden fixed inset-0 bg-app z-[100] items-center justify-center p-4">
+  <div class="card p-8 w-full max-w-sm text-center space-y-4">
+    <span class="msi" style="font-size:40px; color:var(--accent)">lock</span>
+    <h2 class="font-medium text-lg t-primary">Esta cuenta no tiene acceso</h2>
+    <p class="text-sm t-secondary"><span id="access-denied-email" class="font-medium t-primary"></span> inició sesión correctamente, pero no está autorizada para administrar Téreapp.</p>
+    <div class="surface-alt rounded-xl p-3 text-left space-y-1">
+      <p class="text-xs t-muted">Si esta cuenta debería tener acceso, compartí este código con la dueña:</p>
+      <p id="access-denied-uid" class="text-xs font-medium break-all bg-surface rounded-lg p-2 border b"></p>
+    </div>
+    <button onclick="signOutGoogle()" class="btn-secondary w-full py-2.5">Salir e intentar con otra cuenta</button>
+  </div>
+</div>
+
 <header class="app-header sticky top-0 z-50">
   <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
     <div class="flex items-center space-x-2.5">
@@ -723,7 +736,11 @@ async function initStorage(){
   }catch(e){
     console.error('No se pudo cargar la información desde Firebase:', e);
     storageInitialized = false;
-    showConnectionError();
+    if(e && e.code === 'permission-denied'){
+      showAccessDenied();
+    } else {
+      showConnectionError();
+    }
     return;
   }
 
@@ -787,6 +804,15 @@ window.addEventListener('offline', ()=>{
   const el = document.getElementById('sync-status');
   if(el){ el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión, se sincroniza solo'; el.title = 'Los cambios se guardan en este dispositivo y se suben cuando vuelva la conexión.'; }
 });
+
+function showAccessDenied(){
+  const emailEl = document.getElementById('access-denied-email');
+  const uidEl = document.getElementById('access-denied-uid');
+  if(emailEl) emailEl.innerText = window.currentUserEmail || 'Tu cuenta';
+  if(uidEl) uidEl.innerText = window.currentUserUid || '';
+  const ov = document.getElementById('access-denied-overlay');
+  if(ov){ ov.classList.remove('hidden'); ov.classList.add('flex'); }
+}
 
 function showConnectionError(){
   const el = document.getElementById('sync-status');
@@ -2517,6 +2543,7 @@ setReportPeriod('monthly');
     if(user){
       authReady = true;
       window.currentUserEmail = user.email || user.displayName || 'Cuenta de Google';
+      window.currentUserUid = user.uid;
       hideLoginScreen();
       if(window.initStorage) window.initStorage();
     } else {
