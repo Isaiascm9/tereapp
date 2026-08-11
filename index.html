@@ -2480,7 +2480,15 @@ setReportPeriod('monthly');
 
   window.dbLoad = async function(){
     if(!authReady) throw new Error('Firebase todavía no está listo');
+    const currentUid = auth.currentUser ? auth.currentUser.uid : null;
+    const lastAuthorizedUid = localStorage.getItem('tereapp-authorized-uid');
+
     if(!navigator.onLine){
+      if(currentUid !== lastAuthorizedUid){
+        const err = new Error('No se pudo verificar el acceso de esta cuenta sin conexión');
+        err.code = 'permission-denied';
+        throw err;
+      }
       const snap = await getDocFromCache(DOC_REF);
       return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
     }
@@ -2489,8 +2497,15 @@ setReportPeriod('monthly');
         getDoc(DOC_REF),
         new Promise((_, reject) => setTimeout(()=>reject(new Error('timeout')), 6000))
       ]);
+      localStorage.setItem('tereapp-authorized-uid', currentUid || '');
       return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
     }catch(e){
+      if(e && e.code === 'permission-denied'){
+        throw e;
+      }
+      if(currentUid !== lastAuthorizedUid){
+        throw e;
+      }
       try{
         const cacheSnap = await getDocFromCache(DOC_REF);
         return { exists: cacheSnap.exists(), data: cacheSnap.exists() ? cacheSnap.data() : null };
@@ -2534,6 +2549,7 @@ setReportPeriod('monthly');
 
   window.signOutGoogle = async function(){
     await signOut(auth);
+    localStorage.removeItem('tereapp-authorized-uid');
     location.reload();
   };
 
