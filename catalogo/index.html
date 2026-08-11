@@ -10,6 +10,28 @@
     </style>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase: lectura pública del catálogo, sin login (mismo proyecto que Téreapp) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import {
+            getFirestore, doc, getDoc, getDocs, collection, addDoc, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
+            authDomain: "control-de-ventas-y-stock.firebaseapp.com",
+            projectId: "control-de-ventas-y-stock",
+            storageBucket: "control-de-ventas-y-stock.firebasestorage.app",
+            messagingSenderId: "685310518301",
+            appId: "1:685310518301:web:c1cf15c1ceffc4033f92f4"
+        };
+
+        const fbApp = initializeApp(firebaseConfig);
+        const db = getFirestore(fbApp);
+
+        window.__terea_fb = { db, doc, getDoc, getDocs, collection, addDoc, serverTimestamp };
+    </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Arvo:wght@400;700&family=Jost:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Jost', sans-serif; }
@@ -263,22 +285,43 @@
 
     <!-- Script de Lógica -->
     <script>
-        // ============ DATOS COMPARTIDOS CON EL PANEL DE ADMINISTRACIÓN ============
-        // Mismo STORAGE_KEY que usa terea-panel-admin.html. Cuando conectemos
-        // Firebase (Paso 5), esta función es la única que cambia: en vez de leer
-        // localStorage, lee la base de datos real. El resto del catálogo no se toca.
-        const SHARED_STORAGE_KEY = 'terea_admin_demo_v1';
+        // ============ DATOS REALES DESDE FIRESTORE ============
+        // Lee las mismas colecciones que edita el panel de administración
+        // (catalogo_productos, catalogo_categorias, catalogo_impulsadores,
+        // catalogo_config). Lectura pública, sin necesidad de iniciar sesión.
+        async function loadSharedData() {
+            const fb = window.__terea_fb;
+            try {
+                const [catSnap, prodSnap, boosterSnap, configSnap] = await Promise.all([
+                    fb.getDocs(fb.collection(fb.db, 'catalogo_categorias')),
+                    fb.getDocs(fb.collection(fb.db, 'catalogo_productos')),
+                    fb.getDocs(fb.collection(fb.db, 'catalogo_impulsadores')),
+                    fb.getDoc(fb.doc(fb.db, 'catalogo_config', 'general')),
+                ]);
 
-        function loadSharedData() {
-            const raw = localStorage.getItem(SHARED_STORAGE_KEY);
-            if (raw) {
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (parsed.products && parsed.categories) return parsed;
-                } catch (e) { /* usa el respaldo de abajo */ }
+                const categories = catSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                const products = prodSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                products.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+                const boosters = boosterSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const storeConfig = configSnap.exists() ? configSnap.data() : fallbackData().storeConfig;
+
+                if (categories.length === 0 && products.length === 0) {
+                    // Todavía no hay nada en Firestore (panel nunca abierto):
+                    // muestra los datos de ejemplo mientras tanto.
+                    return fallbackData();
+                }
+
+                return { categories, products, boosters, storeConfig };
+            } catch (e) {
+                console.error('No se pudo conectar con la tienda. Mostrando datos de ejemplo:', e);
+                return fallbackData();
             }
-            // Respaldo: si el panel nunca se abrió en este navegador, el catálogo
-            // igual funciona con estos datos de ejemplo (los mismos de siempre).
+        }
+
+        function fallbackData() {
             return {
                 categories: [
                     { id: 'gorros', name: 'Gorros Clásicos' },
@@ -310,25 +353,10 @@
             };
         }
 
-        const shared = loadSharedData();
-        const categories = shared.categories;
-        // El catálogo nunca muestra productos pausados desde el panel.
-        const products = shared.products
-            .filter(p => p.active !== false)
-            .map(p => ({
-                id: p.id,
-                name: p.name,
-                category: p.category,
-                price: p.price,
-                badge: p.badge || '',
-                image: (p.images && p.images[0]) || '',
-                desc: p.description || '',
-                rating: p.rating || 0,
-                priceVES: p.priceVES || null,
-            }));
-        const boosters = shared.boosters || [];
-        const storeConfig = shared.storeConfig;
-
+        let categories = [];
+        let products = [];
+        let boosters = [];
+        let storeConfig = { whatsappNumber: '', footerMessage: '', banners: [], shippingMethods: [], paymentMethods: [] };
         let cart = [];
 
         function safeCreateIcons() {
@@ -340,8 +368,8 @@
         let selectedProductModal = null;
         let modalQty = 1;
         let colaQty = 0;
-        let selectedShipping = (storeConfig.shippingMethods[0] && storeConfig.shippingMethods[0].title) || '';
-        let selectedPayment = (storeConfig.paymentMethods[0] && storeConfig.paymentMethods[0].title) || '';
+        let selectedShipping = '';
+        let selectedPayment = '';
         let currentSlide = 0;
 
         // ============ BANNERS (desde storeConfig) ============
@@ -448,8 +476,31 @@
             return (str || '').replace(/'/g, "\\'");
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             safeCreateIcons();
+            document.getElementById('product-grid').innerHTML = `<div class="col-span-2 text-center py-10 text-xs text-slate-400">Cargando catálogo...</div>`;
+
+            const shared = await loadSharedData();
+            categories = shared.categories;
+            // El catálogo nunca muestra productos pausados desde el panel.
+            products = shared.products
+                .filter(p => p.active !== false)
+                .map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    category: p.category,
+                    price: p.price,
+                    badge: p.badge || '',
+                    image: (p.images && p.images[0]) || '',
+                    desc: p.description || '',
+                    rating: p.rating || 0,
+                    priceVES: p.priceVES || null,
+                }));
+            boosters = shared.boosters || [];
+            storeConfig = shared.storeConfig;
+            selectedShipping = (storeConfig.shippingMethods[0] && storeConfig.shippingMethods[0].title) || '';
+            selectedPayment = (storeConfig.paymentMethods[0] && storeConfig.paymentMethods[0].title) || '';
+
             renderBanners();
             renderCategoryFilters();
             renderShippingMethods();
@@ -782,16 +833,39 @@
             text += `%0A📦 *DETALLE DE LA ORDEN:*%0A`;
 
             let total = 0;
+            const itemsSummary = [];
             cart.forEach(i => {
                 const sub = i.price * i.qty;
                 total += sub;
                 text += `• ${i.qty}x ${i.name} ($${sub.toFixed(2)})%0A`;
+                itemsSummary.push(`${i.qty}x ${i.name}`);
             });
 
             text += `%0A*TOTAL A PAGAR: $${total.toFixed(2)}*`;
 
+            // Abrimos WhatsApp de inmediato, en el mismo instante del clic —
+            // así el navegador nunca lo bloquea como pop-up. El registro en
+            // Firestore corre en paralelo, sin detener al cliente.
             const sellerPhone = storeConfig.whatsappNumber || "";
             window.open(`https://wa.me/${sellerPhone}?text=${text}`, '_blank');
+
+            try {
+                const fb = window.__terea_fb;
+                fb.addDoc(fb.collection(fb.db, 'pedidos_web'), {
+                    clientName: name,
+                    clientPhone: phone,
+                    clientAddress: address,
+                    notes: notes || '',
+                    shipping: selectedShipping,
+                    payment: selectedPayment,
+                    items: itemsSummary.join(', '),
+                    total: Number(total.toFixed(2)),
+                    status: 'preliminar',
+                    createdAt: fb.serverTimestamp(),
+                }).catch(e => console.error('No se pudo registrar el pedido en la base de datos:', e));
+            } catch (e) {
+                console.error('No se pudo registrar el pedido en la base de datos:', e);
+            }
         }
     </script>
 </body>
