@@ -156,6 +156,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
     <button onclick="switchTab('inventory')" id="btn-inventory" class="tab-btn py-3 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:18px">inventory_2</span>Stock</button>
     <button onclick="switchTab('clients')" id="btn-clients" class="tab-btn py-3 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:18px">group</span>Clientes</button>
     <button onclick="switchTab('orders')" id="btn-orders" class="tab-btn py-3 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:18px">pending_actions</span>Pedidos</button>
+    <button onclick="switchTab('weborders')" id="btn-weborders" class="tab-btn py-3 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:18px">shopping_cart</span>Pedidos Web<span id="weborders-badge" class="hidden ml-1 bg-accent text-white text-[10px] font-bold rounded-full px-1.5 py-0.5"></span></button>
     <button onclick="switchTab('expenses')" id="btn-expenses" class="tab-btn py-3 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:18px">receipt_long</span>Gastos</button>
     <button onclick="switchTab('reports')" id="btn-reports" class="tab-btn py-3 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:18px">bar_chart</span>Reportes</button>
     <button onclick="switchTab('settings')" id="btn-settings" class="tab-btn py-3 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:18px">settings</span>Ajustes</button>
@@ -373,6 +374,17 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   </div>
 </section>
 
+<section id="tab-weborders" class="hidden space-y-6">
+  <div class="card p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">shopping_cart</span>Pedidos Web</h2>
+      <button onclick="loadWebOrders()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">refresh</span>Actualizar</button>
+    </div>
+    <p class="text-xs t-muted mb-4">Pedidos que llegan desde el catálogo online. Nada pasa solo: revisá cada uno y dale "Importar" para apartar el stock y crear el pedido preliminar, etiquetado como Web.</p>
+    <div class="space-y-3" id="weborders-list"></div>
+  </div>
+</section>
+
 <section id="tab-expenses" class="hidden space-y-6">
   <div class="card p-6">
     <div class="flex justify-between items-center mb-4">
@@ -508,6 +520,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
     <button onclick="switchTab('sales'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">point_of_sale</span>Ventas</button>
     <button onclick="switchTab('clients'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">group</span>Clientes</button>
     <button onclick="switchTab('orders'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">pending_actions</span>Pedidos preliminares</button>
+    <button onclick="switchTab('weborders'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">shopping_cart</span>Pedidos Web</button>
     <button onclick="switchTab('expenses'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">receipt_long</span>Gastos</button>
     <button onclick="switchTab('reports'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">bar_chart</span>Reportes</button>
     <button onclick="switchTab('settings'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">settings</span>Ajustes</button>
@@ -979,7 +992,7 @@ function showAlert(message, type='success'){
 
 const BOTTOM_NAV_MAP = { dashboard:'bn-dashboard', inventory:'bn-inventory', products:'bn-products' };
 function switchTab(id){
-  ['dashboard','sales','products','inventory','clients','orders','expenses','reports','settings'].forEach(t=>{
+  ['dashboard','sales','products','inventory','clients','orders','weborders','expenses','reports','settings'].forEach(t=>{
     document.getElementById('tab-'+t).classList.add('hidden');
     document.getElementById('btn-'+t).classList.remove('active');
   });
@@ -989,10 +1002,11 @@ function switchTab(id){
   ['bn-dashboard','bn-inventory','bn-products','bn-more'].forEach(bid=>document.getElementById(bid).classList.remove('active'));
   const directBtn = BOTTOM_NAV_MAP[id];
   if(directBtn){ document.getElementById(directBtn).classList.add('active'); }
-  else if(['sales','clients','orders','expenses','reports','settings'].includes(id)){ document.getElementById('bn-more').classList.add('active'); }
+  else if(['sales','clients','orders','weborders','expenses','reports','settings'].includes(id)){ document.getElementById('bn-more').classList.add('active'); }
 
   window.scrollTo({top:0, behavior:'smooth'});
   renderAll();
+  if(id==='weborders'){ loadWebOrders(); }
 }
 
 function closeModal(id){ document.getElementById(id).classList.add('hidden'); document.getElementById(id).classList.remove('flex'); }
@@ -1169,7 +1183,7 @@ function renderRecentSales(){
     const statusBadge = sale.status==='Pagado' ? '<span class="bg-success-soft px-2 py-0.5 rounded-full text-xs font-medium">Pagado</span>' : '<span class="bg-warning-soft px-2 py-0.5 rounded-full text-xs font-medium">Pendiente</span>';
     const vesText = sale.totalVES ? `<div class="text-xs t-muted">Bs ${sale.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>` : '';
     tbody.innerHTML += `<tr class="border-b b cursor-pointer hover:opacity-80" onclick="openSaleEditModal('${sale.id}')">
-      <td class="py-3 t-muted text-xs whitespace-nowrap">${displayDate(sale.dateIso)}</td>
+      <td class="py-3 t-muted text-xs whitespace-nowrap">${displayDate(sale.dateIso)}${sale.source==='web' ? ' <span class="bg-accent-soft text-accent text-[9px] font-bold px-1 py-0.5 rounded-full uppercase align-middle">Web</span>' : ''}</td>
       <td class="py-3">${itemsText}</td>
       <td class="py-3">${statusBadge}</td>
       <td class="py-3 font-medium whitespace-nowrap" style="color:var(--success)">${fmt(sale.total)}${vesText}</td>
@@ -1522,7 +1536,11 @@ async function handleGenerateOrder(){
     dueDate: document.getElementById('sale-status').value==='Pendiente' ? (document.getElementById('sale-due-date').value || null) : null,
     rateType: rate ? rate.type : null,
     rateValue: rate ? rate.value : null,
-    totalVES: rate ? finalTotal*rate.value : null
+    totalVES: rate ? finalTotal*rate.value : null,
+    source: oldOrder ? (oldOrder.source || null) : null,
+    webCurrency: oldOrder ? (oldOrder.webCurrency || null) : null,
+    webAddress: oldOrder ? (oldOrder.webAddress || null) : null,
+    webShipping: oldOrder ? (oldOrder.webShipping || null) : null
   };
 
   const wasEditing = !!editingOrderId;
@@ -1563,8 +1581,8 @@ function renderOrdersList(){
     return `<div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
       <div class="flex justify-between items-start gap-2 flex-wrap">
         <div>
-          <p class="text-sm font-medium">${client ? client.name : 'Sin cliente'}</p>
-          <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}</p>
+          <p class="text-sm font-medium">${client ? client.name : 'Sin cliente'} ${o.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}</p>
+          <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}${o.webAddress ? ' · '+o.webAddress : ''}</p>
         </div>
         <div class="text-right">
           <p class="font-medium" style="color:var(--success)">${fmt(o.total)}</p>
@@ -1615,6 +1633,140 @@ function normalizePhoneVE(raw){
   return '58'+digits;
 }
 
+// ============ PEDIDOS WEB (desde el catálogo online) ============
+window.__pendingWebOrders = [];
+
+async function loadWebOrders(){
+  const list = document.getElementById('weborders-list');
+  const badge = document.getElementById('weborders-badge');
+  if(!list) return;
+  list.innerHTML = '<p class="text-sm t-muted">Cargando pedidos web...</p>';
+  try{
+    const all = await window.dbGetWebOrders();
+    const pending = all.filter(o => o.status === 'preliminar')
+      .sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    window.__pendingWebOrders = pending;
+    if(badge){
+      if(pending.length > 0){ badge.textContent = pending.length; badge.classList.remove('hidden'); }
+      else { badge.classList.add('hidden'); }
+    }
+    renderWebOrdersList(pending);
+  }catch(e){
+    console.error('No se pudieron cargar los pedidos web:', e);
+    list.innerHTML = '<p class="text-sm t-muted">No se pudieron cargar los pedidos web. Revisá tu conexión e intentá de nuevo con "Actualizar".</p>';
+  }
+}
+
+function renderWebOrdersList(orders){
+  const list = document.getElementById('weborders-list');
+  if(!list) return;
+  if(!orders || orders.length===0){ list.innerHTML = '<p class="text-sm t-muted">No hay pedidos web pendientes por ahora.</p>'; return; }
+  list.innerHTML = orders.map(o=>{
+    const itemsText = (o.items||[]).map(it=>{
+      const linked = it.tereappProductId ? appData.products.find(p=>p.id===it.tereappProductId) : null;
+      const warn = !linked ? ' <span style="color:var(--danger, #dc2626)">(sin vínculo)</span>' : '';
+      return `<span class="bg-accent-soft px-2 py-0.5 rounded text-xs font-medium mr-1">${it.qty}x ${escapeHtmlWeb(it.name)}${warn}</span>`;
+    }).join('');
+    const symbol = o.currency === 'EUR' ? '€' : (o.currency === 'MIXED' ? '' : '$');
+    return `
+    <div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
+      <div class="flex justify-between items-start gap-2 flex-wrap">
+        <div>
+          <p class="text-sm font-medium">${escapeHtmlWeb(o.clientName || 'Cliente web')} <span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span></p>
+          <p class="text-xs t-muted">${escapeHtmlWeb(o.clientPhone || '')}${o.clientAddress ? ' · '+escapeHtmlWeb(o.clientAddress) : ''}</p>
+        </div>
+        <p class="font-medium" style="color:var(--success)">${symbol}${Number(o.total||0).toFixed(2)}</p>
+      </div>
+      <div>${itemsText}</div>
+      <p class="text-xs t-muted">Envío: ${escapeHtmlWeb(o.shipping||'-')} · Pago: ${escapeHtmlWeb(o.payment||'-')}${o.notes ? ' · Notas: '+escapeHtmlWeb(o.notes) : ''}</p>
+      <div class="flex justify-end pt-2 border-t b">
+        <button onclick="importWebOrder('${o.id}')" class="btn-primary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add_shopping_cart</span>Importar</button>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+function escapeHtmlWeb(str){
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+async function importWebOrder(webOrderId){
+  if(isDoubleSubmit()) return;
+  const order = (window.__pendingWebOrders||[]).find(o=>o.id===webOrderId);
+  if(!order){ showAlert('No se encontró ese pedido web', 'error'); return; }
+
+  const items = order.items || [];
+  if(items.length === 0){ showAlert('Este pedido no tiene productos válidos', 'error'); return; }
+
+  for(const it of items){
+    if(!it.tereappProductId){ showAlert(`"${it.name}" no está vinculado a un producto de Téreapp. No se puede importar así.`, 'error'); return; }
+    const product = appData.products.find(p=>p.id===it.tereappProductId);
+    if(!product){ showAlert(`El producto vinculado a "${it.name}" ya no existe en tu inventario`, 'error'); return; }
+    if(product.stock < it.qty){ showAlert(`No hay suficiente stock de "${product.name}" (quedan ${product.stock})`, 'error'); return; }
+  }
+
+  const itemsSummary = [];
+  let total = 0, totalCost = 0;
+  items.forEach(it=>{
+    const product = appData.products.find(p=>p.id===it.tereappProductId);
+    product.stock -= it.qty;
+    const cost = getCost(product);
+    total += it.price * it.qty;
+    totalCost += cost * it.qty;
+    itemsSummary.push({ productId: product.id, name: product.name, qty: it.qty, unitPrice: it.price, cost, subtotal: it.price*it.qty });
+  });
+
+  const phone = (order.clientPhone || '').trim();
+  let client = phone ? appData.clients.find(c => (c.phone||'').trim() === phone) : null;
+  if(!client){
+    client = { id: uid(), name: order.clientName || 'Cliente web', phone, notes: '' };
+    appData.clients.push(client);
+  }
+
+  const newOrder = {
+    id: uid(),
+    dateIso: todayIso(),
+    items: itemsSummary,
+    total,
+    totalCost,
+    payment: order.payment || '',
+    discount: 0,
+    status: 'Pendiente',
+    clientId: client.id,
+    notes: order.notes || '',
+    dueDate: null,
+    rateType: null,
+    rateValue: null,
+    totalVES: null,
+    source: 'web',
+    webCurrency: order.currency || 'USD',
+    webAddress: order.clientAddress || '',
+    webShipping: order.shipping || ''
+  };
+
+  appData.orders.unshift(newOrder);
+  await saveData();
+
+  try{
+    await window.dbMarkWebOrderImported(webOrderId);
+  }catch(e){
+    console.error('No se pudo marcar el pedido web como importado (el pedido preliminar ya se creó bien):', e);
+  }
+
+  window.__pendingWebOrders = (window.__pendingWebOrders||[]).filter(o=>o.id!==webOrderId);
+  renderWebOrdersList(window.__pendingWebOrders);
+  const badge = document.getElementById('weborders-badge');
+  if(badge){
+    if(window.__pendingWebOrders.length>0){ badge.textContent = window.__pendingWebOrders.length; badge.classList.remove('hidden'); }
+    else { badge.classList.add('hidden'); }
+  }
+  renderAll();
+  showAlert('Pedido web importado como preliminar — stock apartado');
+}
+
 function sendOrderWhatsapp(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order) return;
@@ -1647,7 +1799,11 @@ async function confirmOrderAsSale(id){
     notes: order.notes,
     rateType: order.rateType,
     rateValue: order.rateValue,
-    totalVES: order.totalVES
+    totalVES: order.totalVES,
+    source: order.source || null,
+    webCurrency: order.webCurrency || null,
+    webAddress: order.webAddress || null,
+    webShipping: order.webShipping || null
   };
   appData.sales.unshift(sale);
   appData.orders = appData.orders.filter(o=>o.id!==id);
@@ -2439,7 +2595,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -2518,6 +2674,18 @@ setReportPeriod('monthly');
   window.dbSaveCatalog = async function(data){
     if(!authReady) throw new Error('Firebase todavía no está listo');
     await setDoc(CATALOG_REF, data);
+    return true;
+  };
+
+  window.dbGetWebOrders = async function(){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    const snap = await getDocs(collection(db, 'pedidos_web'));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  };
+
+  window.dbMarkWebOrderImported = async function(id){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await updateDoc(doc(db, 'pedidos_web', id), { status: 'importado', importedAt: new Date().toISOString() });
     return true;
   };
 
