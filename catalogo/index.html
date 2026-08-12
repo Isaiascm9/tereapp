@@ -622,7 +622,7 @@
                             <input type="checkbox" data-booster-id="${b.id}" ${met ? '' : 'disabled'} onchange="updateModalTotal()" class="addon-check accent-satin-600 rounded w-4 h-4">
                             <span class="font-medium text-slate-700">${escapeAttr(offer.name)}</span>
                         </div>
-                        <span class="font-bold text-satin-700">+$${Number(b.price).toFixed(2)}</span>
+                        <span class="font-bold text-satin-700">+${currencySymbol(offer.currency)}${Number(b.price).toFixed(2)}</span>
                     </label>
                     ${!met ? `<p class="text-[10px] text-slate-400">Necesitas ${b.minQty} o más de este producto para desbloquear esta oferta.</p>` : ''}
                 </div>
@@ -987,7 +987,7 @@
                 document.getElementById('crosssell-img').src = found.offer.image;
                 document.getElementById('crosssell-badge').textContent = found.booster.title || '¡Oferta!';
                 document.getElementById('crosssell-title').textContent =
-                    `¿Deseas agregar ${found.offer.name} por solo $${Number(found.booster.price).toFixed(2)}?`;
+                    `¿Deseas agregar ${found.offer.name} por solo ${currencySymbol(found.offer.currency)}${Number(found.booster.price).toFixed(2)}?`;
                 document.getElementById('crosssell-modal').classList.remove('hidden');
                 return;
             }
