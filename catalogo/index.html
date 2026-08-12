@@ -434,6 +434,16 @@
             safeCreateIcons();
         }
 
+        function currencySymbol(currency) {
+            return currency === 'EUR' ? '€' : '$';
+        }
+
+        function cartCurrencySymbol() {
+            if (cart.length === 0) return '$';
+            const currencies = new Set(cart.map(i => i.currency || 'USD'));
+            return currencies.size === 1 ? currencySymbol([...currencies][0]) : '$';
+        }
+
         function escapeAttr(str) {
             return (str || '').replace(/'/g, "\\'");
         }
@@ -457,6 +467,7 @@
                     desc: p.description || '',
                     rating: p.rating || 0,
                     priceVES: p.priceVES || null,
+                    currency: p.priceCurrency || 'USD',
                 }));
             boosters = shared.boosters || [];
             storeConfig = shared.storeConfig;
@@ -497,7 +508,7 @@
                             <h3 class="text-xs font-bold text-slate-900 line-clamp-1">${p.name}</h3>
                             <p class="text-[11px] text-slate-400 mt-0.5 line-clamp-1">${p.desc}</p>
                             ${starsHtml(p.rating)}
-                            <p class="text-sm font-extrabold text-slate-900 mt-2">$${p.price.toFixed(2)}</p>
+                            <p class="text-sm font-extrabold text-slate-900 mt-2">${currencySymbol(p.currency)}${p.price.toFixed(2)}</p>
                             ${p.priceVES ? `<p class="text-[10px] text-slate-400">Bs. ${Number(p.priceVES).toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>` : ''}
                         </div>
                         <button onclick="quickAdd('${p.id}', event)" class="mt-3 w-full py-2 bg-madera hover:bg-arena active:bg-arena active:scale-95 text-arena hover:text-madera active:text-madera rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
@@ -634,8 +645,8 @@
                 const booster = boosters.find(b => b.id === chk.dataset.boosterId);
                 if (booster) total += Number(booster.price);
             });
-            document.getElementById('modal-price').textContent = `$${selectedProductModal.price.toFixed(2)}`;
-            document.getElementById('modal-total-price').textContent = `$${total.toFixed(2)}`;
+            document.getElementById('modal-price').textContent = `${currencySymbol(selectedProductModal.currency)}${selectedProductModal.price.toFixed(2)}`;
+            document.getElementById('modal-total-price').textContent = `${currencySymbol(selectedProductModal.currency)}${total.toFixed(2)}`;
         }
 
         function addModalToCart() {
@@ -644,6 +655,7 @@
                 name: selectedProductModal.name,
                 price: selectedProductModal.price,
                 priceVES: selectedProductModal.priceVES || null,
+                currency: selectedProductModal.currency || 'USD',
                 image: selectedProductModal.image,
                 qty: modalQty
             });
@@ -658,6 +670,7 @@
                     name: `${offer.name} (${booster.title})`,
                     price: Number(booster.price),
                     priceVES: null,
+                    currency: offer.currency || 'USD',
                     image: offer.image,
                     qty: 1
                 });
@@ -676,6 +689,7 @@
                 name: product.name,
                 price: product.price,
                 priceVES: product.priceVES || null,
+                currency: product.currency || 'USD',
                 image: product.image,
                 qty: 1
             });
@@ -744,9 +758,9 @@
             const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
             document.getElementById('cart-counter').textContent = totalCount;
-            document.getElementById('cart-drawer-total').textContent = `$${totalPrice.toFixed(2)}`;
+            document.getElementById('cart-drawer-total').textContent = `${cartCurrencySymbol()}${totalPrice.toFixed(2)}`;
             document.getElementById('final-item-count').textContent = totalCount;
-            document.getElementById('final-total-price').textContent = `$${totalPrice.toFixed(2)}`;
+            document.getElementById('final-total-price').textContent = `${cartCurrencySymbol()}${totalPrice.toFixed(2)}`;
             renderCartBoosterBanner(totalPrice);
 
             const container = document.getElementById('cart-items-container');
@@ -764,7 +778,7 @@
                         <img src="${item.image}" class="w-12 h-12 object-cover rounded-lg">
                         <div>
                             <h4 class="text-xs font-bold text-slate-900 line-clamp-1">${item.name}</h4>
-                            <p class="text-xs text-satin-700 font-semibold">$${(item.price * item.qty).toFixed(2)}</p>
+                            <p class="text-xs text-satin-700 font-semibold">${currencySymbol(item.currency)}${(item.price * item.qty).toFixed(2)}</p>
                             ${item.priceVES ? `<p class="text-[10px] text-slate-400">Bs. ${(item.priceVES * item.qty).toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>` : ''}
                         </div>
                     </div>
@@ -920,6 +934,7 @@
                     name: `${activeCrossSell.offer.name} (${activeCrossSell.booster.title})`,
                     price: Number(activeCrossSell.booster.price),
                     priceVES: null,
+                    currency: activeCrossSell.offer.currency || 'USD',
                     image: activeCrossSell.offer.image,
                     qty: 1
                 });
@@ -954,7 +969,7 @@
             cart.forEach(i => {
                 const sub = i.price * i.qty;
                 total += sub;
-                text += `• ${i.qty}x ${i.name} ($${sub.toFixed(2)})%0A`;
+                text += `• ${i.qty}x ${i.name} (${currencySymbol(i.currency)}${sub.toFixed(2)})%0A`;
                 itemsSummary.push(`${i.qty}x ${i.name}`);
             });
 
@@ -962,7 +977,7 @@
             if (appliedCartBoosters.length > 0) {
                 text += `%0A🎁 *Promo aplicada:* ${appliedCartBoosters.map(b => b.title || '').join(', ')}%0A`;
             }
-            text += `%0A*TOTAL A PAGAR: $${total.toFixed(2)}*`;
+            text += `%0A*TOTAL A PAGAR: ${cartCurrencySymbol()}${total.toFixed(2)}*`;
 
             // Abrimos WhatsApp de inmediato, en el mismo instante del clic —
             // así el navegador nunca lo bloquea como pop-up. El registro en
