@@ -965,10 +965,17 @@
             text += `%0A📦 *DETALLE DE LA ORDEN:*%0A`;
 
             let total = 0;
+            let totalVES = 0;
+            let allHaveVES = true;
             const itemsSummary = [];
             cart.forEach(i => {
                 const sub = i.price * i.qty;
                 total += sub;
+                if (i.priceVES) {
+                    totalVES += i.priceVES * i.qty;
+                } else {
+                    allHaveVES = false;
+                }
                 text += `• ${i.qty}x ${i.name} (${currencySymbol(i.currency)}${sub.toFixed(2)})%0A`;
                 itemsSummary.push(`${i.qty}x ${i.name}`);
             });
@@ -978,6 +985,9 @@
                 text += `%0A🎁 *Promo aplicada:* ${appliedCartBoosters.map(b => b.title || '').join(', ')}%0A`;
             }
             text += `%0A*TOTAL A PAGAR: ${cartCurrencySymbol()}${total.toFixed(2)}*`;
+            if (allHaveVES && totalVES > 0) {
+                text += ` (Bs. ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+            }
 
             // Abrimos WhatsApp de inmediato, en el mismo instante del clic —
             // así el navegador nunca lo bloquea como pop-up. El registro en
