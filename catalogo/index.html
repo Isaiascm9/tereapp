@@ -474,11 +474,14 @@
             selectedShipping = (storeConfig.shippingMethods[0] && storeConfig.shippingMethods[0].title) || '';
             selectedPayment = (storeConfig.paymentMethods[0] && storeConfig.paymentMethods[0].title) || '';
 
+            loadCartFromStorage();
+
             renderBanners();
             renderCategoryFilters();
             renderShippingMethods();
             renderPaymentMethods();
             renderGrid(products);
+            updateCartUI();
         });
 
         function renderGrid(items) {
@@ -652,6 +655,7 @@
         function addModalToCart() {
             cart.push({
                 id: selectedProductModal.id + '-' + Date.now(),
+                productId: selectedProductModal.id,
                 name: selectedProductModal.name,
                 price: selectedProductModal.price,
                 priceVES: selectedProductModal.priceVES || null,
@@ -667,6 +671,7 @@
                 if (!offer) return;
                 cart.push({
                     id: offer.id + '-addon-' + Date.now(),
+                    productId: offer.id,
                     name: `${offer.name} (${booster.title})`,
                     price: Number(booster.price),
                     priceVES: null,
@@ -686,6 +691,7 @@
             const product = products.find(p => p.id === id);
             cart.push({
                 id: product.id + '-' + Date.now(),
+                productId: product.id,
                 name: product.name,
                 price: product.price,
                 priceVES: product.priceVES || null,
@@ -753,7 +759,33 @@
             safeCreateIcons();
         }
 
+        // Llave propia y separada de la que usan el catálogo/panel — el
+        // carrito es solo del navegador de este cliente, nunca toca Firestore.
+        const CART_STORAGE_KEY = 'terea_cart_v1';
+
+        function saveCartToStorage() {
+            try {
+                localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+            } catch (e) {
+                console.warn('No se pudo guardar el carrito localmente:', e);
+            }
+        }
+
+        function loadCartFromStorage() {
+            try {
+                const raw = localStorage.getItem(CART_STORAGE_KEY);
+                if (!raw) return;
+                const saved = JSON.parse(raw);
+                if (!Array.isArray(saved)) return;
+                // Solo conserva líneas cuyo producto siga existiendo hoy.
+                cart = saved.filter(item => item.productId && products.some(p => p.id === item.productId));
+            } catch (e) {
+                console.warn('No se pudo recuperar el carrito guardado:', e);
+            }
+        }
+
         function updateCartUI() {
+            saveCartToStorage();
             const totalCount = cart.reduce((sum, item) => sum + item.qty, 0);
             const totalPrice = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
@@ -931,6 +963,7 @@
             if (activeCrossSell) {
                 cart.push({
                     id: activeCrossSell.offer.id + '-' + Date.now(),
+                    productId: activeCrossSell.offer.id,
                     name: `${activeCrossSell.offer.name} (${activeCrossSell.booster.title})`,
                     price: Number(activeCrossSell.booster.price),
                     priceVES: null,
@@ -1012,6 +1045,12 @@
             } catch (e) {
                 console.error('No se pudo registrar el pedido en la base de datos:', e);
             }
+
+            // El pedido ya se envió: vaciamos el carrito para que no se
+            // quede "fantasma" la próxima vez que abran el catálogo.
+            cart = [];
+            updateCartUI();
+            closeCart();
         }
     </script>
 </body>
