@@ -471,6 +471,7 @@
                     rating: p.rating || 0,
                     priceVES: p.priceVES || null,
                     currency: p.priceCurrency || 'USD',
+                    tereappProductId: p.tereappProductId || null,
                 }));
             boosters = shared.boosters || [];
             storeConfig = shared.storeConfig;
@@ -664,6 +665,7 @@
                 price: selectedProductModal.price,
                 priceVES: selectedProductModal.priceVES || null,
                 currency: selectedProductModal.currency || 'USD',
+                tereappProductId: selectedProductModal.tereappProductId || null,
                 image: selectedProductModal.image,
                 qty: modalQty
             });
@@ -680,6 +682,7 @@
                     price: Number(booster.price),
                     priceVES: null,
                     currency: offer.currency || 'USD',
+                    tereappProductId: offer.tereappProductId || null,
                     image: offer.image,
                     qty: 1
                 });
@@ -700,6 +703,7 @@
                 price: product.price,
                 priceVES: product.priceVES || null,
                 currency: product.currency || 'USD',
+                tereappProductId: product.tereappProductId || null,
                 image: product.image,
                 qty: 1
             });
@@ -1003,6 +1007,7 @@
                     price: Number(activeCrossSell.booster.price),
                     priceVES: null,
                     currency: activeCrossSell.offer.currency || 'USD',
+                    tereappProductId: activeCrossSell.offer.tereappProductId || null,
                     image: activeCrossSell.offer.image,
                     qty: 1
                 });
@@ -1036,6 +1041,7 @@
             let totalVES = 0;
             let allHaveVES = true;
             const itemsSummary = [];
+            const structuredItems = [];
             cart.forEach(i => {
                 const sub = i.price * i.qty;
                 total += sub;
@@ -1046,6 +1052,14 @@
                 }
                 text += `• ${i.qty}x ${i.name} (${currencySymbol(i.currency)}${sub.toFixed(2)})%0A`;
                 itemsSummary.push(`${i.qty}x ${i.name}`);
+                structuredItems.push({
+                    productId: i.productId || null,
+                    tereappProductId: i.tereappProductId || null,
+                    name: i.name,
+                    qty: i.qty,
+                    price: i.price,
+                    currency: i.currency || 'USD',
+                });
             });
 
             const appliedCartBoosters = getAppliedCartBoosters(total);
@@ -1065,6 +1079,12 @@
 
             try {
                 const fb = window.__terea_fb;
+                // La moneda general del pedido: solo tiene sentido si TODOS
+                // los productos vienen en la misma. Si se mezclan, cada línea
+                // de "items" igual trae su propia moneda por separado.
+                const currencies = new Set(cart.map(i => i.currency || 'USD'));
+                const orderCurrency = currencies.size === 1 ? [...currencies][0] : 'MIXED';
+
                 fb.addDoc(fb.collection(fb.db, 'pedidos_web'), {
                     clientName: name,
                     clientPhone: phone,
@@ -1072,7 +1092,9 @@
                     notes: notes || '',
                     shipping: selectedShipping,
                     payment: selectedPayment,
-                    items: itemsSummary.join(', '),
+                    itemsSummary: itemsSummary.join(', '),
+                    items: structuredItems,
+                    currency: orderCurrency,
                     total: Number(total.toFixed(2)),
                     status: 'preliminar',
                     createdAt: fb.serverTimestamp(),
