@@ -1670,12 +1670,32 @@ function renderWebOrdersList(orders){
   if(!list) return;
   if(!orders || orders.length===0){ list.innerHTML = '<p class="text-sm t-muted">No hay pedidos web pendientes por ahora.</p>'; return; }
   list.innerHTML = orders.map(o=>{
-    const itemsText = (o.items||[]).map(it=>{
+    const hasStructuredItems = Array.isArray(o.items);
+    const symbol = o.currency === 'EUR' ? '€' : (o.currency === 'MIXED' ? '' : '$');
+
+    if(!hasStructuredItems){
+      // Pedido viejo, de antes de que el catálogo guardara la lista
+      // estructurada de productos. No se puede importar automáticamente.
+      return `
+      <div class="surface-alt p-4 rounded-2xl space-y-2 anim-item" style="opacity:.6">
+        <div class="flex justify-between items-start gap-2 flex-wrap">
+          <div>
+            <p class="text-sm font-medium">${escapeHtmlWeb(o.clientName || 'Cliente web')} <span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span></p>
+            <p class="text-xs t-muted">${escapeHtmlWeb(o.clientPhone || '')}${o.clientAddress ? ' · '+escapeHtmlWeb(o.clientAddress) : ''}</p>
+          </div>
+          <p class="font-medium" style="color:var(--success)">${symbol}${Number(o.total||0).toFixed(2)}</p>
+        </div>
+        <p class="text-xs t-muted">${escapeHtmlWeb(o.itemsSummary || o.items || '')}</p>
+        <p class="text-xs" style="color:var(--danger, #dc2626)">Este pedido es de antes de la última actualización del catálogo y no tiene el detalle completo — no se puede importar automáticamente. Coordinalo a mano si hace falta.</p>
+      </div>
+    `;
+    }
+
+    const itemsText = o.items.map(it=>{
       const linked = it.tereappProductId ? appData.products.find(p=>p.id===it.tereappProductId) : null;
       const warn = !linked ? ' <span style="color:var(--danger, #dc2626)">(sin vínculo)</span>' : '';
       return `<span class="bg-accent-soft px-2 py-0.5 rounded text-xs font-medium mr-1">${it.qty}x ${escapeHtmlWeb(it.name)}${warn}</span>`;
     }).join('');
-    const symbol = o.currency === 'EUR' ? '€' : (o.currency === 'MIXED' ? '' : '$');
     return `
     <div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
       <div class="flex justify-between items-start gap-2 flex-wrap">
@@ -1706,7 +1726,11 @@ async function importWebOrder(webOrderId){
   const order = (window.__pendingWebOrders||[]).find(o=>o.id===webOrderId);
   if(!order){ showAlert('No se encontró ese pedido web', 'error'); return; }
 
-  const items = order.items || [];
+  if(!Array.isArray(order.items)){
+    showAlert('Este pedido es de antes de la actualización del catálogo y no se puede importar automáticamente. Coordinalo a mano.', 'error');
+    return;
+  }
+  const items = order.items;
   if(items.length === 0){ showAlert('Este pedido no tiene productos válidos', 'error'); return; }
 
   for(const it of items){
@@ -1771,8 +1795,11 @@ async function importWebOrder(webOrderId){
     if(window.__pendingWebOrders.length>0){ badge.textContent = window.__pendingWebOrders.length; badge.classList.remove('hidden'); }
     else { badge.classList.add('hidden'); }
   }
-  renderAll();
+  // Lo importante (stock, pedido, cliente) ya quedó guardado arriba.
+  // Avisamos primero, y protegemos el refresco general por si algo ajeno
+  // (como los gráficos del resumen) falla — que no oculte que sí funcionó.
   showAlert('Pedido web importado como preliminar — stock apartado');
+  try{ renderAll(); }catch(e){ console.error('Error al refrescar la pantalla (el pedido igual se importó bien):', e); }
 }
 
 function sendOrderWhatsapp(id){
