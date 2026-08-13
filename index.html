@@ -299,6 +299,17 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
         <select id="sale-currency" class="input" onchange="calculateGrandTotal()"></select>
         <p id="order-edit-web-currency-note" class="hidden text-xs mt-1" style="color:var(--accent)"></p>
       </div>
+      <div id="web-order-fields" class="hidden sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl" style="background:var(--accent-soft, rgba(0,0,0,.03))">
+        <div class="sm:col-span-2 flex items-center gap-1.5 text-xs font-medium" style="color:var(--accent)"><span class="msi" style="font-size:16px">shopping_cart</span>Datos del pedido web</div>
+        <div>
+          <label class="block text-xs font-medium t-muted uppercase mb-1">Dirección de envío</label>
+          <input type="text" id="sale-web-address" class="input">
+        </div>
+        <div>
+          <label class="block text-xs font-medium t-muted uppercase mb-1">Método de envío</label>
+          <input type="text" id="sale-web-shipping" class="input">
+        </div>
+      </div>
       <div class="sm:col-span-2">
         <label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
         <input type="text" id="sale-notes" placeholder="Ej. entregar el viernes" class="input">
@@ -1268,7 +1279,9 @@ function calculateGrandTotal(){
   currentSaleItems.forEach(item=>{ const p=appData.products.find(x=>x.id===item.productId); if(p) total += p.price*item.qty; });
   const discount = parseFloat(document.getElementById('sale-discount').value)||0;
   const finalUsd = Math.max(0,total-discount);
-  document.getElementById('sale-grand-total').innerText = fmt(finalUsd);
+  const editingOrder = editingOrderId ? appData.orders.find(o=>o.id===editingOrderId) : null;
+  const totalSymbol = (editingOrder && editingOrder.webCurrency === 'EUR') ? '€' : '$';
+  document.getElementById('sale-grand-total').innerText = totalSymbol+finalUsd.toFixed(2);
 
   const vesEl = document.getElementById('sale-grand-total-ves');
   const rate = getSelectedRate();
@@ -1577,8 +1590,8 @@ async function handleGenerateOrder(){
     totalVES: rate ? finalTotal*rate.value : null,
     source: oldOrder ? (oldOrder.source || null) : null,
     webCurrency: oldOrder ? (oldOrder.webCurrency || null) : null,
-    webAddress: oldOrder ? (oldOrder.webAddress || null) : null,
-    webShipping: oldOrder ? (oldOrder.webShipping || null) : null
+    webAddress: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-address').value.trim() : (oldOrder ? (oldOrder.webAddress || null) : null),
+    webShipping: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-shipping').value.trim() : (oldOrder ? (oldOrder.webShipping || null) : null)
   };
 
   const wasEditing = !!editingOrderId;
@@ -1964,6 +1977,14 @@ function openOrderForEdit(id){
   document.getElementById('sale-due-date').value = order.dueDate || '';
   toggleDueDateField();
   document.getElementById('sale-currency').value = order.rateType || 'USD';
+  const webFields = document.getElementById('web-order-fields');
+  if(order.source === 'web'){
+    document.getElementById('sale-web-address').value = order.webAddress || '';
+    document.getElementById('sale-web-shipping').value = order.webShipping || '';
+    webFields.classList.remove('hidden');
+  } else {
+    webFields.classList.add('hidden');
+  }
   const webNote = document.getElementById('order-edit-web-currency-note');
   if(order.webCurrency === 'EUR'){
     webNote.textContent = `Este pedido llegó en euros (€) — el total (${fmtOrderTotal(order)}) ya está en esa moneda, no en dólares.`;
@@ -1989,6 +2010,8 @@ function cancelOrderEdit(){
   document.getElementById('sale-notes').value='';
   document.getElementById('sale-due-date').value='';
   document.getElementById('due-date-wrapper').classList.add('hidden');
+  document.getElementById('web-order-fields').classList.add('hidden');
+  document.getElementById('order-edit-web-currency-note').classList.add('hidden');
   document.getElementById('edit-order-banner').classList.add('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">point_of_sale</span>Registrar venta';
   document.getElementById('order-submit-btn').innerHTML = '<span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar';
