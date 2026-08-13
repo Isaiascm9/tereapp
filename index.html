@@ -297,6 +297,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <div class="sm:col-span-2">
         <label class="block text-xs font-medium t-muted uppercase mb-1">Cobrar en</label>
         <select id="sale-currency" class="input" onchange="calculateGrandTotal()"></select>
+        <p id="order-edit-web-currency-note" class="hidden text-xs mt-1" style="color:var(--accent)"></p>
       </div>
       <div class="sm:col-span-2">
         <label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
@@ -592,6 +593,35 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   </div>
 </div>
 
+<div id="weborder-edit-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+  <div class="card max-w-sm w-full p-6 space-y-3 max-h-[85vh] overflow-y-auto">
+    <div class="flex justify-between items-center border-b b pb-3">
+      <h3 class="font-medium text-lg">Editar pedido web</h3>
+      <button onclick="closeModal('weborder-edit-modal')" class="t-muted"><span class="msi">close</span></button>
+    </div>
+    <form id="weborder-edit-form" onsubmit="handleWebOrderEditSubmit(event)" class="space-y-3">
+      <input type="hidden" id="weborder-edit-id">
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Nombre del cliente</label>
+        <input type="text" id="weborder-edit-name" required class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Teléfono</label>
+        <input type="text" id="weborder-edit-phone" class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Dirección</label>
+        <input type="text" id="weborder-edit-address" class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Método de envío</label>
+        <input type="text" id="weborder-edit-shipping" class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Método de pago</label>
+        <input type="text" id="weborder-edit-payment" class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
+        <input type="text" id="weborder-edit-notes" class="input"></div>
+      <p class="text-xs t-muted">Las cantidades y productos de este pedido no se editan aquí — si hace falta cambiarlos, importalo y editalo después como pedido preliminar normal.</p>
+      <div class="pt-2 flex space-x-3">
+        <button type="button" onclick="closeModal('weborder-edit-modal')" class="btn-secondary flex-1 py-2.5 text-sm">Cancelar</button>
+        <button type="submit" class="btn-primary flex-1 py-2.5 text-sm">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="fabric-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
   <div class="card max-w-sm w-full p-6 space-y-3">
     <div class="flex justify-between items-center border-b b pb-3">
@@ -731,6 +761,14 @@ let appData = {
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function fmt(n){ return '$'+(Number(n)||0).toFixed(2); }
+
+// Los pedidos/ventas normales de Téreapp siempre son en dólares — fmt()
+// sigue igual para ellos. Los que vienen del catálogo web pueden traer
+// euros, así que este helper elige el símbolo correcto según ese pedido.
+function fmtOrderTotal(o){
+  const symbol = o.webCurrency === 'EUR' ? '€' : '$';
+  return symbol+(Number(o.total)||0).toFixed(2);
+}
 function isoDate(d){ return d.toISOString().slice(0,10); }
 function todayIso(){ return isoDate(new Date()); }
 function monthKey(iso){ return iso.slice(0,7); }
@@ -1186,7 +1224,7 @@ function renderRecentSales(){
       <td class="py-3 t-muted text-xs whitespace-nowrap">${displayDate(sale.dateIso)}${sale.source==='web' ? ' <span class="bg-accent-soft text-accent text-[9px] font-bold px-1 py-0.5 rounded-full uppercase align-middle">Web</span>' : ''}</td>
       <td class="py-3">${itemsText}</td>
       <td class="py-3">${statusBadge}</td>
-      <td class="py-3 font-medium whitespace-nowrap" style="color:var(--success)">${fmt(sale.total)}${vesText}</td>
+      <td class="py-3 font-medium whitespace-nowrap" style="color:var(--success)">${fmtOrderTotal(sale)}${vesText}</td>
       <td class="py-3 text-right"><button onclick="event.stopPropagation(); deleteSale('${sale.id}')" class="t-muted hover:opacity-70"><span class="msi" style="font-size:16px">delete</span></button></td>
     </tr>`;
   });
@@ -1582,10 +1620,10 @@ function renderOrdersList(){
       <div class="flex justify-between items-start gap-2 flex-wrap">
         <div>
           <p class="text-sm font-medium">${client ? client.name : 'Sin cliente'} ${o.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}</p>
-          <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}${o.webAddress ? ' · '+o.webAddress : ''}</p>
+          <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}${o.webShipping ? ' · '+o.webShipping : ''}${o.webAddress ? ' · '+o.webAddress : ''}</p>
         </div>
         <div class="text-right">
-          <p class="font-medium" style="color:var(--success)">${fmt(o.total)}</p>
+          <p class="font-medium" style="color:var(--success)">${fmtOrderTotal(o)}</p>
           ${vesText}
         </div>
       </div>
@@ -1608,14 +1646,16 @@ function buildInvoiceText(o){
   const lines = [];
   lines.push('*Pedido - Téreapp*');
   if(client) lines.push(`Cliente: ${client.name}`);
+  if(o.webAddress) lines.push(`Dirección: ${o.webAddress}`);
+  if(o.webShipping) lines.push(`Envío: ${o.webShipping}`);
   lines.push('');
   lines.push('*Productos:*');
-  o.items.forEach(it=> lines.push(`${it.qty}x ${it.name} - ${fmt(it.subtotal)}`));
+  o.items.forEach(it=> lines.push(`${it.qty}x ${it.name} - ${fmtOrderTotal({total: it.subtotal, webCurrency: o.webCurrency})}`));
   lines.push('');
   lines.push(`Método de pago: ${o.payment}`);
   lines.push(`Estado de pago: *${o.status}*`);
   lines.push('');
-  lines.push(`*Total: ${fmt(o.total)}*`);
+  lines.push(`*Total: ${fmtOrderTotal(o)}*`);
   if(o.totalVES){
     lines.push(`*Bs ${o.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})}* (Tasa ${rateLabelText(o.rateType)})`);
   }
@@ -1707,7 +1747,9 @@ function renderWebOrdersList(orders){
       </div>
       <div>${itemsText}</div>
       <p class="text-xs t-muted">Envío: ${escapeHtmlWeb(o.shipping||'-')} · Pago: ${escapeHtmlWeb(o.payment||'-')}${o.notes ? ' · Notas: '+escapeHtmlWeb(o.notes) : ''}</p>
-      <div class="flex justify-end pt-2 border-t b">
+      <div class="flex justify-end gap-1.5 pt-2 border-t b">
+        <button onclick="openWebOrderEditModal('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">edit</span>Editar</button>
+        <button onclick="cancelWebOrder('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs" style="color:var(--danger)"><span class="msi" style="font-size:15px">cancel</span>Cancelar</button>
         <button onclick="importWebOrder('${o.id}')" class="btn-primary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add_shopping_cart</span>Importar</button>
       </div>
     </div>
@@ -1719,6 +1761,64 @@ function escapeHtmlWeb(str){
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
+}
+
+async function cancelWebOrder(webOrderId){
+  if(!confirm('¿Cancelar este pedido web? Queda marcado como cancelado y ya no vas a poder importarlo.')) return;
+  try{
+    await window.dbCancelWebOrder(webOrderId);
+  }catch(e){
+    console.error('No se pudo cancelar el pedido web:', e);
+    showAlert('No se pudo cancelar el pedido — revisá tu conexión', 'error');
+    return;
+  }
+  window.__pendingWebOrders = (window.__pendingWebOrders||[]).filter(o=>o.id!==webOrderId);
+  renderWebOrdersList(window.__pendingWebOrders);
+  const badge = document.getElementById('weborders-badge');
+  if(badge){
+    if(window.__pendingWebOrders.length>0){ badge.textContent = window.__pendingWebOrders.length; badge.classList.remove('hidden'); }
+    else { badge.classList.add('hidden'); }
+  }
+  showAlert('Pedido web cancelado');
+}
+
+function openWebOrderEditModal(webOrderId){
+  const order = (window.__pendingWebOrders||[]).find(o=>o.id===webOrderId);
+  if(!order) return;
+  document.getElementById('weborder-edit-id').value = webOrderId;
+  document.getElementById('weborder-edit-name').value = order.clientName || '';
+  document.getElementById('weborder-edit-phone').value = order.clientPhone || '';
+  document.getElementById('weborder-edit-address').value = order.clientAddress || '';
+  document.getElementById('weborder-edit-shipping').value = order.shipping || '';
+  document.getElementById('weborder-edit-payment').value = order.payment || '';
+  document.getElementById('weborder-edit-notes').value = order.notes || '';
+  document.getElementById('weborder-edit-modal').classList.remove('hidden');
+  document.getElementById('weborder-edit-modal').classList.add('flex');
+}
+
+async function handleWebOrderEditSubmit(e){
+  e.preventDefault();
+  const id = document.getElementById('weborder-edit-id').value;
+  const patch = {
+    clientName: document.getElementById('weborder-edit-name').value.trim(),
+    clientPhone: document.getElementById('weborder-edit-phone').value.trim(),
+    clientAddress: document.getElementById('weborder-edit-address').value.trim(),
+    shipping: document.getElementById('weborder-edit-shipping').value.trim(),
+    payment: document.getElementById('weborder-edit-payment').value.trim(),
+    notes: document.getElementById('weborder-edit-notes').value.trim(),
+  };
+  try{
+    await window.dbUpdateWebOrder(id, patch);
+  }catch(e){
+    console.error('No se pudo guardar el pedido web editado:', e);
+    showAlert('No se pudo guardar — revisá tu conexión', 'error');
+    return;
+  }
+  const order = (window.__pendingWebOrders||[]).find(o=>o.id===id);
+  if(order) Object.assign(order, patch);
+  renderWebOrdersList(window.__pendingWebOrders);
+  closeModal('weborder-edit-modal');
+  showAlert('Pedido web actualizado');
 }
 
 async function importWebOrder(webOrderId){
@@ -1855,6 +1955,7 @@ function openOrderForEdit(id){
   editingOrderId = id;
   currentSaleItems = order.items.map(it=>({ productId: it.productId, qty: it.qty }));
   renderSalesItemRows();
+  renderSaleClientOptions();
   document.getElementById('sale-client').value = order.clientId || '';
   document.getElementById('sale-payment').value = order.payment;
   document.getElementById('sale-discount').value = order.discount || 0;
@@ -1863,6 +1964,13 @@ function openOrderForEdit(id){
   document.getElementById('sale-due-date').value = order.dueDate || '';
   toggleDueDateField();
   document.getElementById('sale-currency').value = order.rateType || 'USD';
+  const webNote = document.getElementById('order-edit-web-currency-note');
+  if(order.webCurrency === 'EUR'){
+    webNote.textContent = `Este pedido llegó en euros (€) — el total (${fmtOrderTotal(order)}) ya está en esa moneda, no en dólares.`;
+    webNote.classList.remove('hidden');
+  } else {
+    webNote.classList.add('hidden');
+  }
   calculateGrandTotal();
   document.getElementById('edit-order-banner').classList.remove('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">edit</span>Editar pedido preliminar';
@@ -2721,6 +2829,18 @@ setReportPeriod('monthly');
   window.dbMarkWebOrderImported = async function(id){
     if(!authReady) throw new Error('Firebase todavía no está listo');
     await updateDoc(doc(db, 'pedidos_web', id), { status: 'importado', importedAt: new Date().toISOString() });
+    return true;
+  };
+
+  window.dbCancelWebOrder = async function(id){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await updateDoc(doc(db, 'pedidos_web', id), { status: 'cancelado', canceledAt: new Date().toISOString() });
+    return true;
+  };
+
+  window.dbUpdateWebOrder = async function(id, patch){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await updateDoc(doc(db, 'pedidos_web', id), patch);
     return true;
   };
 
