@@ -1245,7 +1245,7 @@ let currentSaleItems = [{ productId:null, qty:1 }];
 
 function renderSaleClientOptions(){
   const sel = document.getElementById('sale-client');
-  sel.innerHTML = '<option value="">Sin cliente</option>' + appData.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  sel.innerHTML = '<option value="">Sin cliente</option>' + appData.clients.map(c=>`<option value="${c.id}">${c.name}${c.phone ? ' — '+c.phone : ''}${c.source==='web' ? ' (Web)' : ''}</option>`).join('');
 }
 
 function renderSalesItemRows(){
@@ -1363,7 +1363,7 @@ function openSaleEditModal(id){
   renderEditSaleItemRows();
 
   const clientSel = document.getElementById('edit-sale-client');
-  clientSel.innerHTML = '<option value="">Sin cliente</option>' + appData.clients.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  clientSel.innerHTML = '<option value="">Sin cliente</option>' + appData.clients.map(c=>`<option value="${c.id}">${c.name}${c.phone ? ' — '+c.phone : ''}${c.source==='web' ? ' (Web)' : ''}</option>`).join('');
   clientSel.value = sale.clientId || '';
   document.getElementById('edit-sale-payment').value = sale.payment;
   document.getElementById('edit-sale-discount').value = sale.discount || 0;
@@ -1867,7 +1867,7 @@ async function importWebOrder(webOrderId){
   const phone = (order.clientPhone || '').trim();
   let client = phone ? appData.clients.find(c => (c.phone||'').trim() === phone) : null;
   if(!client){
-    client = { id: uid(), name: order.clientName || 'Cliente web', phone, notes: '' };
+    client = { id: uid(), name: order.clientName || 'Cliente web', phone, notes: '', source: 'web' };
     appData.clients.push(client);
   }
 
@@ -2314,7 +2314,7 @@ function renderClientsGrid(){
     const pending = clientSales.filter(s=>s.status==='Pendiente').reduce((a,s)=>a+s.total,0);
     return `<div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
       <div class="flex justify-between items-start">
-        <div><h4 class="font-medium text-sm">${c.name}</h4><p class="text-xs t-muted">${c.phone||'Sin teléfono'}</p></div>
+        <div><h4 class="font-medium text-sm">${c.name} ${c.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}</h4><p class="text-xs t-muted">${c.phone||'Sin teléfono'}</p></div>
         <div class="space-x-1">
           <button onclick="openClientModal('${c.id}')" class="btn-secondary p-2 text-xs"><span class="msi" style="font-size:15px">edit</span></button>
           <button onclick="deleteClient('${c.id}')" class="btn-secondary p-2 text-xs" style="color:var(--danger)"><span class="msi" style="font-size:15px">delete</span></button>
