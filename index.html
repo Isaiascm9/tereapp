@@ -1967,8 +1967,14 @@ function openOrderForEdit(id){
   if(!order) return;
   editingOrderId = id;
   currentSaleItems = order.items.map(it=>({ productId: it.productId, qty: it.qty }));
+
+  // Primero cambiamos de pestaña (esto internamente refresca listas y
+  // desplegables). Recién DESPUÉS rellenamos los campos específicos de
+  // este pedido — si lo hacemos al revés, ese refresco borra lo que
+  // acabamos de poner (por ejemplo, el cliente seleccionado).
+  switchTab('sales');
+
   renderSalesItemRows();
-  renderSaleClientOptions();
   document.getElementById('sale-client').value = order.clientId || '';
   document.getElementById('sale-payment').value = order.payment;
   document.getElementById('sale-discount').value = order.discount || 0;
@@ -1998,7 +2004,6 @@ function openOrderForEdit(id){
   document.getElementById('confirm-sale-btn').classList.add('hidden');
   const btn = document.getElementById('order-submit-btn');
   btn.innerHTML = '<span class="msi" style="font-size:16px">save</span>Guardar cambios';
-  switchTab('sales');
 }
 
 function cancelOrderEdit(){
