@@ -1347,6 +1347,11 @@ async function handleMultiSaleSubmit(){
   document.getElementById('sale-notes').value='';
   document.getElementById('sale-due-date').value='';
   document.getElementById('due-date-wrapper').classList.add('hidden');
+  document.getElementById('sale-client').value = '';
+  document.getElementById('web-order-fields').classList.add('hidden');
+  document.getElementById('sale-web-address').value = '';
+  document.getElementById('sale-web-shipping').value = '';
+  document.getElementById('order-edit-web-currency-note').classList.add('hidden');
   renderAll();
   switchTab('dashboard');
   showAlert('Venta registrada y stock actualizado');
@@ -1611,6 +1616,11 @@ async function handleGenerateOrder(){
   document.getElementById('sale-notes').value='';
   document.getElementById('sale-due-date').value='';
   document.getElementById('due-date-wrapper').classList.add('hidden');
+  document.getElementById('sale-client').value = '';
+  document.getElementById('web-order-fields').classList.add('hidden');
+  document.getElementById('sale-web-address').value = '';
+  document.getElementById('sale-web-shipping').value = '';
+  document.getElementById('order-edit-web-currency-note').classList.add('hidden');
   document.getElementById('edit-order-banner').classList.add('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">point_of_sale</span>Registrar venta';
   document.getElementById('order-submit-btn').innerHTML = '<span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar';
@@ -2016,6 +2026,8 @@ function cancelOrderEdit(){
   document.getElementById('sale-due-date').value='';
   document.getElementById('due-date-wrapper').classList.add('hidden');
   document.getElementById('web-order-fields').classList.add('hidden');
+  document.getElementById('sale-web-address').value = '';
+  document.getElementById('sale-web-shipping').value = '';
   document.getElementById('order-edit-web-currency-note').classList.add('hidden');
   document.getElementById('edit-order-banner').classList.add('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">point_of_sale</span>Registrar venta';
