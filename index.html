@@ -1259,6 +1259,13 @@ function renderSaleClientOptions(){
   sel.innerHTML = '<option value="">Sin cliente</option>' + appData.clients.map(c=>`<option value="${c.id}">${c.name}${c.phone ? ' — '+c.phone : ''}${c.source==='web' ? ' (Web)' : ''}</option>`).join('');
 }
 
+// El precio "real" de una línea del pedido: si esa línea trae su propio
+// precio guardado (de un impulsador, sea cual sea — actual o futuro),
+// se respeta ese. Si no, se usa el precio normal del producto.
+function getRowUnitPrice(item, prod){
+  return (item.unitPrice !== undefined && item.unitPrice !== null) ? item.unitPrice : prod.price;
+}
+
 function renderSalesItemRows(){
   const container = document.getElementById('sale-items-container');
   container.innerHTML='';
@@ -1267,13 +1274,18 @@ function renderSalesItemRows(){
     if(!item.productId) item.productId = appData.products[0].id;
     const prod = appData.products.find(p=>p.id===item.productId) || appData.products[0];
     const options = appData.products.map(p=>`<option value="${p.id}" ${p.id===item.productId?'selected':''}>${p.name} (Stock: ${p.stock}) - ${fmt(p.price)}</option>`).join('');
+    const unitPrice = getRowUnitPrice(item, prod);
+    const hasDiscount = item.unitPrice !== undefined && item.unitPrice !== null && Math.abs(item.unitPrice - prod.price) > 0.001;
     const row = document.createElement('div');
     row.className = 'flex flex-col sm:flex-row items-stretch sm:items-center gap-2 surface-alt p-3 rounded-xl';
     row.innerHTML = `
-      <div class="flex-1"><select onchange="updateSaleRowProduct(${idx}, this.value)" class="input py-2 text-xs">${options}</select></div>
+      <div class="flex-1">
+        <select onchange="updateSaleRowProduct(${idx}, this.value)" class="input py-2 text-xs">${options}</select>
+        ${hasDiscount ? `<span class="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style="background:var(--accent-soft); color:var(--accent)">Descuento</span>` : ''}
+      </div>
       <div class="flex items-center gap-2">
         <input type="number" min="1" value="${item.qty}" onchange="updateSaleRowQty(${idx}, this.value)" class="input py-2 text-xs text-center w-20 sm:w-16">
-        <div class="flex-1 sm:w-20 text-right font-medium text-xs">${fmt(prod.price*item.qty)}</div>
+        <div class="flex-1 sm:w-20 text-right font-medium text-xs">${fmt(unitPrice*item.qty)}</div>
         <button type="button" onclick="removeSaleRow(${idx})" class="t-muted hover:opacity-70"><span class="msi" style="font-size:18px">delete</span></button>
       </div>`;
     container.appendChild(row);
@@ -1282,12 +1294,19 @@ function renderSalesItemRows(){
 }
 function addSaleItemRow(){ if(appData.products.length===0) return; currentSaleItems.push({productId:appData.products[0].id, qty:1}); renderSalesItemRows(); }
 function removeSaleRow(idx){ if(currentSaleItems.length===1){ showAlert('Debe quedar al menos un artículo', 'error'); return; } currentSaleItems.splice(idx,1); renderSalesItemRows(); }
-function updateSaleRowProduct(idx,id){ currentSaleItems[idx].productId=id; renderSalesItemRows(); }
+function updateSaleRowProduct(idx,id){
+  currentSaleItems[idx].productId=id;
+  // Si el admin elige otro producto a mano para esta línea, ya no es "la
+  // línea original del impulsador" — se le quita el precio protegido y
+  // pasa a usar el precio normal del producto que acaba de elegir.
+  delete currentSaleItems[idx].unitPrice;
+  renderSalesItemRows();
+}
 function updateSaleRowQty(idx,qty){ currentSaleItems[idx].qty = parseInt(qty)||1; renderSalesItemRows(); }
 
 function calculateGrandTotal(){
   let total=0;
-  currentSaleItems.forEach(item=>{ const p=appData.products.find(x=>x.id===item.productId); if(p) total += p.price*item.qty; });
+  currentSaleItems.forEach(item=>{ const p=appData.products.find(x=>x.id===item.productId); if(p) total += getRowUnitPrice(item, p)*item.qty; });
   const discount = parseFloat(document.getElementById('sale-discount').value)||0;
   const finalUsd = Math.max(0,total-discount);
   const editingOrder = editingOrderId ? appData.orders.find(o=>o.id===editingOrderId) : null;
@@ -1581,9 +1600,10 @@ async function handleGenerateOrder(){
   currentSaleItems.forEach(item=>{
     const p = appData.products.find(x=>x.id===item.productId);
     const cost = getCost(p);
-    total += p.price*item.qty;
+    const unitPrice = getRowUnitPrice(item, p);
+    total += unitPrice*item.qty;
     totalCost += cost*item.qty;
-    itemsSummary.push({ productId:p.id, name:p.name, qty:item.qty, unitPrice:p.price, cost, subtotal:p.price*item.qty });
+    itemsSummary.push({ productId:p.id, name:p.name, qty:item.qty, unitPrice, cost, subtotal:unitPrice*item.qty });
   });
   const discount = parseFloat(document.getElementById('sale-discount').value)||0;
   const finalTotal = Math.max(0,total-discount);
@@ -1987,7 +2007,7 @@ function openOrderForEdit(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order) return;
   editingOrderId = id;
-  currentSaleItems = order.items.map(it=>({ productId: it.productId, qty: it.qty }));
+  currentSaleItems = order.items.map(it=>({ productId: it.productId, qty: it.qty, unitPrice: (it.unitPrice !== undefined ? it.unitPrice : null) }));
 
   // Primero cambiamos de pestaña (esto internamente refresca listas y
   // desplegables). Recién DESPUÉS rellenamos los campos específicos de
