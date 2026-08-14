@@ -59,7 +59,7 @@
     <main class="max-w-2xl mx-auto px-4 py-4 w-full flex-1">
         
         <!-- SLIDER DE BANNERS -->
-        <div class="relative mb-6 overflow-hidden rounded-2xl shadow-md group">
+        <div id="slider-touch-area" class="relative mb-6 overflow-hidden rounded-2xl shadow-md group">
             <div id="slider" class="flex slider-wrapper" style="transform: translateX(0%);"></div>
 
             <!-- Indicadores -->
@@ -387,6 +387,36 @@
             });
         }
 
+        // ============ DESLIZAR EL BANNER CON EL DEDO (mobile) ============
+        let touchStartX = 0;
+        let touchEndX = 0;
+        const SWIPE_MIN_DISTANCE = 40;
+
+        function handleSwipeGesture() {
+            const banners = storeConfig.banners && storeConfig.banners.length > 0 ? storeConfig.banners : [];
+            if (banners.length <= 1) return;
+            const delta = touchEndX - touchStartX;
+            if (Math.abs(delta) < SWIPE_MIN_DISTANCE) return;
+            if (delta < 0) {
+                currentSlide = (currentSlide + 1) % banners.length;
+            } else {
+                currentSlide = (currentSlide - 1 + banners.length) % banners.length;
+            }
+            goToSlide(currentSlide);
+        }
+
+        function setupSliderSwipe() {
+            const area = document.getElementById('slider-touch-area');
+            if (!area) return;
+            area.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+            area.addEventListener('touchend', (e) => {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipeGesture();
+            }, { passive: true });
+        }
+
         if ((storeConfig.banners || []).length > 1) {
             setInterval(() => {
                 const banners = storeConfig.banners;
@@ -516,6 +546,7 @@
             trackAbandonedCartVisitAndMaybeShowReminder();
 
             renderBanners();
+            setupSliderSwipe();
             renderCategoryFilters();
             renderShippingMethods();
             renderPaymentMethods();
