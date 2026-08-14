@@ -473,6 +473,10 @@
             safeCreateIcons();
         }
 
+        function rateLabelText(type) {
+            return type === 'bcv_usd' ? 'Tasa BCV Dólar' : type === 'bcv_eur' ? 'Tasa BCV Euro' : type === 'binance_p2p' ? 'Tasa Binance P2P' : '';
+        }
+
         function currencySymbol(currency) {
             return currency === 'EUR' ? '€' : '$';
         }
@@ -533,6 +537,7 @@
                     desc: p.description || '',
                     rating: p.rating || 0,
                     priceVES: p.priceVES || null,
+                    priceVESRateType: p.priceVESRateType || null,
                     currency: p.priceCurrency || 'USD',
                     tereappProductId: p.tereappProductId || null,
                 }));
@@ -760,6 +765,7 @@
                 name: selectedProductModal.name,
                 price: selectedProductModal.price,
                 priceVES: selectedProductModal.priceVES || null,
+                priceVESRateType: selectedProductModal.priceVESRateType || null,
                 currency: selectedProductModal.currency || 'USD',
                 tereappProductId: selectedProductModal.tereappProductId || null,
                 image: selectedProductModal.image,
@@ -780,6 +786,7 @@
                     name: `${offer.name} (${booster.title})`,
                     price: unitPrice,
                     priceVES: estimateVES(offer, unitPrice),
+                    priceVESRateType: offer.priceVESRateType || null,
                     currency: offer.currency || 'USD',
                     tereappProductId: offer.tereappProductId || null,
                     image: offer.image,
@@ -805,6 +812,7 @@
                 name: product.name,
                 price: product.price,
                 priceVES: product.priceVES || null,
+                priceVESRateType: product.priceVESRateType || null,
                 currency: product.currency || 'USD',
                 tereappProductId: product.tereappProductId || null,
                 image: product.image,
@@ -1122,6 +1130,7 @@
                     name: `${activeCrossSell.offer.name} (${activeCrossSell.booster.title})`,
                     price: csUnitPrice,
                     priceVES: estimateVES(activeCrossSell.offer, csUnitPrice),
+                    priceVESRateType: activeCrossSell.offer.priceVESRateType || null,
                     currency: activeCrossSell.offer.currency || 'USD',
                     tereappProductId: activeCrossSell.offer.tereappProductId || null,
                     image: activeCrossSell.offer.image,
@@ -1184,8 +1193,11 @@
             }
             text += `%0A*TOTAL A PAGAR: ${cartCurrencySymbol()}${total.toFixed(2)}*`;
             if (allHaveVES && totalVES > 0) {
-                text += ` (Bs. ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+                const rateTypes = new Set(cart.map(i => i.priceVESRateType).filter(Boolean));
+                const rateLabel = rateTypes.size === 1 ? rateLabelText([...rateTypes][0]) : '';
+                text += ` (Bs. ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${rateLabel ? ' — ' + rateLabel : ''})`;
             }
+            text += `%0A%0A¡Gracias por tu compra!`;
 
             // Abrimos WhatsApp de inmediato, en el mismo instante del clic —
             // así el navegador nunca lo bloquea como pop-up. El registro en
