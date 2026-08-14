@@ -166,7 +166,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 <main class="max-w-6xl mx-auto px-4 mt-6">
 
 <section id="tab-dashboard" class="space-y-6">
-  <p id="user-greeting" class="text-lg font-medium t-primary"></p>
+  <p id="user-greeting" class="text-sm font-medium t-secondary"></p>
   <div class="card p-5">
     <div class="flex justify-between items-center mb-3">
       <h3 class="text-sm font-medium t-secondary flex items-center gap-1.5"><span class="msi accent" style="font-size:18px">currency_exchange</span>Tasas del día (BCV)</h3>
@@ -1153,7 +1153,7 @@ function renderGreeting(){
   const hour = new Date().getHours();
   const moment = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   const name = window.currentUserFirstName || '';
-  el.textContent = name ? `${moment}, ${name} 👋` : `${moment} 👋`;
+  el.textContent = name ? `${moment}, ${name}` : moment;
 }
 
 function renderDashboard(){
