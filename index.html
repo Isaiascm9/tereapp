@@ -193,21 +193,37 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   </div>
 
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="card p-4">
-      <p class="text-xs font-medium t-muted uppercase tracking-wide">Ganancia neta (mes)</p>
+    <div class="card p-4 cursor-pointer hover:opacity-90" onclick="openDashboardPeriodModal()">
+      <div class="flex items-center gap-1">
+        <p id="stat-net-profit-label" class="text-xs font-medium t-muted uppercase tracking-wide">Ganancia neta (mes)</p>
+        <span class="msi t-muted" style="font-size:14px">expand_more</span>
+      </div>
       <h3 id="stat-net-profit" class="text-2xl font-medium mt-1 t-primary">$0.00</h3>
     </div>
     <div class="card p-4">
-      <p class="text-xs font-medium t-muted uppercase tracking-wide">Ventas (mes)</p>
+      <p id="stat-month-sales-label" class="text-xs font-medium t-muted uppercase tracking-wide">Ventas (mes)</p>
       <h3 id="stat-month-sales" class="text-2xl font-medium mt-1 t-primary">$0.00</h3>
     </div>
     <div class="card p-4">
-      <p class="text-xs font-medium t-muted uppercase tracking-wide">Gastos (mes)</p>
+      <p id="stat-month-expenses-label" class="text-xs font-medium t-muted uppercase tracking-wide">Gastos (mes)</p>
       <h3 id="stat-month-expenses" class="text-2xl font-medium mt-1 t-primary">$0.00</h3>
     </div>
     <div class="card p-4">
       <p class="text-xs font-medium t-muted uppercase tracking-wide">Stock total</p>
       <h3 id="stat-total-stock" class="text-2xl font-medium mt-1 t-primary">0</h3>
+    </div>
+  </div>
+
+  <!-- Popup: elegir periodo -->
+  <div id="dashboard-period-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+    <div class="card max-w-xs w-full p-5 space-y-2">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="font-medium text-base">Ver periodo</h3>
+        <button onclick="closeModal('dashboard-period-modal')" class="t-muted"><span class="msi">close</span></button>
+      </div>
+      <button onclick="setDashboardPeriod('current')" id="period-opt-current" class="w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium">Mes actual</button>
+      <button onclick="setDashboardPeriod('previous')" id="period-opt-previous" class="w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium">Mes anterior</button>
+      <button onclick="setDashboardPeriod('all')" id="period-opt-all" class="w-full text-left px-3.5 py-2.5 rounded-xl text-sm font-medium">Total (desde la primera venta)</button>
     </div>
   </div>
 
@@ -250,6 +266,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
         <tbody id="recent-sales-list"></tbody>
       </table>
     </div>
+    <div id="sales-pagination" class="flex justify-center items-center gap-1.5 mt-4"></div>
   </div>
 </section>
 
@@ -351,7 +368,10 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   <div class="card p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">inventory_2</span>Control de stock</h2>
-      <button onclick="openBatchModal()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">precision_manufacturing</span>Registrar lote de producción</button>
+      <div class="flex items-center gap-2">
+        <button onclick="toggleInventorySort()" id="inventory-sort-btn" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">sort_by_alpha</span>A-Z</button>
+        <button onclick="openBatchModal()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">precision_manufacturing</span>Registrar lote de producción</button>
+      </div>
     </div>
     <div class="space-y-3" id="inventory-list"></div>
   </div>
@@ -1156,17 +1176,60 @@ function renderGreeting(){
   el.textContent = name ? `${moment}, ${name}` : moment;
 }
 
+let dashboardPeriod = 'current'; // 'current' | 'previous' | 'all'
+
+function openDashboardPeriodModal(){
+  const modal = document.getElementById('dashboard-period-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  ['current','previous','all'].forEach(p=>{
+    const btn = document.getElementById('period-opt-'+p);
+    if(p===dashboardPeriod){ btn.style.background='var(--accent-soft)'; btn.style.color='var(--accent)'; }
+    else { btn.style.background='transparent'; btn.style.color=''; }
+  });
+}
+
+function setDashboardPeriod(period){
+  dashboardPeriod = period;
+  closeModal('dashboard-period-modal');
+  renderDashboard();
+}
+
+function prevMonthKey(key){
+  const [y,m] = key.split('-').map(Number);
+  const d = new Date(y, m-2, 1); // m-1 es el mes actual (0-index), -1 más = mes anterior
+  return monthKey(isoDate(d));
+}
+
+function salesForPeriod(){
+  if(dashboardPeriod==='all') return appData.sales;
+  const key = dashboardPeriod==='previous' ? prevMonthKey(monthKey(todayIso())) : monthKey(todayIso());
+  return salesInMonth(key);
+}
+function expensesForPeriod(){
+  if(dashboardPeriod==='all') return appData.expenses;
+  const key = dashboardPeriod==='previous' ? prevMonthKey(monthKey(todayIso())) : monthKey(todayIso());
+  return expensesInMonth(key);
+}
+function periodLabelSuffix(){
+  return dashboardPeriod==='previous' ? '(mes anterior)' : dashboardPeriod==='all' ? '(total)' : '(mes)';
+}
+
 function renderDashboard(){
   renderGreeting();
-  const currentMonth = monthKey(todayIso());
-  const monthSales = salesInMonth(currentMonth);
-  const monthExpenses = expensesInMonth(currentMonth);
+  const periodSales = salesForPeriod();
+  const periodExpenses = expensesForPeriod();
 
-  const salesTotal = monthSales.reduce((a,s)=>a+s.total,0);
-  const salesProfit = monthSales.reduce((a,s)=>a+s.totalProfit,0);
-  const expensesTotal = monthExpenses.reduce((a,e)=>a+e.amount,0);
+  const salesTotal = periodSales.reduce((a,s)=>a+s.total,0);
+  const salesProfit = periodSales.reduce((a,s)=>a+s.totalProfit,0);
+  const expensesTotal = periodExpenses.reduce((a,e)=>a+e.amount,0);
   const netProfit = salesProfit - expensesTotal;
   const totalStock = appData.products.reduce((a,p)=>a+p.stock,0);
+
+  const suffix = periodLabelSuffix();
+  document.getElementById('stat-net-profit-label').innerText = 'Ganancia neta ' + suffix;
+  document.getElementById('stat-month-sales-label').innerText = 'Ventas ' + suffix;
+  document.getElementById('stat-month-expenses-label').innerText = 'Gastos ' + suffix;
 
   document.getElementById('stat-net-profit').innerText = fmt(netProfit);
   document.getElementById('stat-month-sales').innerText = fmt(salesTotal);
@@ -1234,22 +1297,48 @@ function renderCharts(){
   }
 }
 
+let salesPage = 1;
+const SALES_PER_PAGE = 6;
+
 function renderRecentSales(){
   const tbody = document.getElementById('recent-sales-list');
-  if(appData.sales.length===0){ tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 t-muted">No hay ventas registradas aún.</td></tr>'; return; }
+  const pagerEl = document.getElementById('sales-pagination');
+  if(appData.sales.length===0){ tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 t-muted">No hay ventas registradas aún.</td></tr>'; pagerEl.innerHTML=''; return; }
+
+  const sorted = appData.sales.slice().sort((a,b)=> b.dateIso.localeCompare(a.dateIso));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / SALES_PER_PAGE));
+  if(salesPage > totalPages) salesPage = totalPages;
+  if(salesPage < 1) salesPage = 1;
+  const pageItems = sorted.slice((salesPage-1)*SALES_PER_PAGE, salesPage*SALES_PER_PAGE);
+
   tbody.innerHTML='';
-  appData.sales.slice(0,6).forEach((sale,i)=>{
+  pageItems.forEach((sale)=>{
+    const client = appData.clients.find(c=>c.id===sale.clientId);
     const itemsText = sale.items.map(it=>`<span class="bg-accent-soft px-2 py-0.5 rounded text-xs font-medium mr-1">${it.qty}x ${it.name}</span>`).join('');
     const statusBadge = sale.status==='Pagado' ? '<span class="bg-success-soft px-2 py-0.5 rounded-full text-xs font-medium">Pagado</span>' : '<span class="bg-warning-soft px-2 py-0.5 rounded-full text-xs font-medium">Pendiente</span>';
+    const clientBadge = `<span class="block text-xs font-medium t-primary mb-1">${client ? client.name : 'Sin cliente'}</span>`;
     const vesText = sale.totalVES ? `<div class="text-xs t-muted">Bs ${sale.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>` : '';
     tbody.innerHTML += `<tr class="border-b b cursor-pointer hover:opacity-80" onclick="openSaleEditModal('${sale.id}')">
       <td class="py-3 t-muted text-xs whitespace-nowrap">${displayDate(sale.dateIso)}${sale.source==='web' ? ' <span class="bg-accent-soft text-accent text-[9px] font-bold px-1 py-0.5 rounded-full uppercase align-middle">Web</span>' : ''}</td>
       <td class="py-3">${itemsText}</td>
-      <td class="py-3">${statusBadge}</td>
+      <td class="py-3">${clientBadge}${statusBadge}</td>
       <td class="py-3 font-medium whitespace-nowrap" style="color:var(--success)">${fmtOrderTotal(sale)}${vesText}</td>
       <td class="py-3 text-right"><button onclick="event.stopPropagation(); deleteSale('${sale.id}')" class="t-muted hover:opacity-70"><span class="msi" style="font-size:16px">delete</span></button></td>
     </tr>`;
   });
+
+  if(totalPages <= 1){ pagerEl.innerHTML=''; return; }
+  let pagerHtml = `<button onclick="goToSalesPage(${salesPage-1})" ${salesPage===1?'disabled':''} class="btn-secondary w-8 h-8 rounded-lg text-xs ${salesPage===1?'opacity-40':''}"><span class="msi" style="font-size:16px">chevron_left</span></button>`;
+  for(let i=1;i<=totalPages;i++){
+    pagerHtml += `<button onclick="goToSalesPage(${i})" class="w-8 h-8 rounded-lg text-xs font-medium ${i===salesPage ? 'btn-primary' : 'btn-secondary'}">${i}</button>`;
+  }
+  pagerHtml += `<button onclick="goToSalesPage(${salesPage+1})" ${salesPage===totalPages?'disabled':''} class="btn-secondary w-8 h-8 rounded-lg text-xs ${salesPage===totalPages?'opacity-40':''}"><span class="msi" style="font-size:16px">chevron_right</span></button>`;
+  pagerEl.innerHTML = pagerHtml;
+}
+
+function goToSalesPage(page){
+  salesPage = page;
+  renderRecentSales();
 }
 
 let currentSaleItems = [{ productId:null, qty:1 }];
@@ -2139,10 +2228,23 @@ function renderProductsGrid(){
   });
 }
 
+let inventorySortAZ = false;
+
+function toggleInventorySort(){
+  inventorySortAZ = !inventorySortAZ;
+  const btn = document.getElementById('inventory-sort-btn');
+  if(inventorySortAZ){ btn.style.background='var(--accent-soft)'; btn.style.color='var(--accent)'; }
+  else { btn.style.background=''; btn.style.color=''; }
+  renderInventoryList();
+}
+
 function renderInventoryList(){
   const list = document.getElementById('inventory-list');
   list.innerHTML='';
-  appData.products.forEach(p=>{
+  const items = inventorySortAZ
+    ? appData.products.slice().sort((a,b)=>a.name.localeCompare(b.name, 'es', {sensitivity:'base'}))
+    : appData.products;
+  items.forEach(p=>{
     const low = p.stock <= (p.lowStock ?? appData.settings.lowStockDefault);
     list.innerHTML += `<div class="flex items-center justify-between surface-alt p-4 rounded-2xl anim-item">
       <div>
