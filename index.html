@@ -89,6 +89,8 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 .fab{background:var(--accent); color:#fff; box-shadow:0 3px 6px rgba(0,0,0,.28); border-radius:16px!important; width:56px; height:56px; display:flex; align-items:center; justify-content:center;}
 .input{background:var(--surface); border:1.5px solid var(--border); border-radius:4px!important; color:var(--text-primary); padding:.55rem .75rem; font-size:1rem; width:100%; box-sizing:border-box; max-width:100%;}
 input[type="month"].input, input[type="date"].input{min-width:0;}
+#expense-month-select{width:auto!important; flex:1 1 0%; min-width:0;}
+#expense-year-select{width:auto!important; flex:0 0 6.5rem; min-width:0;}
 .input:focus{outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent);}
 .msi{font-family:'Material Symbols Outlined'; font-weight:normal; font-style:normal; font-size:20px; line-height:1; display:inline-block; vertical-align:middle; font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; transition:font-variation-settings var(--md-dur-short4) var(--md-ease-standard);}
 .bottom-nav-btn.active .msi, .tab-btn.active .msi{ font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24; }
@@ -694,7 +696,11 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     <form id="expense-form" onsubmit="handleExpenseSubmit(event)" class="space-y-3">
       <input type="hidden" id="expense-id">
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Mes</label>
-        <input type="month" id="expense-month" required class="input"></div>
+        <div class="flex gap-2">
+          <select id="expense-month-select" class="input flex-1"></select>
+          <select id="expense-year-select" class="input w-28"></select>
+        </div>
+      </div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Concepto</label>
         <input type="text" id="expense-concept" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Categoría</label>
@@ -2535,6 +2541,20 @@ async function deleteClient(id){
   showAlert('Cliente eliminado','error');
 }
 
+const MONTH_NAMES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+function populateExpenseMonthYearSelects(selectedYear, selectedMonthNum){
+  const monthSel = document.getElementById('expense-month-select');
+  const yearSel = document.getElementById('expense-year-select');
+  monthSel.innerHTML = MONTH_NAMES_ES.map((name,i)=>`<option value="${i+1}" ${i+1===selectedMonthNum?'selected':''}>${name}</option>`).join('');
+  const currentYear = new Date().getFullYear();
+  let years = [];
+  for(let y=currentYear-4; y<=currentYear+1; y++) years.push(y);
+  if(!years.includes(selectedYear)) years.push(selectedYear);
+  years.sort((a,b)=>a-b);
+  yearSel.innerHTML = years.map(y=>`<option value="${y}" ${y===selectedYear?'selected':''}>${y}</option>`).join('');
+}
+
 function renderExpensesList(){
   const currentMonth = monthKey(todayIso());
   const monthTotal = expensesInMonth(currentMonth).reduce((a,e)=>a+e.amount,0);
@@ -2557,13 +2577,15 @@ function openExpenseModal(id){
     const exp = appData.expenses.find(x=>x.id===id);
     if(!exp) return;
     document.getElementById('expense-modal-title').innerText = 'Editar gasto';
-    document.getElementById('expense-month').value = exp.dateIso.slice(0,7);
+    const [y,m] = exp.dateIso.split('-').map(Number);
+    populateExpenseMonthYearSelects(y, m);
     document.getElementById('expense-concept').value = exp.concept;
     document.getElementById('expense-category').value = exp.category;
     document.getElementById('expense-amount').value = exp.amount;
   } else {
     document.getElementById('expense-modal-title').innerText = 'Nuevo gasto';
-    document.getElementById('expense-month').value = todayIso().slice(0,7);
+    const today = new Date();
+    populateExpenseMonthYearSelects(today.getFullYear(), today.getMonth()+1);
   }
   openModal('expense-modal');
 }
@@ -2572,7 +2594,9 @@ async function handleExpenseSubmit(e){
   e.preventDefault();
   if(isDoubleSubmit()) return;
   const id = document.getElementById('expense-id').value;
-  const monthValue = document.getElementById('expense-month').value || todayIso().slice(0,7);
+  const year = document.getElementById('expense-year-select').value;
+  const monthNum = document.getElementById('expense-month-select').value.padStart(2,'0');
+  const monthValue = `${year}-${monthNum}`;
   const concept = document.getElementById('expense-concept').value;
   const category = document.getElementById('expense-category').value;
   const amount = parseFloat(document.getElementById('expense-amount').value);
