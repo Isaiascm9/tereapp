@@ -1305,20 +1305,15 @@
         }
 
         async function fetchRateByType(type) {
-            if (type === 'bcv_usd') {
-                const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
-                if (!res.ok) throw new Error('No se pudo consultar la tasa BCV Dólar');
+            if (type === 'bcv_usd' || type === 'bcv_eur') {
+                // Misma fuente para las dos: tasa.json de "Mi Carrito", que a
+                // su vez saca el dato directo de bcv.org.ve dos veces al día.
+                const res = await fetch('https://www.micarritove.site/tasa.json');
+                if (!res.ok) throw new Error('No se pudo consultar la tasa BCV');
                 const data = await res.json();
-                const rate = data.promedio || data.venta || data.compra;
-                if (!rate) throw new Error('Sin tasa válida');
-                return rate;
-            }
-            if (type === 'bcv_eur') {
-                const res = await fetch('https://ve.dolarapi.com/v1/euros/oficial');
-                if (!res.ok) throw new Error('No se pudo consultar la tasa BCV Euro');
-                const data = await res.json();
-                const rate = data.promedio || data.venta || data.compra;
-                if (!rate) throw new Error('Sin tasa válida');
+                const rate = type === 'bcv_usd' ? parseFloat(data.USD) : parseFloat(data.eur);
+                if (!rate || isNaN(rate)) throw new Error('Sin tasa válida');
+                window.__tasaJsonUpdatedAt = data.iso || null;
                 return rate;
             }
             if (type === 'binance_p2p') {
@@ -1376,7 +1371,12 @@
                 const rate = await getRate(rateType);
                 const ves = price * rate;
                 document.getElementById('pf-price-ves').value = ves.toFixed(2);
-                hint.textContent = `Bs. ${ves.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${VES_RATE_LABELS[rateType]}: ${rate.toFixed(2)})`;
+                let updatedNote = '';
+                if ((rateType === 'bcv_usd' || rateType === 'bcv_eur') && window.__tasaJsonUpdatedAt) {
+                    const updated = new Date(window.__tasaJsonUpdatedAt);
+                    updatedNote = ` — actualizado ${updated.toLocaleDateString('es-VE')} ${updated.toLocaleTimeString('es-VE', {hour:'2-digit', minute:'2-digit'})}`;
+                }
+                hint.textContent = `Bs. ${ves.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${VES_RATE_LABELS[rateType]}: ${rate.toFixed(2)})${updatedNote}`;
             } catch (e) {
                 console.warn('No se pudo calcular el equivalente en bolívares:', e);
                 hint.textContent = `No se pudo consultar ${VES_RATE_LABELS[rateType]} ahora mismo`;
