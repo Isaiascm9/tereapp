@@ -1311,7 +1311,7 @@
                 const res = await fetch('https://www.micarritove.site/tasa.json');
                 if (!res.ok) throw new Error('No se pudo consultar la tasa BCV');
                 const data = await res.json();
-                const rate = type === 'bcv_usd' ? parseFloat(data.USD) : parseFloat(data.eur);
+                const rate = type === 'bcv_usd' ? parseFloat(data.USD ?? data.usd) : parseFloat(data.EUR ?? data.eur);
                 if (!rate || isNaN(rate)) throw new Error('Sin tasa válida');
                 window.__tasaJsonUpdatedAt = data.iso || null;
                 return rate;
