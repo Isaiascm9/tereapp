@@ -247,7 +247,13 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
     <div class="card p-5 lg:col-span-2">
-      <h3 class="text-sm font-medium t-secondary mb-3">Ventas de los últimos 7 días</h3>
+      <div class="flex justify-between items-center mb-3">
+        <h3 id="chart-week-title" class="text-sm font-medium t-secondary">Ventas de los últimos 7 días</h3>
+        <select id="chart-week-range" onchange="setWeekChartDays(this.value)" class="input py-1 text-xs w-auto">
+          <option value="7">7 días</option>
+          <option value="14">14 días</option>
+        </select>
+      </div>
       <div style="height:220px"><canvas id="chart-week"></canvas></div>
     </div>
     <div class="card p-5 flex flex-col justify-center items-center text-center">
@@ -368,10 +374,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   <div class="card p-6">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">inventory_2</span>Control de stock</h2>
-      <div class="flex items-center gap-2">
-        <button onclick="toggleInventorySort()" id="inventory-sort-btn" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">sort_by_alpha</span>A-Z</button>
-        <button onclick="openBatchModal()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">precision_manufacturing</span>Registrar lote de producción</button>
-      </div>
+      <button onclick="openBatchModal()" class="btn-secondary text-xs px-3.5 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">precision_manufacturing</span>Registrar lote de producción</button>
     </div>
     <div class="space-y-3" id="inventory-list"></div>
   </div>
@@ -459,7 +462,14 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
   </div>
 
   <div class="card p-5">
-    <h3 class="text-sm font-medium t-secondary mb-3">Ventas de los últimos 14 días</h3>
+    <div class="flex justify-between items-center mb-3">
+      <h3 id="chart-reports-title" class="text-sm font-medium t-secondary">Ventas de los últimos 14 días</h3>
+      <select id="chart-reports-range" onchange="setReportsChartDays(this.value)" class="input py-1 text-xs w-auto">
+        <option value="7">7 días</option>
+        <option value="14" selected>14 días</option>
+        <option value="30">30 días</option>
+      </select>
+    </div>
     <div style="height:240px"><canvas id="chart-reports"></canvas></div>
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -681,6 +691,8 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
       <button onclick="closeModal('expense-modal')" class="t-muted"><span class="msi">close</span></button>
     </div>
     <form id="expense-form" onsubmit="handleExpenseSubmit(event)" class="space-y-3">
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Fecha</label>
+        <input type="date" id="expense-date" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Concepto</label>
         <input type="text" id="expense-concept" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Categoría</label>
@@ -1255,14 +1267,12 @@ function renderDashboard(){
 }
 
 let weekChart, reportsChart;
-function last7Days(){
+let weekChartDays = 7;
+let reportsChartDays = 14;
+
+function lastNDays(n){
   const days=[];
-  for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(isoDate(d)); }
-  return days;
-}
-function last14Days(){
-  const days=[];
-  for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(isoDate(d)); }
+  for(let i=n-1;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(isoDate(d)); }
   return days;
 }
 function salesTotalByDay(days){
@@ -1274,25 +1284,37 @@ function chartColors(){
   return { accent: style.getPropertyValue('--accent').trim(), text: style.getPropertyValue('--text-secondary').trim(), grid: style.getPropertyValue('--border').trim() };
 }
 
+function setWeekChartDays(n){
+  weekChartDays = parseInt(n);
+  renderCharts();
+}
+function setReportsChartDays(n){
+  reportsChartDays = parseInt(n);
+  renderCharts();
+}
+
 function renderCharts(){
   const c = chartColors();
-  const days7 = last7Days();
-  const labels7 = days7.map(d=>displayDate(d).slice(0,5));
-  const data7 = salesTotalByDay(days7);
+
+  document.getElementById('chart-week-title').innerText = `Ventas de los últimos ${weekChartDays} días`;
+  const daysA = lastNDays(weekChartDays);
+  const labelsA = daysA.map(d=>displayDate(d).slice(0,5));
+  const dataA = salesTotalByDay(daysA);
   const ctx1 = document.getElementById('chart-week');
   if(ctx1){
     if(weekChart) weekChart.destroy();
-    weekChart = new Chart(ctx1, { type:'bar', data:{ labels:labels7, datasets:[{ data:data7, backgroundColor:c.accent, borderRadius:4 }]},
+    weekChart = new Chart(ctx1, { type:'bar', data:{ labels:labelsA, datasets:[{ data:dataA, backgroundColor:c.accent, borderRadius:4 }]},
       options:{ plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:c.text}, grid:{display:false} }, y:{ ticks:{color:c.text}, grid:{color:c.grid} } } } });
   }
 
-  const days14 = last14Days();
-  const labels14 = days14.map(d=>displayDate(d).slice(0,5));
-  const data14 = salesTotalByDay(days14);
+  document.getElementById('chart-reports-title').innerText = `Ventas de los últimos ${reportsChartDays} días`;
+  const daysB = lastNDays(reportsChartDays);
+  const labelsB = daysB.map(d=>displayDate(d).slice(0,5));
+  const dataB = salesTotalByDay(daysB);
   const ctx2 = document.getElementById('chart-reports');
   if(ctx2){
     if(reportsChart) reportsChart.destroy();
-    reportsChart = new Chart(ctx2, { type:'line', data:{ labels:labels14, datasets:[{ data:data14, borderColor:c.accent, backgroundColor:c.accent, tension:.3, fill:false, pointRadius:3 }]},
+    reportsChart = new Chart(ctx2, { type:'line', data:{ labels:labelsB, datasets:[{ data:dataB, borderColor:c.accent, backgroundColor:c.accent, tension:.3, fill:false, pointRadius:3 }]},
       options:{ plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:c.text}, grid:{display:false} }, y:{ ticks:{color:c.text}, grid:{color:c.grid} } } } });
   }
 }
@@ -2228,23 +2250,10 @@ function renderProductsGrid(){
   });
 }
 
-let inventorySortAZ = false;
-
-function toggleInventorySort(){
-  inventorySortAZ = !inventorySortAZ;
-  const btn = document.getElementById('inventory-sort-btn');
-  if(inventorySortAZ){ btn.style.background='var(--accent-soft)'; btn.style.color='var(--accent)'; }
-  else { btn.style.background=''; btn.style.color=''; }
-  renderInventoryList();
-}
-
 function renderInventoryList(){
   const list = document.getElementById('inventory-list');
   list.innerHTML='';
-  const items = inventorySortAZ
-    ? appData.products.slice().sort((a,b)=>a.name.localeCompare(b.name, 'es', {sensitivity:'base'}))
-    : appData.products;
-  items.forEach(p=>{
+  appData.products.forEach(p=>{
     const low = p.stock <= (p.lowStock ?? appData.settings.lowStockDefault);
     list.innerHTML += `<div class="flex items-center justify-between surface-alt p-4 rounded-2xl anim-item">
       <div>
@@ -2538,11 +2547,11 @@ function renderExpensesList(){
     <td class="py-2 text-right"><button onclick="deleteExpense('${e.id}')" class="t-muted hover:opacity-70"><span class="msi" style="font-size:16px">delete</span></button></td>
   </tr>`).join('');
 }
-function openExpenseModal(){ document.getElementById('expense-form').reset(); openModal('expense-modal'); }
+function openExpenseModal(){ document.getElementById('expense-form').reset(); document.getElementById('expense-date').value = todayIso(); openModal('expense-modal'); }
 async function handleExpenseSubmit(e){
   e.preventDefault();
   if(isDoubleSubmit()) return;
-  appData.expenses.unshift({ id:uid(), dateIso: todayIso(), concept:document.getElementById('expense-concept').value, category:document.getElementById('expense-category').value, amount:parseFloat(document.getElementById('expense-amount').value) });
+  appData.expenses.unshift({ id:uid(), dateIso: document.getElementById('expense-date').value || todayIso(), concept:document.getElementById('expense-concept').value, category:document.getElementById('expense-category').value, amount:parseFloat(document.getElementById('expense-amount').value) });
   await saveData();
   closeModal('expense-modal');
   renderAll();
