@@ -2619,7 +2619,8 @@ function getReportData(from, to){
     productTotals[it.name].qty += it.qty;
     productTotals[it.name].revenue += it.subtotal;
   }));
-  return { from, to, sales, expenses, totalSales, totalProfit, totalExpenses, netProfit, productTotals };
+  const totalUnitsSold = Object.values(productTotals).reduce((a,d)=>a+d.qty,0);
+  return { from, to, sales, expenses, totalSales, totalProfit, totalExpenses, netProfit, productTotals, totalUnitsSold };
 }
 
 function downloadReportPDF(){
@@ -2639,7 +2640,8 @@ function downloadReportPDF(){
   doc.text(`Ventas totales: ${fmt(data.totalSales)}`, 14, y); y+=5.5;
   doc.text(`Ganancia bruta: ${fmt(data.totalProfit)}`, 14, y); y+=5.5;
   doc.text(`Gastos: ${fmt(data.totalExpenses)}`, 14, y); y+=5.5;
-  doc.text(`Ganancia neta: ${fmt(data.netProfit)}`, 14, y); y+=10;
+  doc.text(`Ganancia neta: ${fmt(data.netProfit)}`, 14, y); y+=5.5;
+  doc.text(`Total de productos vendidos: ${data.totalUnitsSold} unidades`, 14, y); y+=10;
 
   doc.setFontSize(12); doc.text('Productos vendidos', 14, y); y+=6;
   doc.setFontSize(9);
@@ -2689,7 +2691,8 @@ function downloadReportExcel(){
     ['Ventas totales', data.totalSales],
     ['Ganancia bruta', data.totalProfit],
     ['Gastos', data.totalExpenses],
-    ['Ganancia neta', data.netProfit]
+    ['Ganancia neta', data.netProfit],
+    ['Total de productos vendidos', data.totalUnitsSold]
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Resumen');
 
@@ -2722,6 +2725,7 @@ function buildReportText(data){
   lines.push(`Ganancia bruta: ${fmt(data.totalProfit)}`);
   lines.push(`Gastos: ${fmt(data.totalExpenses)}`);
   lines.push(`*Ganancia neta: ${fmt(data.netProfit)}*`);
+  lines.push(`Total de productos vendidos: ${data.totalUnitsSold} unidades`);
   lines.push('');
   lines.push('*Productos vendidos:*');
   const prodEntries = Object.entries(data.productTotals);
