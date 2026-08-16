@@ -687,12 +687,13 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 <div id="expense-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
   <div class="card max-w-sm w-full p-6 space-y-3">
     <div class="flex justify-between items-center border-b b pb-3">
-      <h3 class="font-medium text-lg">Nuevo gasto</h3>
+      <h3 id="expense-modal-title" class="font-medium text-lg">Nuevo gasto</h3>
       <button onclick="closeModal('expense-modal')" class="t-muted"><span class="msi">close</span></button>
     </div>
     <form id="expense-form" onsubmit="handleExpenseSubmit(event)" class="space-y-3">
-      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Fecha</label>
-        <input type="date" id="expense-date" required class="input"></div>
+      <input type="hidden" id="expense-id">
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Mes</label>
+        <input type="month" id="expense-month" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Concepto</label>
         <input type="text" id="expense-concept" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Categoría</label>
@@ -2539,23 +2540,59 @@ function renderExpensesList(){
   document.getElementById('expenses-month-total').innerText = fmt(monthTotal);
   const tbody = document.getElementById('expenses-list');
   if(appData.expenses.length===0){ tbody.innerHTML='<tr><td colspan="5" class="text-center py-4 t-muted">Sin gastos registrados.</td></tr>'; return; }
-  tbody.innerHTML = appData.expenses.slice(0,15).map(e=>`<tr class="border-b b">
+  tbody.innerHTML = appData.expenses.slice(0,15).map(e=>`<tr class="border-b b cursor-pointer hover:opacity-80" onclick="openExpenseModal('${e.id}')">
     <td class="py-2 text-xs t-muted whitespace-nowrap">${displayDate(e.dateIso)}</td>
     <td class="py-2 text-sm">${e.concept}</td>
     <td class="py-2 text-xs"><span class="bg-accent-soft px-2 py-0.5 rounded-full">${e.category}</span></td>
     <td class="py-2 text-sm font-medium" style="color:var(--danger)">${fmt(e.amount)}</td>
-    <td class="py-2 text-right"><button onclick="deleteExpense('${e.id}')" class="t-muted hover:opacity-70"><span class="msi" style="font-size:16px">delete</span></button></td>
+    <td class="py-2 text-right"><button onclick="event.stopPropagation(); deleteExpense('${e.id}')" class="t-muted hover:opacity-70"><span class="msi" style="font-size:16px">delete</span></button></td>
   </tr>`).join('');
 }
-function openExpenseModal(){ document.getElementById('expense-form').reset(); document.getElementById('expense-date').value = todayIso(); openModal('expense-modal'); }
+
+function openExpenseModal(id){
+  document.getElementById('expense-form').reset();
+  document.getElementById('expense-id').value = id || '';
+  if(id){
+    const exp = appData.expenses.find(x=>x.id===id);
+    if(!exp) return;
+    document.getElementById('expense-modal-title').innerText = 'Editar gasto';
+    document.getElementById('expense-month').value = exp.dateIso.slice(0,7);
+    document.getElementById('expense-concept').value = exp.concept;
+    document.getElementById('expense-category').value = exp.category;
+    document.getElementById('expense-amount').value = exp.amount;
+  } else {
+    document.getElementById('expense-modal-title').innerText = 'Nuevo gasto';
+    document.getElementById('expense-month').value = todayIso().slice(0,7);
+  }
+  openModal('expense-modal');
+}
+
 async function handleExpenseSubmit(e){
   e.preventDefault();
   if(isDoubleSubmit()) return;
-  appData.expenses.unshift({ id:uid(), dateIso: document.getElementById('expense-date').value || todayIso(), concept:document.getElementById('expense-concept').value, category:document.getElementById('expense-category').value, amount:parseFloat(document.getElementById('expense-amount').value) });
+  const id = document.getElementById('expense-id').value;
+  const monthValue = document.getElementById('expense-month').value || todayIso().slice(0,7);
+  const concept = document.getElementById('expense-concept').value;
+  const category = document.getElementById('expense-category').value;
+  const amount = parseFloat(document.getElementById('expense-amount').value);
+
+  if(id){
+    const exp = appData.expenses.find(x=>x.id===id);
+    if(exp){
+      // Conserva el día original del gasto, solo cambia el mes/año elegido.
+      const originalDay = exp.dateIso.slice(8,10) || '01';
+      exp.dateIso = `${monthValue}-${originalDay}`;
+      exp.concept = concept;
+      exp.category = category;
+      exp.amount = amount;
+    }
+  } else {
+    appData.expenses.unshift({ id:uid(), dateIso: `${monthValue}-01`, concept, category, amount });
+  }
   await saveData();
   closeModal('expense-modal');
   renderAll();
-  showAlert('Gasto registrado');
+  showAlert(id ? 'Gasto actualizado' : 'Gasto registrado');
 }
 async function deleteExpense(id){
   const ok = await askConfirm('¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer.');
