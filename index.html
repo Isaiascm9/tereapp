@@ -937,21 +937,18 @@ async function fetchRates(){
   errorEl.classList.add('hidden');
   let usdOk=false, eurOk=false, p2pOk=false;
   try{
-    const res = await fetch('https://ve.dolarapi.com/v1/dolares/oficial');
+    // Dólar y Euro BCV: misma fuente, tasa.json de "Mi Carrito" (saca el
+    // dato directo de bcv.org.ve, se actualiza dos veces al día).
+    const res = await fetch('https://www.micarritove.site/tasa.json');
     if(res.ok){
       const data = await res.json();
-      appData.rates.usdBcv = { value: data.promedio || data.venta || data.compra, updatedAt: data.fechaActualizacion || new Date().toISOString() };
-      usdOk = true;
+      const updatedAt = data.iso || new Date().toISOString();
+      const usdVal = parseFloat(data.USD);
+      const eurVal = parseFloat(data.eur);
+      if(usdVal && !isNaN(usdVal)){ appData.rates.usdBcv = { value: usdVal, updatedAt }; usdOk = true; }
+      if(eurVal && !isNaN(eurVal)){ appData.rates.eurBcv = { value: eurVal, updatedAt }; eurOk = true; }
     }
-  }catch(e){ console.log('No se pudo obtener tasa USD BCV', e); }
-  try{
-    const res = await fetch('https://ve.dolarapi.com/v1/euros/oficial');
-    if(res.ok){
-      const data = await res.json();
-      appData.rates.eurBcv = { value: data.promedio || data.venta || data.compra, updatedAt: data.fechaActualizacion || new Date().toISOString() };
-      eurOk = true;
-    }
-  }catch(e){ console.log('No se pudo obtener tasa EUR BCV', e); }
+  }catch(e){ console.log('No se pudo obtener tasa BCV (Mi Carrito)', e); }
   try{
     const res = await fetch('https://www.usdt.com.ve/api/v1/rates/current');
     if(res.ok){
