@@ -943,8 +943,8 @@ async function fetchRates(){
     if(res.ok){
       const data = await res.json();
       const updatedAt = data.iso || new Date().toISOString();
-      const usdVal = parseFloat(data.USD);
-      const eurVal = parseFloat(data.eur);
+      const usdVal = parseFloat(data.USD ?? data.usd);
+      const eurVal = parseFloat(data.EUR ?? data.eur);
       if(usdVal && !isNaN(usdVal)){ appData.rates.usdBcv = { value: usdVal, updatedAt }; usdOk = true; }
       if(eurVal && !isNaN(eurVal)){ appData.rates.eurBcv = { value: eurVal, updatedAt }; eurOk = true; }
     }
