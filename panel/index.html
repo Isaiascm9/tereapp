@@ -539,7 +539,7 @@
                 <div id="bf-offer-fields" class="grid grid-cols-2 gap-3">
                     <div class="col-span-2">
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Qué se ofrece</label>
-                        <select id="bf-offer" onchange="updateBoosterPriceCurrencyHint()" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera"></select>
+                        <select id="bf-offer" onchange="updateBoosterPriceCurrencyHint(); renderOfferColorOptions();" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera"></select>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Cantidad</label>
@@ -550,6 +550,14 @@
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Precio con descuento</label>
                         <input type="number" step="0.01" id="bf-price" placeholder="5.00" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
                         <p id="bf-price-currency-hint" class="text-[11px] text-slate-400 mt-1"></p>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="flex items-center justify-between p-3 rounded-xl border border-gray-200 cursor-pointer">
+                            <span class="text-xs font-semibold text-slate-700">Dejar que el cliente elija el color</span>
+                            <input type="checkbox" id="bf-offer-color-choice" onchange="toggleOfferColorChoice()" class="accent-madera w-5 h-5">
+                        </label>
+                        <p class="text-[11px] text-slate-400 mt-1">Apagado: siempre se ofrece el color de arriba. Encendido: eliges tú mismo entre cuáles colores puede elegir el cliente.</p>
+                        <div id="bf-offer-color-options" class="hidden mt-2 space-y-1.5 p-3 rounded-xl bg-gray-50"></div>
                     </div>
                 </div>
 
@@ -1607,6 +1615,54 @@
             selectEl.innerHTML = state.products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
         }
 
+        // ============ COLOR PERMITIDO EN EL ADD-ON/CROSS-SELL (opcional) ============
+        function getOfferColorOptions() {
+            const offerId = document.getElementById('bf-offer').value;
+            const offer = state.products.find(p => p.id === offerId);
+            if (!offer) return [];
+            // Caso 1: el producto elegido ES el principal de su grupo.
+            if (offer.colorVariants && offer.colorVariants.length > 0) {
+                return [
+                    { id: offer.id, name: (offer.ownColor && offer.ownColor.name) || offer.name },
+                    ...offer.colorVariants.map(v => ({ id: v.productId, name: v.colorName }))
+                ];
+            }
+            // Caso 2: el producto elegido es una variante DENTRO de otro grupo.
+            for (const p of state.products) {
+                if (p.colorVariants && p.colorVariants.some(v => v.productId === offer.id)) {
+                    return [
+                        { id: p.id, name: (p.ownColor && p.ownColor.name) || p.name },
+                        ...p.colorVariants.map(v => ({ id: v.productId, name: v.colorName }))
+                    ];
+                }
+            }
+            return [];
+        }
+
+        function toggleOfferColorChoice() {
+            const on = document.getElementById('bf-offer-color-choice').checked;
+            document.getElementById('bf-offer-color-options').classList.toggle('hidden', !on);
+            if (on) renderOfferColorOptions();
+        }
+
+        function renderOfferColorOptions(checkedIds) {
+            const on = document.getElementById('bf-offer-color-choice').checked;
+            if (!on) return;
+            const container = document.getElementById('bf-offer-color-options');
+            const options = getOfferColorOptions();
+            if (options.length === 0) {
+                container.innerHTML = '<p class="text-[11px] text-slate-400">Este producto no tiene variantes de color configuradas — actívalas primero en Productos.</p>';
+                return;
+            }
+            const checked = checkedIds || options.map(o => o.id);
+            container.innerHTML = options.map(o => `
+                <label class="flex items-center gap-2 text-xs text-slate-700">
+                    <input type="checkbox" class="bf-offer-color-checkbox accent-madera" value="${o.id}" ${checked.includes(o.id) ? 'checked' : ''}>
+                    ${escapeHtml(o.name || '(sin nombre)')}
+                </label>
+            `).join('');
+        }
+
         function updateBoosterPriceCurrencyHint() {
             const offerId = document.getElementById('bf-offer').value;
             const hint = document.getElementById('bf-price-currency-hint');
@@ -1666,6 +1722,9 @@
                 document.getElementById('bf-title').value = b.title;
                 document.getElementById('bf-offer').value = b.offerId || '';
                 document.getElementById('bf-offer-qty').value = b.offerQty || 1;
+                document.getElementById('bf-offer-color-choice').checked = !!b.offerColorChoice;
+                document.getElementById('bf-offer-color-options').classList.toggle('hidden', !b.offerColorChoice);
+                if (b.offerColorChoice) renderOfferColorOptions(b.offerAllowedColorIds || []);
                 document.getElementById('bf-price').value = b.price || '';
                 document.getElementById('bf-expires').value = b.expiresAt || '';
                 document.getElementById('bf-startsat').value = b.startsAt || '';
@@ -1685,6 +1744,9 @@
                 document.getElementById('bf-title').value = '';
                 document.getElementById('bf-price').value = '';
                 document.getElementById('bf-offer-qty').value = 1;
+                document.getElementById('bf-offer-color-choice').checked = false;
+                document.getElementById('bf-offer-color-options').classList.add('hidden');
+                document.getElementById('bf-offer-color-options').innerHTML = '';
                 document.getElementById('bf-minqty').value = '';
                 document.getElementById('bf-mincart').value = '';
                 document.getElementById('bf-reminder-visits').value = '';
@@ -1770,11 +1832,15 @@
                 data.freeShipping = false;
                 data.offerId = null;
                 data.offerQty = null;
+                data.offerColorChoice = null;
+                data.offerAllowedColorIds = null;
             } else if (isCart) {
                 data.minCartTotal = parseFloat(document.getElementById('bf-mincart').value);
                 data.freeShipping = freeShipping;
                 data.offerId = freeShipping ? null : document.getElementById('bf-offer').value;
                 data.offerQty = freeShipping ? null : (parseInt(document.getElementById('bf-offer-qty').value) || 1);
+                data.offerColorChoice = freeShipping ? false : document.getElementById('bf-offer-color-choice').checked;
+                data.offerAllowedColorIds = (!freeShipping && data.offerColorChoice) ? Array.from(document.querySelectorAll('.bf-offer-color-checkbox:checked')).map(el => el.value) : null;
                 data.triggerId = null;
                 data.type = null;
                 data.minQty = null;
@@ -1785,6 +1851,8 @@
                 data.type = document.querySelector('input[name="bf-type"]:checked').value;
                 data.offerId = document.getElementById('bf-offer').value;
                 data.offerQty = parseInt(document.getElementById('bf-offer-qty').value) || 1;
+                data.offerColorChoice = document.getElementById('bf-offer-color-choice').checked;
+                data.offerAllowedColorIds = data.offerColorChoice ? Array.from(document.querySelectorAll('.bf-offer-color-checkbox:checked')).map(el => el.value) : null;
                 data.minQty = minQtyRaw ? parseInt(minQtyRaw) : null;
                 data.minCartTotal = null;
                 data.freeShipping = false;
