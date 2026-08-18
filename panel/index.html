@@ -551,10 +551,16 @@
                         <input type="number" step="0.01" id="bf-price" placeholder="5.00" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
                         <p id="bf-price-currency-hint" class="text-[11px] text-slate-400 mt-1"></p>
                     </div>
-                    <div class="col-span-2">
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Texto a mostrar en el catálogo (opcional)</label>
-                        <input type="text" id="bf-offer-display-name" placeholder="Ej. Colita a elegir" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
-                        <p class="text-[11px] text-slate-400 mt-1">Déjalo vacío para usar el nombre del producto tal cual. Útil cuando dejas elegir color y el nombre de un solo producto ya no aplica.</p>
+                    <div class="col-span-2 grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Texto del encabezado (opcional)</label>
+                            <input type="text" id="bf-offer-header-text" placeholder="Ej. Elige tus preferidas" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 mb-1">Texto de la casilla (opcional)</label>
+                            <input type="text" id="bf-offer-checkbox-text" placeholder="Ej. Elige tus preferidas" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                        </div>
+                        <p class="col-span-2 text-[11px] text-slate-400">Déjalos vacíos para usar el nombre del producto tal cual en ambos. Puedes llenar solo uno si quieres.</p>
                     </div>
                     <div class="col-span-2">
                         <label class="flex items-center justify-between p-3 rounded-xl border border-gray-200 cursor-pointer">
@@ -1727,7 +1733,8 @@
                 document.getElementById('bf-title').value = b.title;
                 document.getElementById('bf-offer').value = b.offerId || '';
                 document.getElementById('bf-offer-qty').value = b.offerQty || 1;
-                document.getElementById('bf-offer-display-name').value = b.offerDisplayName || '';
+                document.getElementById('bf-offer-header-text').value = b.offerHeaderText || '';
+                document.getElementById('bf-offer-checkbox-text').value = b.offerCheckboxText || '';
                 document.getElementById('bf-offer-color-choice').checked = !!b.offerColorChoice;
                 document.getElementById('bf-offer-color-options').classList.toggle('hidden', !b.offerColorChoice);
                 if (b.offerColorChoice) renderOfferColorOptions(b.offerAllowedColorIds || []);
@@ -1750,7 +1757,8 @@
                 document.getElementById('bf-title').value = '';
                 document.getElementById('bf-price').value = '';
                 document.getElementById('bf-offer-qty').value = 1;
-                document.getElementById('bf-offer-display-name').value = '';
+                document.getElementById('bf-offer-header-text').value = '';
+                document.getElementById('bf-offer-checkbox-text').value = '';
                 document.getElementById('bf-offer-color-choice').checked = false;
                 document.getElementById('bf-offer-color-options').classList.add('hidden');
                 document.getElementById('bf-offer-color-options').innerHTML = '';
@@ -1839,7 +1847,8 @@
                 data.freeShipping = false;
                 data.offerId = null;
                 data.offerQty = null;
-                data.offerDisplayName = null;
+                data.offerHeaderText = null;
+                data.offerCheckboxText = null;
                 data.offerColorChoice = null;
                 data.offerAllowedColorIds = null;
             } else if (isCart) {
@@ -1847,7 +1856,8 @@
                 data.freeShipping = freeShipping;
                 data.offerId = freeShipping ? null : document.getElementById('bf-offer').value;
                 data.offerQty = freeShipping ? null : (parseInt(document.getElementById('bf-offer-qty').value) || 1);
-                data.offerDisplayName = freeShipping ? null : (document.getElementById('bf-offer-display-name').value.trim() || null);
+                data.offerHeaderText = freeShipping ? null : (document.getElementById('bf-offer-header-text').value.trim() || null);
+                data.offerCheckboxText = freeShipping ? null : (document.getElementById('bf-offer-checkbox-text').value.trim() || null);
                 data.offerColorChoice = freeShipping ? false : document.getElementById('bf-offer-color-choice').checked;
                 data.offerAllowedColorIds = (!freeShipping && data.offerColorChoice) ? Array.from(document.querySelectorAll('.bf-offer-color-checkbox:checked')).map(el => el.value) : null;
                 data.triggerId = null;
@@ -1860,7 +1870,8 @@
                 data.type = document.querySelector('input[name="bf-type"]:checked').value;
                 data.offerId = document.getElementById('bf-offer').value;
                 data.offerQty = parseInt(document.getElementById('bf-offer-qty').value) || 1;
-                data.offerDisplayName = document.getElementById('bf-offer-display-name').value.trim() || null;
+                data.offerHeaderText = document.getElementById('bf-offer-header-text').value.trim() || null;
+                data.offerCheckboxText = document.getElementById('bf-offer-checkbox-text').value.trim() || null;
                 data.offerColorChoice = document.getElementById('bf-offer-color-choice').checked;
                 data.offerAllowedColorIds = data.offerColorChoice ? Array.from(document.querySelectorAll('.bf-offer-color-checkbox:checked')).map(el => el.value) : null;
                 data.minQty = minQtyRaw ? parseInt(minQtyRaw) : null;
