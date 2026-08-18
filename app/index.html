@@ -1842,8 +1842,7 @@ function renderOrdersList(){
 function buildInvoiceText(o){
   const client = appData.clients.find(c=>c.id===o.clientId);
   const lines = [];
-  lines.push('*Pedido - Téreapp*');
-  if(o.orderNumber) lines.push(`Pedido #${o.orderNumber}`);
+  lines.push(o.orderNumber ? `*Pedido#${o.orderNumber} - Térea.ve*` : '*Pedido - Térea.ve*');
   if(client) lines.push(`Cliente: ${client.name}`);
   if(o.webAddress) lines.push(`Dirección: ${o.webAddress}`);
   if(o.webShipping) lines.push(`Envío: ${o.webShipping}`);
