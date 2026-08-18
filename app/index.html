@@ -142,7 +142,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
     <div class="flex items-center space-x-2.5">
       <span class="msi" style="font-size:26px">workspace_premium</span>
-      <h1 class="text-xl font-medium">Téreapp</h1>
+      <h1 class="text-xl font-medium">Téreapp <span class="text-[9px] font-normal opacity-40">v9</span></h1>
     </div>
     <div class="flex items-center space-x-2">
       <span id="sync-status" class="flex text-xs px-2 sm:px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2)">
@@ -271,7 +271,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     <h3 class="text-sm font-medium t-secondary mb-4">Historial reciente de ventas</h3>
     <div class="overflow-x-auto">
       <table class="w-full text-left text-sm">
-        <thead><tr class="border-b b t-muted"><th class="pb-2 font-medium">Fecha</th><th class="pb-2 font-medium">Productos</th><th class="pb-2 font-medium">Estado</th><th class="pb-2 font-medium">Total</th><th class="pb-2 text-right font-medium">Acción</th></tr></thead>
+        <thead><tr class="border-b b t-muted"><th class="pb-2 font-medium">#</th><th class="pb-2 font-medium">Fecha</th><th class="pb-2 font-medium">Productos</th><th class="pb-2 font-medium">Estado</th><th class="pb-2 font-medium">Total</th><th class="pb-2 text-right font-medium">Acción</th></tr></thead>
         <tbody id="recent-sales-list"></tbody>
       </table>
     </div>
@@ -720,7 +720,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 <div id="edit-sale-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
   <div class="card max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
     <div class="flex justify-between items-center border-b b pb-3">
-      <h3 class="font-medium text-lg flex items-center gap-2"><span class="msi accent">edit</span>Editar venta</h3>
+      <h3 id="edit-sale-modal-title" class="font-medium text-lg flex items-center gap-2"><span class="msi accent">edit</span>Editar venta</h3>
       <button onclick="closeModal('edit-sale-modal')" class="t-muted"><span class="msi">close</span></button>
     </div>
     <div class="space-y-2">
@@ -1346,6 +1346,7 @@ function renderRecentSales(){
     const clientBadge = `<span class="block text-xs font-medium t-primary mb-1">${client ? client.name : 'Sin cliente'}</span>`;
     const vesText = sale.totalVES ? `<div class="text-xs t-muted">Bs ${sale.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>` : '';
     tbody.innerHTML += `<tr class="border-b b cursor-pointer hover:opacity-80" onclick="openSaleEditModal('${sale.id}')">
+      <td class="py-3 t-muted text-xs font-medium whitespace-nowrap">${sale.orderNumber ? '#'+sale.orderNumber : '—'}</td>
       <td class="py-3 t-muted text-xs whitespace-nowrap">${displayDate(sale.dateIso)}${sale.source==='web' ? ' <span class="bg-accent-soft text-accent text-[9px] font-bold px-1 py-0.5 rounded-full uppercase align-middle">Web</span>' : ''}</td>
       <td class="py-3">${itemsText}</td>
       <td class="py-3">${clientBadge}${statusBadge}</td>
@@ -1467,8 +1468,13 @@ async function handleMultiSaleSubmit(){
   const totalProfit = finalTotal - totalCost;
   const rate = getSelectedRate();
 
+  let orderNumber = null;
+  try { orderNumber = await window.dbGetNextOrderNumber(); }
+  catch(e) { console.warn('No se pudo asignar número de pedido (la venta igual se guarda):', e); }
+
   const sale = {
     id: uid(),
+    orderNumber,
     dateIso: document.getElementById('sale-date').value || todayIso(),
     items: itemsSummary,
     total: finalTotal,
@@ -1510,6 +1516,7 @@ function openSaleEditModal(id){
   const sale = appData.sales.find(s=>s.id===id);
   if(!sale) return;
   editSaleId = id;
+  document.getElementById('edit-sale-modal-title').innerHTML = `<span class="msi accent">edit</span>Editar venta${sale.orderNumber ? ' #'+sale.orderNumber : ''}`;
   editSaleItems = sale.items.map(it=>({ productId: it.productId, qty: it.qty }));
   renderEditSaleItemRows();
 
@@ -1725,8 +1732,15 @@ async function handleGenerateOrder(){
   const finalTotal = Math.max(0,total-discount);
   const rate = getRateForInvoice();
 
+  let orderNumber = oldOrder ? oldOrder.orderNumber : null;
+  if (!editingOrderId) {
+    try { orderNumber = await window.dbGetNextOrderNumber(); }
+    catch(e) { console.warn('No se pudo asignar número de pedido (el pedido igual se guarda):', e); }
+  }
+
   const order = {
     id: editingOrderId || uid(),
+    orderNumber,
     dateIso: editingOrderId ? (appData.orders.find(o=>o.id===editingOrderId)?.dateIso || todayIso()) : todayIso(),
     items: itemsSummary,
     total: finalTotal,
@@ -1793,7 +1807,7 @@ function renderOrdersList(){
     return `<div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
       <div class="flex justify-between items-start gap-2 flex-wrap">
         <div>
-          <p class="text-sm font-medium">${client ? client.name : 'Sin cliente'} ${o.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}${hasDiscountedItem ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle ml-1">Descuento</span>' : ''}</p>
+          <p class="text-sm font-medium">${o.orderNumber ? `<span class="t-muted">#${o.orderNumber}</span> ` : ''}${client ? client.name : 'Sin cliente'} ${o.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}${hasDiscountedItem ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle ml-1">Descuento</span>' : ''}</p>
           <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}${o.webShipping ? ' · '+o.webShipping : ''}${o.webAddress ? ' · '+o.webAddress : ''}</p>
         </div>
         <div class="text-right">
@@ -1819,6 +1833,7 @@ function buildInvoiceText(o){
   const client = appData.clients.find(c=>c.id===o.clientId);
   const lines = [];
   lines.push('*Pedido - Téreapp*');
+  if(o.orderNumber) lines.push(`Pedido #${o.orderNumber}`);
   if(client) lines.push(`Cliente: ${client.name}`);
   if(o.webAddress) lines.push(`Dirección: ${o.webAddress}`);
   if(o.webShipping) lines.push(`Envío: ${o.webShipping}`);
@@ -1914,7 +1929,7 @@ function renderWebOrdersList(orders){
     <div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
       <div class="flex justify-between items-start gap-2 flex-wrap">
         <div>
-          <p class="text-sm font-medium">${escapeHtmlWeb(o.clientName || 'Cliente web')} <span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span></p>
+          <p class="text-sm font-medium">${o.orderNumber ? `<span class="t-muted">#${o.orderNumber}</span> ` : ''}${escapeHtmlWeb(o.clientName || 'Cliente web')} <span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span></p>
           <p class="text-xs t-muted">${escapeHtmlWeb(o.clientPhone || '')}${o.clientAddress ? ' · '+escapeHtmlWeb(o.clientAddress) : ''}</p>
         </div>
         <p class="font-medium" style="color:var(--success)">${symbol}${Number(o.total||0).toFixed(2)}</p>
@@ -2034,6 +2049,7 @@ async function importWebOrder(webOrderId){
 
   const newOrder = {
     id: uid(),
+    orderNumber: order.orderNumber || null,
     dateIso: todayIso(),
     items: itemsSummary,
     total,
@@ -2096,6 +2112,7 @@ async function confirmOrderAsSale(id){
   });
   const sale = {
     id: uid(),
+    orderNumber: order.orderNumber || null,
     dateIso: todayIso(),
     items: order.items,
     total: order.total,
@@ -2161,7 +2178,7 @@ function openOrderForEdit(id){
   }
   calculateGrandTotal();
   document.getElementById('edit-order-banner').classList.remove('hidden');
-  document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">edit</span>Editar pedido preliminar';
+  document.getElementById('sales-form-title').innerHTML = `<span class="msi accent">edit</span>Editar pedido preliminar${order.orderNumber ? ' #'+order.orderNumber : ''}`;
   document.getElementById('confirm-sale-btn').classList.add('hidden');
   const btn = document.getElementById('order-submit-btn');
   btn.innerHTML = '<span class="msi" style="font-size:16px">save</span>Guardar cambios';
@@ -2719,7 +2736,7 @@ function downloadReportPDF(){
   data.sales.forEach(s=>{
     if(y>280){ doc.addPage(); y=18; }
     const client = appData.clients.find(c=>c.id===s.clientId);
-    doc.text(`${displayDate(s.dateIso)} — ${client?client.name:'Sin cliente'} — ${s.status} — ${fmt(s.total)}`, 14, y); y+=5;
+    doc.text(`${s.orderNumber ? '#'+s.orderNumber+' — ' : ''}${displayDate(s.dateIso)} — ${client?client.name:'Sin cliente'} — ${s.status} — ${fmt(s.total)}`, 14, y); y+=5;
   });
 
   if(data.expenses.length>0){
@@ -2755,11 +2772,11 @@ function downloadReportExcel(){
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Resumen');
 
-  const salesRows = [['Fecha','Cliente','Productos','Estado','Pago','Total USD','Total Bs']];
+  const salesRows = [['#Pedido','Fecha','Cliente','Productos','Estado','Pago','Total USD','Total Bs']];
   data.sales.forEach(s=>{
     const client = appData.clients.find(c=>c.id===s.clientId);
     const items = s.items.map(it=>`${it.qty}x ${it.name}`).join(' | ');
-    salesRows.push([displayDate(s.dateIso), client?client.name:'Sin cliente', items, s.status, s.payment, s.total, s.totalVES||'']);
+    salesRows.push([s.orderNumber||'', displayDate(s.dateIso), client?client.name:'Sin cliente', items, s.status, s.payment, s.total, s.totalVES||'']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(salesRows), 'Ventas');
 
@@ -2987,7 +3004,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -3091,6 +3108,18 @@ setReportPeriod('monthly');
     if(!authReady) throw new Error('Firebase todavía no está listo');
     await updateDoc(doc(db, 'pedidos_web', id), patch);
     return true;
+  };
+
+  window.dbGetNextOrderNumber = async function(){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    const ref = doc(db, 'contadores', 'pedidos');
+    return await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const current = snap.exists() ? (snap.data().count || 0) : 0;
+      const next = current + 1;
+      tx.set(ref, { count: next });
+      return next;
+    });
   };
 
   function showLoginScreen(){
