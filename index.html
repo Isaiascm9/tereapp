@@ -490,6 +490,15 @@
             return type === 'bcv_usd' ? 'Tasa BCV Dólar' : type === 'bcv_eur' ? 'Tasa BCV Euro' : type === 'binance_p2p' ? 'Tasa Binance P2P' : '';
         }
 
+        // Si algo se cuelga por una conexión inestable, esto corta la
+        // espera en vez de dejar una reserva pendiente para siempre.
+        function withTimeout(promise, ms) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+            ]);
+        }
+
         function currencySymbol(currency) {
             return currency === 'EUR' ? '€' : '$';
         }
@@ -1296,13 +1305,13 @@
             try {
                 const fb = window.__terea_fb;
                 const ref = fb.doc(fb.db, 'contadores', 'pedidos');
-                const newCount = await fb.runTransaction(fb.db, async (tx) => {
+                const newCount = await withTimeout(fb.runTransaction(fb.db, async (tx) => {
                     const snap = await tx.get(ref);
                     const current = snap.exists() ? (snap.data().count || 0) : 0;
                     const next = current + 1;
                     tx.set(ref, { count: next });
                     return next;
-                });
+                }), 4000);
                 reservedOrderNumber = newCount;
             } catch (e) {
                 console.warn('No se pudo reservar el número de pedido (el pedido igual se puede enviar):', e);
