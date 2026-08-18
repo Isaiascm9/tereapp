@@ -812,6 +812,16 @@ let appData = {
 };
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+// Si algo (como reservar el número de pedido) se cuelga por una conexión
+// inestable, esto corta la espera a los "ms" indicados en vez de dejar
+// a la persona esperando sin saber qué está pasando.
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ]);
+}
 function fmt(n){ return '$'+(Number(n)||0).toFixed(2); }
 
 // Los pedidos/ventas normales de Téreapp siempre son en dólares — fmt()
@@ -1469,7 +1479,7 @@ async function handleMultiSaleSubmit(){
   const rate = getSelectedRate();
 
   let orderNumber = null;
-  try { orderNumber = await window.dbGetNextOrderNumber(); }
+  try { orderNumber = await withTimeout(window.dbGetNextOrderNumber(), 4000); }
   catch(e) { console.warn('No se pudo asignar número de pedido (la venta igual se guarda):', e); }
 
   const sale = {
@@ -1734,7 +1744,7 @@ async function handleGenerateOrder(){
 
   let orderNumber = oldOrder ? oldOrder.orderNumber : null;
   if (!editingOrderId) {
-    try { orderNumber = await window.dbGetNextOrderNumber(); }
+    try { orderNumber = await withTimeout(window.dbGetNextOrderNumber(), 4000); }
     catch(e) { console.warn('No se pudo asignar número de pedido (el pedido igual se guarda):', e); }
   }
 
