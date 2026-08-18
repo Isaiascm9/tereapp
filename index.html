@@ -850,8 +850,8 @@
                             ${Array.from({ length: offerQty }).map((_, i) => `
                                 <div id="addon-unit-${b.id}-${i}" class="flex items-center gap-2">
                                     ${offerQty > 1 ? `<span class="text-[10px] text-slate-400 w-14 shrink-0">Unidad ${i + 1}:</span>` : ''}
-                                    <div class="flex gap-1.5">
-                                        ${colorOptions.map(v => `<button type="button" data-color-id="${v.id}" onclick="selectUnitColor(event, '${b.id}', ${i}, '${v.id}')" class="w-4 h-4 rounded-full border-2 ${addonUnitColors[b.id][i] === v.id ? 'border-madera' : 'border-transparent'}" style="background:${v.colorHex}" title="${escapeAttr(v.colorName)}"></button>`).join('')}
+                                    <div class="flex gap-2">
+                                        ${colorOptions.map(v => `<button type="button" data-color-id="${v.id}" onclick="selectUnitColor(event, '${b.id}', ${i}, '${v.id}')" class="w-6 h-6 rounded-full border-2 ${addonUnitColors[b.id][i] === v.id ? 'border-madera' : 'border-transparent'}" style="background:${v.colorHex}" title="${escapeAttr(v.colorName)}"></button>`).join('')}
                                     </div>
                                 </div>
                             `).join('')}
@@ -860,19 +860,20 @@
                     `;
                 }
 
-                const displayName = b.offerDisplayName || offer.name;
+                const headerText = b.offerHeaderText || offer.name;
+                const checkboxText = b.offerCheckboxText || offer.name;
                 return `
                 <div class="pt-2 border-t border-gray-100 space-y-2">
                     <div class="flex items-center justify-between">
                         <h4 class="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-satin-600"></i> ${qtyPrefix}${escapeAttr(displayName)}
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-satin-600"></i> ${qtyPrefix}${escapeAttr(headerText)}
                         </h4>
                         <span class="text-[10px] bg-satin-100 text-satin-800 font-bold px-2 py-0.5 rounded-full">${b.title || ''}</span>
                     </div>
                     <label class="flex items-center justify-between p-2.5 rounded-xl border ${met ? 'border-gray-200 hover:bg-gray-50 cursor-pointer' : 'border-gray-100 opacity-50 cursor-not-allowed'} text-xs">
                         <div class="flex items-center gap-2">
                             <input type="checkbox" data-booster-id="${b.id}" ${met ? '' : 'disabled'} onchange="updateModalTotal(); toggleAddonUnitsSection('${b.id}')" class="addon-check accent-satin-600 rounded w-4 h-4">
-                            <span class="font-medium text-slate-700">${qtyPrefix}${escapeAttr(displayName)}</span>
+                            <span class="font-medium text-slate-700">${qtyPrefix}${escapeAttr(checkboxText)}</span>
                         </div>
                         <span class="font-bold text-satin-700">+${currencySymbol(offer.currency)}${Number(b.price).toFixed(2)}</span>
                     </label>
@@ -957,7 +958,7 @@
                             id: offer.id + '-addon-' + Date.now() + '-' + colorId,
                             parentCartItemId: mainCartItemId,
                             productId: offer.id,
-                            name: `${booster.offerDisplayName || offer.name} (${booster.title})`,
+                            name: `${booster.offerCheckboxText || booster.offerHeaderText || offer.name} (${booster.title})`,
                             price: unitPrice,
                             priceVES: estimateVES(offer, unitPrice),
                             priceVESRateType: offer.priceVESRateType || null,
@@ -978,7 +979,7 @@
                     id: offer.id + '-addon-' + Date.now(),
                     parentCartItemId: mainCartItemId,
                     productId: offer.id,
-                    name: `${booster.offerDisplayName || offer.name} (${booster.title})`,
+                    name: `${booster.offerCheckboxText || booster.offerHeaderText || offer.name} (${booster.title})`,
                     price: unitPrice,
                     priceVES: estimateVES(offer, unitPrice),
                     priceVESRateType: offer.priceVESRateType || null,
@@ -1308,7 +1309,7 @@
                 document.getElementById('crosssell-img').src = found.offer.image;
                 document.getElementById('crosssell-badge').textContent = found.booster.title || '¡Oferta!';
                 document.getElementById('crosssell-title').textContent =
-                    `¿Deseas agregar ${found.booster.offerDisplayName || found.offer.name} por solo ${currencySymbol(found.offer.currency)}${Number(found.booster.price).toFixed(2)}?`;
+                    `¿Deseas agregar ${found.booster.offerHeaderText || found.offer.name} por solo ${currencySymbol(found.offer.currency)}${Number(found.booster.price).toFixed(2)}?`;
                 document.getElementById('crosssell-modal').classList.remove('hidden');
                 return;
             }
@@ -1322,7 +1323,7 @@
                 cart.push({
                     id: activeCrossSell.offer.id + '-' + Date.now(),
                     productId: activeCrossSell.offer.id,
-                    name: `${activeCrossSell.booster.offerDisplayName || activeCrossSell.offer.name} (${activeCrossSell.booster.title})`,
+                    name: `${activeCrossSell.booster.offerCheckboxText || activeCrossSell.booster.offerHeaderText || activeCrossSell.offer.name} (${activeCrossSell.booster.title})`,
                     price: csUnitPrice,
                     priceVES: estimateVES(activeCrossSell.offer, csUnitPrice),
                     priceVESRateType: activeCrossSell.offer.priceVESRateType || null,
