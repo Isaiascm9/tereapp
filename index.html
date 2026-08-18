@@ -1404,8 +1404,9 @@
             const address = document.getElementById('client-address').value.trim();
             const notes = document.getElementById('client-notes').value.trim();
 
-            let text = `🛍️ *NUEVO PEDIDO - TÉREA*%0A`;
-            if (reservedOrderNumber) text += `🔖 *Pedido #${reservedOrderNumber}*%0A`;
+            let text = reservedOrderNumber
+                ? `🛍️ *Pedido#${reservedOrderNumber} - Térea.ve*%0A`
+                : `🛍️ *Pedido - Térea.ve*%0A`;
             text += `%0A`;
             text += `👤 *Cliente:* ${name}%0A`;
             text += `📱 *Celular:* ${phone}%0A`;
