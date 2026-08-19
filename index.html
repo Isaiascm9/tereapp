@@ -499,6 +499,95 @@
             ]);
         }
 
+        // ============ BOLÍVARES EN VIVO (misma fuente que panel/Téreapp) ============
+        // El catálogo ya NO usa el priceVES guardado en Firestore (que solo
+        // se actualiza cuando alguien edita el producto en el panel) — en
+        // vez de eso, calcula la tasa por su cuenta al cargar la página,
+        // así siempre coincide con lo que muestra Téreapp.
+        let liveRatesCache = {};
+
+        function findFieldDeepCatalog(obj, keyPattern, depth) {
+            if (!obj || typeof obj !== 'object' || depth < 0) return null;
+            const excludePattern = /compra|buy|purchase/i;
+            for (const key in obj) {
+                if (keyPattern.test(key) && !excludePattern.test(key) && typeof obj[key] === 'number' && obj[key] > 0) return obj[key];
+            }
+            for (const key in obj) {
+                if (obj[key] && typeof obj[key] === 'object') {
+                    const found = findFieldDeepCatalog(obj[key], keyPattern, depth - 1);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function findBinanceSellRateCatalog(obj, depth = 0) {
+            if (!obj || typeof obj !== 'object' || depth > 6) return null;
+            const flatMatch = findFieldDeepCatalog(obj, /binance.*(venta|sell)|(venta|sell).*binance/i, 6);
+            if (flatMatch) return flatMatch;
+            for (const key in obj) {
+                if (/binance/i.test(key) && obj[key] && typeof obj[key] === 'object') {
+                    const sellVal = findFieldDeepCatalog(obj[key], /venta|sell|ask/i, 4);
+                    if (sellVal) return sellVal;
+                }
+            }
+            for (const key in obj) {
+                const val = obj[key];
+                if (val && typeof val === 'object') {
+                    const found = findBinanceSellRateCatalog(val, depth + 1);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        async function fetchLiveRate(type) {
+            if (liveRatesCache[type]) return liveRatesCache[type];
+            if (type === 'bcv_usd' || type === 'bcv_eur') {
+                const res = await withTimeout(fetch('https://www.micarritove.site/tasa.json'), 5000);
+                if (!res.ok) throw new Error('No se pudo consultar la tasa BCV');
+                const data = await res.json();
+                const rate = type === 'bcv_usd' ? parseFloat(data.USD ?? data.usd) : parseFloat(data.EUR ?? data.eur);
+                if (!rate || isNaN(rate)) throw new Error('Sin tasa válida');
+                liveRatesCache[type] = rate;
+                return rate;
+            }
+            if (type === 'binance_p2p') {
+                const res = await withTimeout(fetch('https://www.usdt.com.ve/api/v1/rates/current'), 5000);
+                if (!res.ok) throw new Error('No se pudo consultar Binance P2P');
+                const data = await res.json();
+                const rate = findBinanceSellRateCatalog(data);
+                if (!rate) throw new Error('Sin tasa válida');
+                liveRatesCache[type] = rate;
+                return rate;
+            }
+            throw new Error('Tipo de tasa desconocido');
+        }
+
+        // Recalcula el bolívares de cada producto (y de cualquier variante
+        // de color enlazada) con la tasa fresca — reemplaza el priceVES
+        // guardado, que puede estar desactualizado.
+        async function applyLiveVES(productList) {
+            const neededTypes = new Set(productList.map(p => p.priceVESRateType).filter(Boolean));
+            const rates = {};
+            await Promise.all([...neededTypes].map(async type => {
+                try { rates[type] = await fetchLiveRate(type); }
+                catch (e) { console.warn('No se pudo obtener la tasa en vivo para', type, e); }
+            }));
+            productList.forEach(p => {
+                if (p.priceVESRateType && rates[p.priceVESRateType]) {
+                    p.priceVES = p.price * rates[p.priceVESRateType];
+                }
+                if (p.variantOptions) {
+                    p.variantOptions.forEach(v => {
+                        if (v.priceVESRateType && rates[v.priceVESRateType]) {
+                            v.priceVES = v.price * rates[v.priceVESRateType];
+                        }
+                    });
+                }
+            });
+        }
+
         function currencySymbol(currency) {
             return currency === 'EUR' ? '€' : '$';
         }
@@ -581,16 +670,22 @@
             products.forEach(p => {
                 if (p.colorVariants && p.colorVariants.length > 0) {
                     p.variantOptions = [
-                        { id: p.id, name: p.name, image: p.image, price: p.price, priceVES: p.priceVES, currency: p.currency, outOfStock: p.outOfStock, badge: p.badge, rating: p.rating, colorName: (p.ownColor && p.ownColor.name) || '', colorHex: (p.ownColor && p.ownColor.hex) || '#7A4A28' },
+                        { id: p.id, name: p.name, image: p.image, price: p.price, priceVES: p.priceVES, priceVESRateType: p.priceVESRateType, currency: p.currency, outOfStock: p.outOfStock, badge: p.badge, rating: p.rating, colorName: (p.ownColor && p.ownColor.name) || '', colorHex: (p.ownColor && p.ownColor.hex) || '#7A4A28' },
                         ...p.colorVariants.map(v => {
                             const linked = products.find(x => x.id === v.productId);
                             if (!linked) return null;
-                            return { id: linked.id, name: linked.name, image: linked.image, price: linked.price, priceVES: linked.priceVES, currency: linked.currency, outOfStock: linked.outOfStock, badge: linked.badge, rating: linked.rating, colorName: v.colorName, colorHex: v.colorHex };
+                            return { id: linked.id, name: linked.name, image: linked.image, price: linked.price, priceVES: linked.priceVES, priceVESRateType: linked.priceVESRateType, currency: linked.currency, outOfStock: linked.outOfStock, badge: linked.badge, rating: linked.rating, colorName: v.colorName, colorHex: v.colorHex };
                         }).filter(Boolean)
                     ];
                 }
             });
             gridDisplayProducts = products.filter(p => !variantMemberIds.has(p.id));
+
+            try {
+                await applyLiveVES(products);
+            } catch (e) {
+                console.warn('No se pudo calcular el bolívares en vivo, se usa el guardado como respaldo:', e);
+            }
 
             loadCartFromStorage();
             trackAbandonedCartVisitAndMaybeShowReminder();
