@@ -979,6 +979,7 @@
                             id: offer.id + '-addon-' + Date.now() + '-' + colorId,
                             parentCartItemId: mainCartItemId,
                             addonBatchId,
+                            boosterId: booster.id,
                             productId: offer.id,
                             name: `${booster.offerCheckboxText || booster.offerHeaderText || offer.name} (${booster.title})`,
                             price: unitPrice,
@@ -1001,6 +1002,7 @@
                     id: offer.id + '-addon-' + Date.now(),
                     parentCartItemId: mainCartItemId,
                     addonBatchId,
+                    boosterId: booster.id,
                     productId: offer.id,
                     name: `${booster.offerCheckboxText || booster.offerHeaderText || offer.name} (${booster.title})`,
                     price: unitPrice,
@@ -1377,6 +1379,7 @@
                 const csUnitPrice = Number(activeCrossSell.booster.price) / csQty;
                 cart.push({
                     id: activeCrossSell.offer.id + '-' + Date.now(),
+                    boosterId: activeCrossSell.booster.id,
                     productId: activeCrossSell.offer.id,
                     name: `${activeCrossSell.booster.offerCheckboxText || activeCrossSell.booster.offerHeaderText || activeCrossSell.offer.name} (${activeCrossSell.booster.title})`,
                     price: csUnitPrice,
@@ -1434,6 +1437,7 @@
                 structuredItems.push({
                     productId: i.productId || null,
                     tereappProductId: i.tereappProductId || null,
+                    boosterId: i.boosterId || null,
                     name: i.name,
                     qty: i.qty,
                     price: i.price,
@@ -1469,6 +1473,7 @@
 
                 fb.addDoc(fb.collection(fb.db, 'pedidos_web'), {
                     orderNumber: reservedOrderNumber || null,
+                    appliedBoosterIds: appliedCartBoosters.map(b => b.id),
                     clientName: name,
                     clientPhone: phone,
                     clientAddress: address,
