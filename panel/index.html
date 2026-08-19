@@ -313,7 +313,7 @@
                 <h2 class="text-lg font-bold text-slate-900 mb-1">Informes</h2>
                 <div class="bg-satin-50 border border-satin-200 rounded-2xl p-3 mb-4 flex items-start gap-2">
                     <i data-lucide="info" class="w-4 h-4 text-madera shrink-0 mt-0.5"></i>
-                    <p class="text-xs text-slate-600">Calculado con los pedidos web (de ejemplo por ahora). Los pedidos cancelados no cuentan.</p>
+                    <p class="text-xs text-slate-600">Calculado con tus pedidos web reales. Solo cuenta desde que actualizaste esta versión — los pedidos de antes no tienen este dato guardado. Los pedidos cancelados no cuentan.</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3 mb-6">
@@ -2119,13 +2119,48 @@
         // ============ PEDIDOS WEB (ejemplo; datos reales llegan con Téreapp en el Paso 6) ============
         const orderStatusStyles = {
             preliminar: { label: 'Preliminar / apartado', class: 'bg-satin-100 text-satin-800' },
+            importado: { label: 'Importado a Téreapp', class: 'bg-emerald-50 text-emerald-700' },
             confirmado: { label: 'Confirmado', class: 'bg-emerald-50 text-emerald-700' },
             cancelado: { label: 'Cancelado', class: 'bg-rose-50 text-rose-600' },
         };
 
-        function renderOrders() {
+        // Los pedidos reales vienen de Firestore, con createdAt como
+        // Timestamp (no texto) — esto lo convierte a algo mostrable y
+        // ordenable, sin importar el formato exacto que traiga.
+        function webOrderSortTime(v) {
+            if (!v) return 0;
+            if (typeof v === 'string') return new Date(v).getTime() || 0;
+            if (typeof v.toMillis === 'function') return v.toMillis();
+            if (typeof v.seconds === 'number') return v.seconds * 1000;
+            return 0;
+        }
+        function formatWebOrderDate(v) {
+            const ms = webOrderSortTime(v);
+            if (!ms) return '';
+            return new Date(ms).toLocaleDateString('es-VE', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        let realWebOrdersCache = null;
+        async function loadRealWebOrders(forceRefresh) {
+            if (realWebOrdersCache && !forceRefresh) return realWebOrdersCache;
+            const fb = window.__terea_fb;
+            const snap = await fb.getDocs(fb.collection(fb.db, 'pedidos_web'));
+            realWebOrdersCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            return realWebOrdersCache;
+        }
+
+        async function renderOrders() {
             const list = document.getElementById('orders-list');
-            const orders = state.sampleOrders || [];
+            list.innerHTML = `<div class="text-center py-12 text-slate-400 text-sm bg-white rounded-2xl border border-gray-200">Cargando pedidos...</div>`;
+            let orders;
+            try {
+                orders = await loadRealWebOrders(true);
+            } catch (e) {
+                console.error('No se pudieron cargar los pedidos web:', e);
+                list.innerHTML = `<div class="text-center py-12 text-slate-400 text-sm bg-white rounded-2xl border border-gray-200">No se pudieron cargar los pedidos. Revisá tu conexión e intenta de nuevo.</div>`;
+                return;
+            }
+            orders = orders.slice().sort((a, b) => webOrderSortTime(b.createdAt) - webOrderSortTime(a.createdAt));
             document.getElementById('pedidos-count').textContent = `(${orders.length})`;
             if (orders.length === 0) {
                 list.innerHTML = `<div class="text-center py-12 text-slate-400 text-sm bg-white rounded-2xl border border-gray-200">Sin pedidos por ahora.</div>`;
@@ -2133,17 +2168,18 @@
             }
             list.innerHTML = orders.map(o => {
                 const style = orderStatusStyles[o.status] || orderStatusStyles.preliminar;
+                const itemsText = o.itemsSummary || (Array.isArray(o.items) ? o.items.map(it => `${it.qty}x ${it.name}`).join(', ') : '');
                 return `
                 <div class="bg-white rounded-2xl border border-gray-200 p-4">
                     <div class="flex items-start justify-between gap-2">
                         <div>
-                            <h4 class="text-sm font-bold text-slate-900">${escapeHtml(o.clientName)}</h4>
-                            <p class="text-[11px] text-slate-400">${o.createdAt}</p>
+                            <h4 class="text-sm font-bold text-slate-900">${o.orderNumber ? '#' + o.orderNumber + ' — ' : ''}${escapeHtml(o.clientName || 'Sin nombre')}</h4>
+                            <p class="text-[11px] text-slate-400">${formatWebOrderDate(o.createdAt)}</p>
                         </div>
                         <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md shrink-0 ${style.class}">${style.label}</span>
                     </div>
-                    <p class="text-xs text-slate-600 mt-2">${escapeHtml(o.items)}</p>
-                    <p class="text-sm font-bold text-madera mt-1">$${Number(o.total).toFixed(2)}</p>
+                    <p class="text-xs text-slate-600 mt-2">${escapeHtml(itemsText)}</p>
+                    <p class="text-sm font-bold text-madera mt-1">$${Number(o.total || 0).toFixed(2)}</p>
                 </div>
             `}).join('');
         }
@@ -2228,19 +2264,52 @@
         }
 
         // ============ INFORMES: ¿SIRVEN LOS IMPULSADORES? ============
-        function renderReports() {
-            const orders = (state.sampleOrders || []).filter(o => o.status !== 'cancelado');
-            const withBooster = orders.filter(o => o.boosterId);
-            const boosterRevenue = withBooster.reduce((sum, o) => sum + Number(o.total), 0);
-
-            document.getElementById('stat-with-booster').textContent = `${withBooster.length} / ${orders.length}`;
-            document.getElementById('stat-booster-revenue').textContent = `$${boosterRevenue.toFixed(2)}`;
+        async function renderReports() {
+            let allOrders;
+            try {
+                allOrders = await loadRealWebOrders();
+            } catch (e) {
+                console.error('No se pudieron cargar los pedidos web para el informe:', e);
+                allOrders = [];
+            }
+            const orders = allOrders.filter(o => o.status !== 'cancelado');
 
             const perBooster = state.boosters.map(b => {
-                const boosterOrders = withBooster.filter(o => o.boosterId === b.id);
-                const revenue = boosterOrders.reduce((sum, o) => sum + Number(o.total), 0);
-                return { booster: b, count: boosterOrders.length, revenue };
+                if (b.scope === 'producto') {
+                    // Add-on / cross-sell: contamos cada línea del pedido que
+                    // vino de este impulsador específico, y sumamos lo que
+                    // esa línea (ya con el descuento) generó de verdad.
+                    let count = 0, revenue = 0;
+                    orders.forEach(o => {
+                        (o.items || []).forEach(it => {
+                            if (it.boosterId === b.id) {
+                                count++;
+                                revenue += Number(it.price || 0) * Number(it.qty || 0);
+                            }
+                        });
+                    });
+                    return { booster: b, count, revenue };
+                } else if (b.scope === 'carrito') {
+                    // Carrito completo: contamos pedidos donde se aplicó
+                    // (envío gratis o descuento por monto mínimo).
+                    const matching = orders.filter(o => Array.isArray(o.appliedBoosterIds) && o.appliedBoosterIds.includes(b.id));
+                    const revenue = matching.reduce((sum, o) => sum + Number(o.total || 0), 0);
+                    return { booster: b, count: matching.length, revenue };
+                }
+                // Recordatorio de carrito abandonado: es un aviso del lado
+                // del cliente, no queda registrado en el pedido — no hay
+                // forma de medirlo con este método.
+                return { booster: b, count: 0, revenue: 0 };
             }).sort((a, b) => b.count - a.count);
+
+            const ordersWithAnyBooster = orders.filter(o =>
+                (o.items || []).some(it => it.boosterId) ||
+                (Array.isArray(o.appliedBoosterIds) && o.appliedBoosterIds.length > 0)
+            );
+            const totalBoosterRevenue = perBooster.reduce((sum, p) => sum + p.revenue, 0);
+
+            document.getElementById('stat-with-booster').textContent = `${ordersWithAnyBooster.length} / ${orders.length}`;
+            document.getElementById('stat-booster-revenue').textContent = `$${totalBoosterRevenue.toFixed(2)}`;
 
             const maxCount = Math.max(1, ...perBooster.map(p => p.count));
             const list = document.getElementById('booster-stats-list');
