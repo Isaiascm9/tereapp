@@ -1398,14 +1398,19 @@
 
             const heartBtn = document.getElementById(`wish-btn-${productId}`);
             if (heartBtn) {
-                const icon = heartBtn.querySelector('i');
-                const active = isInWishlist(productId);
-                icon.className = `w-4 h-4 ${active ? 'text-madera' : 'text-slate-400'}`;
-                icon.style.fill = active ? 'currentColor' : '';
-                if (active) {
-                    icon.classList.remove('heart-pop');
-                    void icon.offsetWidth; // reinicia la animación aunque se repita rápido
-                    icon.classList.add('heart-pop');
+                // Lucide reemplaza la etiqueta <i> original por un <svg> de
+                // verdad apenas carga la página — buscamos cualquiera de
+                // los dos, según en qué momento estemos.
+                const icon = heartBtn.querySelector('svg, i');
+                if (icon) {
+                    const active = isInWishlist(productId);
+                    icon.setAttribute('class', `w-4 h-4 ${active ? 'text-madera' : 'text-slate-400'}`);
+                    icon.style.fill = active ? 'currentColor' : '';
+                    if (active) {
+                        icon.classList.remove('heart-pop');
+                        void icon.offsetWidth; // reinicia la animación aunque se repita rápido
+                        icon.classList.add('heart-pop');
+                    }
                 }
             }
 
