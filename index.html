@@ -949,10 +949,13 @@
 
         function renderGrid(items) {
             const grid = document.getElementById('product-grid');
+            grid.style.transition = 'opacity 0.25s ease';
+            grid.style.opacity = '0';
             grid.innerHTML = '';
 
             if(items.length === 0) {
                 grid.innerHTML = `<div class="col-span-2 text-center py-10 text-xs text-slate-400">No se encontraron productos.</div>`;
+                requestAnimationFrame(() => { grid.style.opacity = '1'; });
                 return;
             }
 
@@ -972,7 +975,7 @@
                 ` : '';
                 card.innerHTML = `
                     <div class="relative aspect-square bg-gray-100 overflow-hidden">
-                        <img id="card-img-${p.id}" src="${p.image}" alt="${p.name}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        <img id="card-img-${p.id}" src="${p.image}" alt="${p.name}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
                         <span id="card-badge-${p.id}" class="absolute top-2.5 left-2.5 ${p.outOfStock ? 'bg-rose-600' : 'bg-satin-700'} text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md shadow ${p.badge ? '' : 'hidden'}">${p.badge || ''}</span>
                         <button id="wish-btn-${p.id}" onclick="toggleWishlist(event, '${p.id}')" class="wishlist-heart-btn hidden absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 shadow flex items-center justify-center cursor-pointer active:scale-90 transition-transform">
                             <i data-lucide="heart" class="w-4 h-4 ${isInWishlist(p.id) ? 'text-madera' : 'text-slate-400'}" style="${isInWishlist(p.id) ? 'fill:currentColor' : ''}"></i>
@@ -995,6 +998,7 @@
             });
             applyWishlistFeatureVisibility();
             safeCreateIcons();
+            requestAnimationFrame(() => { grid.style.opacity = '1'; });
         }
 
         function cardAddButtonHtml(variant) {
@@ -1096,7 +1100,7 @@
             track.style.width = `${count * 100}%`;
             track.innerHTML = modalGalleryImages.map(src => `
                 <div style="width:${100 / count}%; height:100%; flex-shrink:0; display:flex; align-items:center; justify-content:center; padding:12px;">
-                    <img src="${src}" style="max-height:100%; max-width:100%; object-fit:contain;">
+                    <img src="${src}" loading="lazy" style="max-height:100%; max-width:100%; object-fit:contain;">
                 </div>
             `).join('');
             setModalGalleryTransform(0, false);
