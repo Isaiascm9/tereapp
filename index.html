@@ -178,8 +178,8 @@
             <button onclick="closeProductModal()" class="absolute top-3 right-3 z-20 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors cursor-pointer">
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
-            <div id="modal-gallery-touch-area" class="relative w-full h-80 bg-white flex items-center justify-center p-3 border-b border-gray-100 shrink-0">
-                <img id="modal-img" src="" class="max-h-full max-w-full object-contain" style="transition: opacity .25s ease;">
+            <div id="modal-gallery-touch-area" class="relative w-full h-80 bg-white border-b border-gray-100 shrink-0 overflow-hidden">
+                <div id="modal-gallery-track" class="flex h-full"></div>
                 <span id="modal-badge" class="absolute top-3 left-3 bg-satin-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow hidden"></span>
                 <button id="modal-gallery-prev" onclick="modalGalleryNav(-1)" class="hidden absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/90 hover:bg-white rounded-full shadow items-center justify-center cursor-pointer">
                     <i data-lucide="chevron-left" class="w-4 h-4 text-slate-700"></i>
@@ -1080,17 +1080,29 @@
             openProductModal(id);
         }
 
-        // ============ GALERÍA DE FOTOS DEL PRODUCTO ============
+        // ============ GALERÍA DE FOTOS DEL PRODUCTO (arrastre en vivo) ============
         let modalGalleryImages = [];
         let modalGalleryIndex = 0;
-        let modalGalleryTouchStartX = 0;
+        let galleryDragging = false;
+        let galleryDragStartX = 0;
+        let galleryDragCurrentX = 0;
+        let galleryContainerWidth = 0;
 
         function renderModalGallery(images) {
             modalGalleryImages = images.filter(Boolean).length > 0 ? images.filter(Boolean) : [''];
             modalGalleryIndex = 0;
-            showModalGalleryImage(0);
+            const count = modalGalleryImages.length;
+            const track = document.getElementById('modal-gallery-track');
+            track.style.width = `${count * 100}%`;
+            track.innerHTML = modalGalleryImages.map(src => `
+                <div style="width:${100 / count}%; height:100%; flex-shrink:0; display:flex; align-items:center; justify-content:center; padding:12px;">
+                    <img src="${src}" style="max-height:100%; max-width:100%; object-fit:contain;">
+                </div>
+            `).join('');
+            setModalGalleryTransform(0, false);
+
             const dotsEl = document.getElementById('modal-gallery-dots');
-            const multi = modalGalleryImages.length > 1;
+            const multi = count > 1;
             dotsEl.innerHTML = multi ? modalGalleryImages.map((_, i) =>
                 `<button type="button" onclick="showModalGalleryImage(${i})" class="w-1.5 h-1.5 rounded-full ${i === 0 ? 'bg-madera' : 'bg-gray-300'}"></button>`
             ).join('') : '';
@@ -1100,16 +1112,18 @@
             document.getElementById('modal-gallery-next').classList.toggle('flex', multi);
         }
 
+        function setModalGalleryTransform(index, animate) {
+            const track = document.getElementById('modal-gallery-track');
+            const count = modalGalleryImages.length;
+            track.style.transition = animate ? 'transform .3s ease' : 'none';
+            track.style.transform = `translateX(-${index * (100 / count)}%)`;
+        }
+
         function showModalGalleryImage(index) {
             if (index < 0) index = modalGalleryImages.length - 1;
             if (index >= modalGalleryImages.length) index = 0;
             modalGalleryIndex = index;
-            const img = document.getElementById('modal-img');
-            img.style.opacity = '0';
-            setTimeout(() => {
-                img.src = modalGalleryImages[index];
-                img.style.opacity = '1';
-            }, 150);
+            setModalGalleryTransform(index, true);
             document.querySelectorAll('#modal-gallery-dots button').forEach((dot, i) => {
                 dot.classList.toggle('bg-madera', i === index);
                 dot.classList.toggle('bg-gray-300', i !== index);
@@ -1123,14 +1137,36 @@
         (function setupModalGallerySwipe() {
             const area = document.getElementById('modal-gallery-touch-area');
             if (!area) return;
+
             area.addEventListener('touchstart', (e) => {
-                modalGalleryTouchStartX = e.changedTouches[0].screenX;
+                if (modalGalleryImages.length <= 1) return;
+                galleryDragging = true;
+                galleryDragStartX = e.touches[0].clientX;
+                galleryDragCurrentX = galleryDragStartX;
+                galleryContainerWidth = area.offsetWidth;
+                document.getElementById('modal-gallery-track').style.transition = 'none';
             }, { passive: true });
-            area.addEventListener('touchend', (e) => {
-                const endX = e.changedTouches[0].screenX;
-                const diff = endX - modalGalleryTouchStartX;
-                if (Math.abs(diff) < 40 || modalGalleryImages.length <= 1) return;
-                modalGalleryNav(diff > 0 ? -1 : 1);
+
+            area.addEventListener('touchmove', (e) => {
+                if (!galleryDragging) return;
+                galleryDragCurrentX = e.touches[0].clientX;
+                const deltaX = galleryDragCurrentX - galleryDragStartX;
+                const count = modalGalleryImages.length;
+                const deltaPercent = (deltaX / galleryContainerWidth) * (100 / count);
+                document.getElementById('modal-gallery-track').style.transform =
+                    `translateX(calc(-${modalGalleryIndex * (100 / count)}% + ${deltaPercent}%))`;
+            }, { passive: true });
+
+            area.addEventListener('touchend', () => {
+                if (!galleryDragging) return;
+                galleryDragging = false;
+                const deltaX = galleryDragCurrentX - galleryDragStartX;
+                const threshold = galleryContainerWidth * 0.18;
+                if (Math.abs(deltaX) > threshold) {
+                    modalGalleryNav(deltaX > 0 ? -1 : 1);
+                } else {
+                    setModalGalleryTransform(modalGalleryIndex, true);
+                }
             }, { passive: true });
         })();
 
