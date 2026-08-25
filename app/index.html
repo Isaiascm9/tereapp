@@ -1067,12 +1067,14 @@ function saveData(){
 async function syncPublicCatalog(){
   if(!dataLoadSafe) return;
   try{
+    const threshold = await window.dbGetLowStockThreshold();
     const catalogProducts = appData.products.map(p=>({
       id: p.id,
       name: p.name,
       price: p.price,
       photo: p.photo || '',
-      available: p.stock > 0
+      available: p.stock > 0,
+      lowStock: p.stock > 0 && p.stock <= threshold
     }));
     await window.dbSaveCatalog({ updatedAt: new Date().toISOString(), products: catalogProducts });
   }catch(e){ console.error('Error al sincronizar catálogo público:', e); }
@@ -3093,6 +3095,15 @@ setReportPeriod('monthly');
     if(!authReady) throw new Error('Firebase todavía no está listo');
     await setDoc(CATALOG_REF, data);
     return true;
+  };
+
+  window.dbGetLowStockThreshold = async function(){
+    if(!authReady) return 3; // valor por defecto si algo falla
+    try{
+      const snap = await getDoc(doc(db, 'catalogo_config', 'general'));
+      const val = snap.exists() ? snap.data().lowStockThreshold : null;
+      return (typeof val === 'number' && val >= 0) ? val : 3;
+    }catch(e){ return 3; }
   };
 
   window.dbGetWebOrders = async function(){
