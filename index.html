@@ -179,7 +179,7 @@
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
             <div id="modal-gallery-touch-area" class="relative w-full h-80 bg-white flex items-center justify-center p-3 border-b border-gray-100 shrink-0">
-                <img id="modal-img" src="" class="max-h-full max-w-full object-contain">
+                <img id="modal-img" src="" class="max-h-full max-w-full object-contain" style="transition: opacity .25s ease;">
                 <span id="modal-badge" class="absolute top-3 left-3 bg-satin-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow hidden"></span>
                 <button id="modal-gallery-prev" onclick="modalGalleryNav(-1)" class="hidden absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-white/90 hover:bg-white rounded-full shadow items-center justify-center cursor-pointer">
                     <i data-lucide="chevron-left" class="w-4 h-4 text-slate-700"></i>
@@ -1104,7 +1104,12 @@
             if (index < 0) index = modalGalleryImages.length - 1;
             if (index >= modalGalleryImages.length) index = 0;
             modalGalleryIndex = index;
-            document.getElementById('modal-img').src = modalGalleryImages[index];
+            const img = document.getElementById('modal-img');
+            img.style.opacity = '0';
+            setTimeout(() => {
+                img.src = modalGalleryImages[index];
+                img.style.opacity = '1';
+            }, 150);
             document.querySelectorAll('#modal-gallery-dots button').forEach((dot, i) => {
                 dot.classList.toggle('bg-madera', i === index);
                 dot.classList.toggle('bg-gray-300', i !== index);
