@@ -2207,10 +2207,15 @@
             const address = document.getElementById('client-address').value.trim();
             const notes = document.getElementById('client-notes').value.trim();
 
-            let text = reservedOrderNumber
+            const msgSettings = (storeConfig.messageSettings && storeConfig.messageSettings.web) || {};
+            const showOrderNumberInMsg = msgSettings.showOrderNumber !== false;
+            const showVESInMsg = msgSettings.showVES !== false;
+
+            let text = (reservedOrderNumber && showOrderNumberInMsg)
                 ? `🛍️ *Pedido#${reservedOrderNumber} - Térea.ve*%0A`
                 : `🛍️ *Pedido - Térea.ve*%0A`;
             text += `%0A`;
+            if (msgSettings.greeting) text += `${msgSettings.greeting}%0A%0A`;
             text += `👤 *Cliente:* ${name}%0A`;
             text += `📱 *Celular:* ${phone}%0A`;
             text += `📍 *Dirección:* ${address}%0A`;
@@ -2278,12 +2283,12 @@
             }
 
             text += `%0A*TOTAL A PAGAR: ${cartCurrencySymbol()}${total.toFixed(2)}*`;
-            if (allHaveVES && totalVES > 0 && discountAmount === 0 && boosterDiscountAmountFinal === 0) {
+            if (showVESInMsg && allHaveVES && totalVES > 0 && discountAmount === 0 && boosterDiscountAmountFinal === 0) {
                 const rateTypes = new Set(cart.map(i => i.priceVESRateType).filter(Boolean));
                 const rateLabel = rateTypes.size === 1 ? rateLabelText([...rateTypes][0]) : '';
                 text += ` (Bs. ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${rateLabel ? ' — ' + rateLabel : ''})`;
             }
-            text += `%0A%0A¡Gracias por tu compra!`;
+            text += `%0A%0A${msgSettings.closing || '¡Gracias por tu compra!'}`;
 
             // Abrimos WhatsApp de inmediato, en el mismo instante del clic —
             // así el navegador nunca lo bloquea como pop-up. El registro en
