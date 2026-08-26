@@ -677,16 +677,39 @@
                             <option value="USD">Dólares ($)</option>
                             <option value="EUR">Euros (€)</option>
                         </select>
-                        <p class="text-[11px] text-slate-400 mt-1">Afecta tanto el monto mínimo como el precio de la oferta, de abajo.</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Afecta el monto mínimo (si eliges esa condición) y el precio de la oferta, si aplica.</p>
                     </div>
+
                     <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Condición para activarse</label>
+                        <select id="bf-cart-condition-type" onchange="updateBoosterFormScope()" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                            <option value="amount">Por monto mínimo del carrito</option>
+                            <option value="quantity">Por cantidad de artículos</option>
+                        </select>
+                    </div>
+                    <div id="bf-cart-amount-field">
                         <label class="block text-xs font-semibold text-slate-700 mb-1" id="bf-mincart-label">Monto mínimo del carrito ($)</label>
                         <input type="number" step="0.01" id="bf-mincart" placeholder="20.00" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
-                        <p class="text-[11px] text-slate-400 mt-1">Se activa cuando el total del pedido llega a este monto, sin importar qué productos sean.</p>
                     </div>
-                    <label class="flex items-center gap-2 p-3 rounded-xl border border-gray-200 cursor-pointer text-xs font-semibold">
-                        <input type="checkbox" id="bf-freeshipping" class="accent-madera" onchange="updateBoosterFormScope()"> Es envío gratis (sin producto asociado)
-                    </label>
+                    <div id="bf-cart-qty-field" class="hidden">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Cantidad mínima de artículos en el carrito</label>
+                        <input type="number" min="1" id="bf-mincart-qty" placeholder="3" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                        <p class="text-[11px] text-slate-400 mt-1">Ej. 3 — se activa cuando el cliente lleva 3 o más artículos, sin importar cuáles.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Recompensa</label>
+                        <select id="bf-cart-reward-type" onchange="updateBoosterFormScope()" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                            <option value="freeShipping">Envío gratis</option>
+                            <option value="offerProduct">Un producto con descuento</option>
+                            <option value="percentOff">% de descuento a todo el carrito</option>
+                        </select>
+                    </div>
+                    <div id="bf-cart-percent-field" class="hidden">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Porcentaje de descuento</label>
+                        <input type="number" step="0.01" min="0" max="100" id="bf-cart-discount-percent" placeholder="10" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                        <p class="text-[11px] text-slate-400 mt-1">Se resta automáticamente del total del pedido, sin que el cliente tenga que escribir ningún código.</p>
+                    </div>
                 </div>
 
                 <div id="bf-scope-recordatorio-fields" class="space-y-3 hidden">
@@ -1441,10 +1464,18 @@
                     `;
                 } else if (isCart) {
                     const cartSym = b.cartCurrency === 'EUR' ? '€' : '$';
+                    const conditionText = b.conditionType === 'quantity'
+                        ? `Carrito ≥ ${b.minCartQty || 0} artículos`
+                        : `Carrito ≥ ${cartSym}${Number(b.minCartTotal || 0).toFixed(2)}`;
+                    const rewardType = b.rewardType || (b.freeShipping ? 'freeShipping' : 'offerProduct');
+                    let rewardText;
+                    if (rewardType === 'freeShipping') rewardText = 'Envío gratis';
+                    else if (rewardType === 'percentOff') rewardText = `<span class="font-bold text-madera">${Number(b.cartDiscountPercent || 0)}% de descuento</span> a todo el carrito`;
+                    else rewardText = offer ? `${b.offerQty > 1 ? b.offerQty + 'x ' : ''}${escapeHtml(offer.name)} a <span class="font-bold text-madera">${cartSym}${Number(b.price).toFixed(2)}</span>` : '(producto eliminado)';
                     middleRow = `
-                        <span class="font-semibold text-slate-900">Carrito ≥ ${cartSym}${Number(b.minCartTotal || 0).toFixed(2)}</span>
+                        <span class="font-semibold text-slate-900">${conditionText}</span>
                         <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-400"></i>
-                        <span>${b.freeShipping ? 'Envío gratis' : (offer ? `${b.offerQty > 1 ? b.offerQty + 'x ' : ''}${escapeHtml(offer.name)} a <span class="font-bold text-madera">${cartSym}${Number(b.price).toFixed(2)}</span>` : '(producto eliminado)')}</span>
+                        <span>${rewardText}</span>
                     `;
                 } else {
                     middleRow = `
@@ -1988,8 +2019,17 @@
             document.getElementById('bf-scope-carrito-fields').classList.toggle('hidden', !isCart);
             document.getElementById('bf-scope-recordatorio-fields').classList.toggle('hidden', !isReminder);
 
-            const freeShipping = isCart && document.getElementById('bf-freeshipping').checked;
-            document.getElementById('bf-offer-fields').classList.toggle('hidden', freeShipping || isReminder);
+            if (isCart) {
+                const conditionType = document.getElementById('bf-cart-condition-type').value;
+                document.getElementById('bf-cart-amount-field').classList.toggle('hidden', conditionType !== 'amount');
+                document.getElementById('bf-cart-qty-field').classList.toggle('hidden', conditionType !== 'quantity');
+
+                const rewardType = document.getElementById('bf-cart-reward-type').value;
+                document.getElementById('bf-cart-percent-field').classList.toggle('hidden', rewardType !== 'percentOff');
+                document.getElementById('bf-offer-fields').classList.toggle('hidden', rewardType !== 'offerProduct');
+            } else {
+                document.getElementById('bf-offer-fields').classList.toggle('hidden', isReminder);
+            }
 
             const titleLabel = document.getElementById('bf-title-label');
             const titleInput = document.getElementById('bf-title');
@@ -2025,10 +2065,14 @@
                 document.querySelector(`input[name="bf-type"][value="${b.type || 'addon'}"]`).checked = true;
                 document.getElementById('bf-minqty').value = b.minQty || '';
                 document.getElementById('bf-mincart').value = b.minCartTotal || '';
+                document.getElementById('bf-mincart-qty').value = b.minCartQty || '';
+                document.getElementById('bf-cart-condition-type').value = b.conditionType || 'amount';
                 document.getElementById('bf-cart-currency').value = b.cartCurrency || 'USD';
                 updateCartCurrencyLabel();
                 document.getElementById('bf-reminder-visits').value = b.reminderVisits || '';
-                document.getElementById('bf-freeshipping').checked = !!b.freeShipping;
+                const inferredReward = b.rewardType || (b.freeShipping ? 'freeShipping' : 'offerProduct');
+                document.getElementById('bf-cart-reward-type').value = inferredReward;
+                document.getElementById('bf-cart-discount-percent').value = b.cartDiscountPercent || '';
                 document.getElementById('bf-title').value = b.title;
                 document.getElementById('bf-offer').value = b.offerId || '';
                 document.getElementById('bf-offer-qty').value = b.offerQty || 1;
@@ -2063,10 +2107,13 @@
                 document.getElementById('bf-offer-color-options').innerHTML = '';
                 document.getElementById('bf-minqty').value = '';
                 document.getElementById('bf-mincart').value = '';
+                document.getElementById('bf-mincart-qty').value = '';
+                document.getElementById('bf-cart-condition-type').value = 'amount';
                 document.getElementById('bf-cart-currency').value = 'USD';
                 updateCartCurrencyLabel();
                 document.getElementById('bf-reminder-visits').value = '';
-                document.getElementById('bf-freeshipping').checked = false;
+                document.getElementById('bf-cart-reward-type').value = 'freeShipping';
+                document.getElementById('bf-cart-discount-percent').value = '';
                 document.getElementById('bf-expires').value = '';
                 document.getElementById('bf-startsat').value = '';
                 document.getElementById('bf-active').checked = true;
@@ -2098,7 +2145,6 @@
             const scope = document.querySelector('input[name="bf-scope"]:checked').value;
             const isCart = scope === 'carrito';
             const isReminder = scope === 'recordatorio';
-            const freeShipping = isCart && document.getElementById('bf-freeshipping').checked;
 
             if (!title) {
                 showToast(isReminder ? 'Falta el texto del aviso' : 'Falta el título del impulsador');
@@ -2106,7 +2152,9 @@
             }
 
             let price = null;
-            if (!freeShipping && !isReminder) {
+            const cartRewardType = isCart ? document.getElementById('bf-cart-reward-type').value : null;
+            const needsPrice = !isReminder && (!isCart || cartRewardType === 'offerProduct');
+            if (needsPrice) {
                 price = parseFloat(document.getElementById('bf-price').value);
                 if (isNaN(price)) {
                     showToast('Falta el precio con descuento');
@@ -2115,10 +2163,26 @@
             }
 
             if (isCart) {
-                const minCartTotal = parseFloat(document.getElementById('bf-mincart').value);
-                if (isNaN(minCartTotal)) {
-                    showToast('Falta el monto mínimo del carrito');
-                    return;
+                const conditionType = document.getElementById('bf-cart-condition-type').value;
+                if (conditionType === 'quantity') {
+                    const minCartQty = parseInt(document.getElementById('bf-mincart-qty').value);
+                    if (isNaN(minCartQty) || minCartQty < 1) {
+                        showToast('Falta la cantidad mínima de artículos');
+                        return;
+                    }
+                } else {
+                    const minCartTotal = parseFloat(document.getElementById('bf-mincart').value);
+                    if (isNaN(minCartTotal)) {
+                        showToast('Falta el monto mínimo del carrito');
+                        return;
+                    }
+                }
+                if (cartRewardType === 'percentOff') {
+                    const pct = parseFloat(document.getElementById('bf-cart-discount-percent').value);
+                    if (isNaN(pct) || pct <= 0 || pct > 100) {
+                        showToast('Escribe un porcentaje de descuento válido (1-100)');
+                        return;
+                    }
                 }
             }
 
@@ -2154,15 +2218,26 @@
                 data.offerColorChoice = null;
                 data.offerAllowedColorIds = null;
             } else if (isCart) {
-                data.minCartTotal = parseFloat(document.getElementById('bf-mincart').value);
+                const conditionType = document.getElementById('bf-cart-condition-type').value;
+                const rewardType = document.getElementById('bf-cart-reward-type').value;
+                const isFreeShipping = rewardType === 'freeShipping';
+                const isOfferProduct = rewardType === 'offerProduct';
+                const isPercentOff = rewardType === 'percentOff';
+
+                data.conditionType = conditionType;
+                data.minCartTotal = conditionType === 'amount' ? parseFloat(document.getElementById('bf-mincart').value) : null;
+                data.minCartQty = conditionType === 'quantity' ? parseInt(document.getElementById('bf-mincart-qty').value) || 0 : null;
                 data.cartCurrency = document.getElementById('bf-cart-currency').value;
-                data.freeShipping = freeShipping;
-                data.offerId = freeShipping ? null : document.getElementById('bf-offer').value;
-                data.offerQty = freeShipping ? null : (parseInt(document.getElementById('bf-offer-qty').value) || 1);
-                data.offerHeaderText = freeShipping ? null : (document.getElementById('bf-offer-header-text').value.trim() || null);
-                data.offerCheckboxText = freeShipping ? null : (document.getElementById('bf-offer-checkbox-text').value.trim() || null);
-                data.offerColorChoice = freeShipping ? false : document.getElementById('bf-offer-color-choice').checked;
-                data.offerAllowedColorIds = (!freeShipping && data.offerColorChoice) ? Array.from(document.querySelectorAll('.bf-offer-color-checkbox:checked')).map(el => el.value) : null;
+
+                data.rewardType = rewardType;
+                data.freeShipping = isFreeShipping; // se conserva por compatibilidad con lo ya guardado
+                data.cartDiscountPercent = isPercentOff ? parseFloat(document.getElementById('bf-cart-discount-percent').value) || 0 : null;
+                data.offerId = isOfferProduct ? document.getElementById('bf-offer').value : null;
+                data.offerQty = isOfferProduct ? (parseInt(document.getElementById('bf-offer-qty').value) || 1) : null;
+                data.offerHeaderText = isOfferProduct ? (document.getElementById('bf-offer-header-text').value.trim() || null) : null;
+                data.offerCheckboxText = isOfferProduct ? (document.getElementById('bf-offer-checkbox-text').value.trim() || null) : null;
+                data.offerColorChoice = isOfferProduct ? document.getElementById('bf-offer-color-choice').checked : false;
+                data.offerAllowedColorIds = (isOfferProduct && data.offerColorChoice) ? Array.from(document.querySelectorAll('.bf-offer-color-checkbox:checked')).map(el => el.value) : null;
                 data.triggerId = null;
                 data.type = null;
                 data.minQty = null;
