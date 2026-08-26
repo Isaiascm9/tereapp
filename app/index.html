@@ -873,6 +873,7 @@ async function initStorage(){
   applyDarkMode();
   renderAll();
   renderRatesCard();
+  refreshMessageSettingsCache(); // en paralelo, no bloquea el arranque
   fetchRates();
 }
 
@@ -1843,8 +1844,12 @@ function renderOrdersList(){
 
 function buildInvoiceText(o){
   const client = appData.clients.find(c=>c.id===o.clientId);
+  const msgSettings = (window.__cachedMessageSettings && window.__cachedMessageSettings.tereapp) || {};
+  const showOrderNumberInMsg = msgSettings.showOrderNumber !== false;
+  const showVESInMsg = msgSettings.showVES !== false;
   const lines = [];
-  lines.push(o.orderNumber ? `*Pedido#${o.orderNumber} - Térea.ve*` : '*Pedido - Térea.ve*');
+  lines.push((o.orderNumber && showOrderNumberInMsg) ? `*Pedido#${o.orderNumber} - Térea.ve*` : '*Pedido - Térea.ve*');
+  if(msgSettings.greeting) lines.push(msgSettings.greeting);
   if(client) lines.push(`Cliente: ${client.name}`);
   if(o.webAddress) lines.push(`Dirección: ${o.webAddress}`);
   if(o.webShipping) lines.push(`Envío: ${o.webShipping}`);
@@ -1856,11 +1861,11 @@ function buildInvoiceText(o){
   lines.push(`Estado de pago: *${o.status}*`);
   lines.push('');
   lines.push(`*Total: ${fmtOrderTotal(o)}*`);
-  if(o.totalVES){
+  if(showVESInMsg && o.totalVES){
     lines.push(`*Bs ${o.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})}* (Tasa ${rateLabelText(o.rateType)})`);
   }
   lines.push('');
-  lines.push('¡Gracias por tu compra!');
+  lines.push(msgSettings.closing || '¡Gracias por tu compra!');
   return lines.join('\n');
 }
 
@@ -3104,6 +3109,18 @@ setReportPeriod('monthly');
       const val = snap.exists() ? snap.data().lowStockThreshold : null;
       return (typeof val === 'number' && val >= 0) ? val : 3;
     }catch(e){ return 3; }
+  };
+
+  // Guardado en caché (no en Firestore cada vez) para que el botón de
+  // WhatsApp pueda abrir la ventana al instante, en el mismo clic — si
+  // esperáramos a Firestore justo ahí, el navegador podría bloquear la
+  // ventana por no verla como una acción directa del usuario.
+  window.__cachedMessageSettings = null;
+  window.refreshMessageSettingsCache = async function(){
+    try{
+      const snap = await getDoc(doc(db, 'catalogo_config', 'general'));
+      window.__cachedMessageSettings = snap.exists() ? (snap.data().messageSettings || null) : null;
+    }catch(e){ /* se queda con lo que ya tenía en caché, o sin nada */ }
   };
 
   window.dbGetWebOrders = async function(){
