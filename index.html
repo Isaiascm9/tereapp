@@ -1539,11 +1539,23 @@
             return boosters.filter(b => b.scope === 'carrito' && isBoosterCurrentlyActive(b));
         }
 
-        function getAppliedCartBoosters(totalPrice) {
-            return getCartBoosters().filter(b => totalPrice >= Number(b.minCartTotal || 0));
+        function boosterConditionMet(b, totalPrice, totalQty) {
+            if (b.conditionType === 'quantity') return totalQty >= Number(b.minCartQty || 0);
+            return totalPrice >= Number(b.minCartTotal || 0);
         }
 
-        function renderCartBoosterBanner(totalPrice) {
+        function getAppliedCartBoosters(totalPrice, totalQty) {
+            return getCartBoosters().filter(b => boosterConditionMet(b, totalPrice, totalQty || 0));
+        }
+
+        function getCartBoosterPercentOffAmount(totalPrice, totalQty) {
+            const applied = getAppliedCartBoosters(totalPrice, totalQty);
+            const percentBooster = applied.find(b => (b.rewardType || (b.freeShipping ? 'freeShipping' : 'offerProduct')) === 'percentOff');
+            if (!percentBooster) return 0;
+            return totalPrice * (Number(percentBooster.cartDiscountPercent || 0) / 100);
+        }
+
+        function renderCartBoosterBanner(totalPrice, totalQty) {
             const el = document.getElementById('cart-booster-banner');
             const cartBoosters = getCartBoosters();
             if (cartBoosters.length === 0 || totalPrice <= 0) {
@@ -1551,11 +1563,13 @@
                 return;
             }
             // Prioriza el que ya se cumplió; si no, el más cercano a cumplirse.
-            const applied = cartBoosters.find(b => totalPrice >= Number(b.minCartTotal || 0));
+            const applied = cartBoosters.find(b => boosterConditionMet(b, totalPrice, totalQty));
             if (applied) {
-                const reward = applied.freeShipping
-                    ? 'Envío gratis'
-                    : (products.find(p => p.id === applied.offerId)?.name || 'una sorpresa');
+                const appliedRewardType = applied.rewardType || (applied.freeShipping ? 'freeShipping' : 'offerProduct');
+                let reward;
+                if (appliedRewardType === 'freeShipping') reward = 'Envío gratis';
+                else if (appliedRewardType === 'percentOff') reward = `${Number(applied.cartDiscountPercent || 0)}% de descuento`;
+                else reward = products.find(p => p.id === applied.offerId)?.name || 'una sorpresa';
                 el.innerHTML = `
                     <div class="mx-4 mb-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-700 font-semibold">
                         <div class="flex items-center gap-1.5">
@@ -1569,16 +1583,26 @@
             } else {
                 const closest = cartBoosters
                     .slice()
-                    .sort((a, b) => Number(a.minCartTotal) - Number(b.minCartTotal))
-                    .find(b => Number(b.minCartTotal) > totalPrice);
+                    .sort((a, b) => (a.conditionType === 'quantity' ? Number(a.minCartQty) : Number(a.minCartTotal)) - (b.conditionType === 'quantity' ? Number(b.minCartQty) : Number(b.minCartTotal)))
+                    .find(b => !boosterConditionMet(b, totalPrice, totalQty));
                 if (closest) {
-                    const missing = Number(closest.minCartTotal) - totalPrice;
                     const closestSym = closest.cartCurrency === 'EUR' ? '€' : '$';
-                    const pct = Math.max(4, Math.min(100, (totalPrice / Number(closest.minCartTotal)) * 100));
+                    let missingText, pct;
+                    if (closest.conditionType === 'quantity') {
+                        const target = Number(closest.minCartQty || 0);
+                        const missingQty = Math.max(0, target - totalQty);
+                        missingText = `${missingQty} artículo${missingQty === 1 ? '' : 's'} más`;
+                        pct = Math.max(4, Math.min(100, (totalQty / target) * 100));
+                    } else {
+                        const target = Number(closest.minCartTotal || 0);
+                        const missing = target - totalPrice;
+                        missingText = `${closestSym}${missing.toFixed(2)}`;
+                        pct = Math.max(4, Math.min(100, (totalPrice / target) * 100));
+                    }
                     el.innerHTML = `
                         <div class="mx-4 mb-3 p-2.5 rounded-xl bg-satin-50 border border-satin-200 text-[11px] text-madera font-semibold">
                             <div class="flex items-center gap-1.5">
-                                <i data-lucide="gift" class="w-3.5 h-3.5 shrink-0"></i> Te faltan ${closestSym}${missing.toFixed(2)} para: ${escapeAttr(closest.title || '')}
+                                <i data-lucide="gift" class="w-3.5 h-3.5 shrink-0"></i> Te faltan ${missingText} para: ${escapeAttr(closest.title || '')}
                             </div>
                             <div class="mt-2 h-2 rounded-full bg-satin-100 overflow-hidden">
                                 <div class="h-full rounded-full bg-madera transition-all duration-500" style="width:${pct}%"></div>
@@ -1822,7 +1846,9 @@
                 const recheck = validateDiscountCode(appliedDiscountCode.code, totalPrice);
                 if (!recheck.valid) appliedDiscountCode = null;
             }
-            const discountAmount = computeDiscountAmount(appliedDiscountCode, totalPrice);
+            const codeDiscountAmount = computeDiscountAmount(appliedDiscountCode, totalPrice);
+            const boosterDiscountAmount = getCartBoosterPercentOffAmount(totalPrice, totalCount);
+            const discountAmount = Math.min(totalPrice, codeDiscountAmount + boosterDiscountAmount);
             const finalPrice = totalPrice - discountAmount;
 
             const appliedRow = document.getElementById('discount-code-applied-row');
@@ -1840,7 +1866,7 @@
             document.getElementById('cart-counter').textContent = totalCount;
             document.getElementById('cart-drawer-total').textContent = `${cartCurrencySymbol()}${finalPrice.toFixed(2)}`;
             const cartVesEl = document.getElementById('cart-drawer-total-ves');
-            const cartAllHaveVES = cart.length > 0 && cart.every(i => i.priceVES) && !appliedDiscountCode;
+            const cartAllHaveVES = cart.length > 0 && cart.every(i => i.priceVES) && !appliedDiscountCode && boosterDiscountAmount === 0;
             if (cartAllHaveVES) {
                 const cartTotalVES = cart.reduce((sum, i) => sum + (i.priceVES * i.qty), 0);
                 cartVesEl.textContent = `Bs. ${cartTotalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -1849,7 +1875,7 @@
             }
             document.getElementById('final-item-count').textContent = totalCount;
             document.getElementById('final-total-price').textContent = `${cartCurrencySymbol()}${finalPrice.toFixed(2)}`;
-            renderCartBoosterBanner(totalPrice);
+            renderCartBoosterBanner(totalPrice, totalCount);
 
             const container = document.getElementById('cart-items-container');
             if(cart.length === 0) {
@@ -2135,9 +2161,20 @@
                 });
             });
 
-            const appliedCartBoosters = getAppliedCartBoosters(total);
+            const cartItemCount = cart.reduce((sum, item) => sum + item.qty, 0);
+            const appliedCartBoosters = getAppliedCartBoosters(total, cartItemCount);
             if (appliedCartBoosters.length > 0) {
                 text += `%0A🎁 *Promo aplicada:* ${appliedCartBoosters.map(b => b.title || '').join(', ')}%0A`;
+            }
+
+            // Descuento automático por % del carrito (envío gratis/producto no
+            // restan del total, solo el de tipo "percentOff" lo hace).
+            const boosterPercentBooster = appliedCartBoosters.find(b => (b.rewardType || (b.freeShipping ? 'freeShipping' : 'offerProduct')) === 'percentOff');
+            let boosterDiscountAmountFinal = 0;
+            if (boosterPercentBooster) {
+                boosterDiscountAmountFinal = total * (Number(boosterPercentBooster.cartDiscountPercent || 0) / 100);
+                text += `%0A🎉 *${Number(boosterPercentBooster.cartDiscountPercent || 0)}% de descuento:* -${cartCurrencySymbol()}${boosterDiscountAmountFinal.toFixed(2)}%0A`;
+                total -= boosterDiscountAmountFinal;
             }
 
             // Descuento por código, si hay uno aplicado y sigue siendo válido
@@ -2157,7 +2194,7 @@
             }
 
             text += `%0A*TOTAL A PAGAR: ${cartCurrencySymbol()}${total.toFixed(2)}*`;
-            if (allHaveVES && totalVES > 0 && discountAmount === 0) {
+            if (allHaveVES && totalVES > 0 && discountAmount === 0 && boosterDiscountAmountFinal === 0) {
                 const rateTypes = new Set(cart.map(i => i.priceVESRateType).filter(Boolean));
                 const rateLabel = rateTypes.size === 1 ? rateLabelText([...rateTypes][0]) : '';
                 text += ` (Bs. ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${rateLabel ? ' — ' + rateLabel : ''})`;
