@@ -2202,7 +2202,7 @@
         }
 
         function navigateToWhatsApp(url) {
-            window.location.href = url;
+            window.open(url, '_blank');
         }
 
         async function executeWhatsAppOrder() {
@@ -2345,6 +2345,9 @@
             appliedDiscountCode = null;
             localStorage.setItem(CART_VISITS_KEY, '0');
             saveCartToStorage();
+            document.getElementById('cart-reminder-banner').classList.add('hidden');
+            updateCartUI();
+            closeCart();
 
             navigateToWhatsApp(whatsappUrl);
         }
