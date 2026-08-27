@@ -2216,17 +2216,17 @@
             const showVESInMsg = msgSettings.showVES !== false;
 
             let text = (reservedOrderNumber && showOrderNumberInMsg)
-                ? `🛍️ *Pedido#${reservedOrderNumber} - Térea.ve*%0A`
-                : `🛍️ *Pedido - Térea.ve*%0A`;
-            text += `%0A`;
-            if (msgSettings.greeting) text += `${msgSettings.greeting}%0A%0A`;
-            text += `👤 *Cliente:* ${name}%0A`;
-            text += `📱 *Celular:* ${phone}%0A`;
-            text += `📍 *Dirección:* ${address}%0A`;
-            if(notes) text += `💬 *Notas:* ${notes}%0A`;
-            text += `🚚 *Método de envío:* ${selectedShipping}%0A`;
-            text += `💳 *Método de pago:* ${selectedPayment}%0A`;
-            text += `%0A📦 *DETALLE DE LA ORDEN:*%0A`;
+                ? `🛍️ *Pedido#${reservedOrderNumber} - Térea.ve*\n`
+                : `🛍️ *Pedido - Térea.ve*\n`;
+            text += `\n`;
+            if (msgSettings.greeting) text += `${msgSettings.greeting}\n\n`;
+            text += `👤 *Cliente:* ${name}\n`;
+            text += `📱 *Celular:* ${phone}\n`;
+            text += `📍 *Dirección:* ${address}\n`;
+            if(notes) text += `💬 *Notas:* ${notes}\n`;
+            text += `🚚 *Método de envío:* ${selectedShipping}\n`;
+            text += `💳 *Método de pago:* ${selectedPayment}\n`;
+            text += `\n📦 *DETALLE DE LA ORDEN:*\n`;
 
             let total = 0;
             let totalVES = 0;
@@ -2241,7 +2241,7 @@
                 } else {
                     allHaveVES = false;
                 }
-                text += `• ${i.qty}x ${i.name} (${currencySymbol(i.currency)}${sub.toFixed(2)})%0A`;
+                text += `• ${i.qty}x ${i.name} (${currencySymbol(i.currency)}${sub.toFixed(2)})\n`;
                 itemsSummary.push(`${i.qty}x ${i.name}`);
                 structuredItems.push({
                     productId: i.productId || null,
@@ -2257,7 +2257,7 @@
             const cartItemCount = cart.reduce((sum, item) => sum + item.qty, 0);
             const appliedCartBoosters = getAppliedCartBoosters(total, cartItemCount);
             if (appliedCartBoosters.length > 0) {
-                text += `%0A🎁 *Promo aplicada:* ${appliedCartBoosters.map(b => b.title || '').join(', ')}%0A`;
+                text += `\n🎁 *Promo aplicada:* ${appliedCartBoosters.map(b => b.title || '').join(', ')}\n`;
             }
 
             // Descuento automático por % del carrito (envío gratis/producto no
@@ -2266,7 +2266,7 @@
             let boosterDiscountAmountFinal = 0;
             if (boosterPercentBooster) {
                 boosterDiscountAmountFinal = total * (Number(boosterPercentBooster.cartDiscountPercent || 0) / 100);
-                text += `%0A🎉 *${Number(boosterPercentBooster.cartDiscountPercent || 0)}% de descuento:* -${cartCurrencySymbol()}${boosterDiscountAmountFinal.toFixed(2)}%0A`;
+                text += `\n🎉 *${Number(boosterPercentBooster.cartDiscountPercent || 0)}% de descuento:* -${cartCurrencySymbol()}${boosterDiscountAmountFinal.toFixed(2)}\n`;
                 total -= boosterDiscountAmountFinal;
             }
 
@@ -2279,23 +2279,23 @@
                 if (recheck.valid) {
                     discountAmount = computeDiscountAmount(appliedDiscountCode, total);
                     const valueText = appliedDiscountCode.type === 'percent' ? `${appliedDiscountCode.value}%` : `${cartCurrencySymbol()}${Number(appliedDiscountCode.value).toFixed(2)}`;
-                    text += `%0A🏷️ *Código ${appliedDiscountCode.code}:* -${cartCurrencySymbol()}${discountAmount.toFixed(2)} (${valueText})%0A`;
+                    text += `\n🏷️ *Código ${appliedDiscountCode.code}:* -${cartCurrencySymbol()}${discountAmount.toFixed(2)} (${valueText})\n`;
                     total -= discountAmount;
                 } else {
                     appliedDiscountCode = null;
                 }
             }
 
-            text += `%0A*TOTAL A PAGAR: ${cartCurrencySymbol()}${total.toFixed(2)}*`;
+            text += `\n*TOTAL A PAGAR: ${cartCurrencySymbol()}${total.toFixed(2)}*`;
             if (showVESInMsg && allHaveVES && totalVES > 0 && discountAmount === 0 && boosterDiscountAmountFinal === 0) {
                 const rateTypes = new Set(cart.map(i => i.priceVESRateType).filter(Boolean));
                 const rateLabel = rateTypes.size === 1 ? rateLabelText([...rateTypes][0]) : '';
                 text += ` (Bs. ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${rateLabel ? ' — ' + rateLabel : ''})`;
             }
-            text += `%0A%0A${msgSettings.closing || '¡Gracias por tu compra!'}`;
+            text += `\n\n${msgSettings.closing || '¡Gracias por tu compra!'}`;
 
             const sellerPhone = storeConfig.whatsappNumber || "";
-            const whatsappUrl = `https://wa.me/${sellerPhone}?text=${text}`;
+            const whatsappUrl = `https://wa.me/${sellerPhone}?text=${encodeURIComponent(text)}`;
 
             // Guardamos el pedido ANTES de navegar (con un límite de tiempo,
             // por si la conexión está lenta) — así no se pierde el registro
