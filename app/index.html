@@ -587,6 +587,35 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
 </div>
 
+<div id="whatsapp-preview-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+  <div class="card max-w-sm w-full max-h-[85vh] flex flex-col">
+    <div class="flex justify-between items-center border-b b p-5 pb-3 shrink-0">
+      <h3 class="font-medium text-base">Antes de enviar</h3>
+      <button onclick="closeModal('whatsapp-preview-modal')" class="t-muted"><span class="msi">close</span></button>
+    </div>
+    <p class="text-xs t-muted px-5 pt-2">Así va a llegar el mensaje a WhatsApp:</p>
+    <div class="p-5 space-y-3 overflow-y-auto flex-1">
+      <div class="surface-alt rounded-2xl overflow-hidden">
+        <div class="p-3 border-b b">
+          <h4 class="text-sm font-medium" id="wa-preview-title"></h4>
+        </div>
+        <div id="wa-preview-items" class="divide-y" style="--tw-divide-opacity:1;"></div>
+        <div class="p-3 flex justify-between items-center" style="background:var(--surface)">
+          <span class="text-sm font-medium">Total</span>
+          <div class="text-right">
+            <span id="wa-preview-total" class="text-base font-medium accent"></span>
+            <span id="wa-preview-total-ves" class="text-xs t-muted block"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-2 p-5 pt-3 border-t b shrink-0">
+      <button onclick="closeModal('whatsapp-preview-modal')" class="btn-secondary flex-1 py-2.5 text-sm">Atrás</button>
+      <button id="wa-preview-send-btn" onclick="" class="btn-primary flex-1 py-2.5 text-sm flex items-center justify-center gap-1.5"><span class="msi" style="font-size:16px">chat</span>Enviar</button>
+    </div>
+  </div>
+</div>
+
 <div id="product-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
   <div class="card max-w-md w-full p-6 space-y-3 max-h-[90vh] overflow-y-auto">
     <div class="flex justify-between items-center border-b b pb-3">
@@ -1856,7 +1885,7 @@ function renderOrdersList(){
       <div class="flex justify-between items-center pt-2 border-t b flex-wrap gap-2">
         ${statusBadge}
         <div class="flex gap-1.5">
-          <button onclick="sendOrderWhatsapp('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">chat</span>WhatsApp</button>
+          <button onclick="openWhatsappPreview('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">chat</span>WhatsApp</button>
           <button onclick="openOrderForEdit('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">edit</span>Editar</button>
           <button onclick="confirmOrderAsSale('${o.id}')" class="btn-primary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">check</span>Confirmar venta</button>
           <button onclick="deleteOrder('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs" style="color:var(--danger)"><span class="msi" style="font-size:15px">delete</span></button>
@@ -2211,6 +2240,42 @@ async function importWebOrder(webOrderId){
   // (como los gráficos del resumen) falla — que no oculte que sí funcionó.
   showAlert('Pedido web importado como preliminar — stock apartado');
   try{ renderAll(); }catch(e){ console.error('Error al refrescar la pantalla (el pedido igual se importó bien):', e); }
+}
+
+function openWhatsappPreview(id){
+  const order = appData.orders.find(o=>o.id===id);
+  if(!order) return;
+  const client = appData.clients.find(c=>c.id===order.clientId);
+
+  document.getElementById('wa-preview-title').textContent = order.orderNumber ? `Pedido #${order.orderNumber}` : 'Pedido';
+
+  const itemsEl = document.getElementById('wa-preview-items');
+  itemsEl.innerHTML = order.items.map(it => {
+    const p = appData.products.find(x => x.id === it.productId);
+    const photoHtml = (p && p.photo)
+      ? `<img src="${p.photo}" class="w-11 h-11 rounded-lg object-cover shrink-0" onerror="this.style.visibility='hidden'">`
+      : `<div class="w-11 h-11 rounded-lg shrink-0" style="background:var(--surface)"></div>`;
+    return `<div class="p-3 flex items-center gap-2.5">
+      ${photoHtml}
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium truncate">${it.name}</p>
+        <p class="text-xs t-muted">${it.qty}x ${fmtOrderTotal({total: it.unitPrice, webCurrency: order.webCurrency})}</p>
+      </div>
+      <span class="text-sm font-medium">${fmtOrderTotal({total: it.subtotal, webCurrency: order.webCurrency})}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('wa-preview-total').textContent = fmtOrderTotal(order);
+  document.getElementById('wa-preview-total-ves').textContent = order.totalVES
+    ? `Bs ${order.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})} (${rateLabelText(order.rateType)})`
+    : '';
+
+  document.getElementById('wa-preview-send-btn').onclick = () => {
+    sendOrderWhatsapp(id);
+    closeModal('whatsapp-preview-modal');
+  };
+
+  openModal('whatsapp-preview-modal');
 }
 
 function sendOrderWhatsapp(id){
