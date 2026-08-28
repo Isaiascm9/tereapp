@@ -230,6 +230,25 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </div>
   </div>
 
+  <div id="tracking-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+    <div class="card max-w-xs w-full p-5 space-y-3">
+      <div class="flex justify-between items-center mb-1">
+        <h3 class="font-medium text-base">Seguimiento <span id="tracking-modal-order-number" class="t-muted"></span></h3>
+        <button onclick="closeModal('tracking-modal')" class="t-muted"><span class="msi">close</span></button>
+      </div>
+      <button id="tracking-modal-view-link" onclick="" class="btn-secondary w-full py-2.5 text-sm flex items-center justify-center gap-1.5"><span class="msi" style="font-size:17px">open_in_new</span>Ver pedido (como lo ve el cliente)</button>
+      <div>
+        <label class="text-xs t-muted block mb-1">Etapa actual del pedido</label>
+        <select id="tracking-modal-stage-select" onchange="onTrackingModalStageChange()" class="w-full px-3.5 py-2.5 rounded-xl text-sm border b bg-transparent">
+          <option value="recibido">Recibido</option>
+          <option value="preparando">Preparando</option>
+          <option value="enviado">Enviado</option>
+          <option value="entregado">Entregado</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
   <div id="low-stock-banner" class="hidden card p-4 bg-warning-soft border-0">
     <div class="flex items-start gap-2">
       <span class="msi" style="font-size:20px">warning</span>
@@ -1827,27 +1846,18 @@ function renderOrdersList(){
       return p && it.unitPrice !== undefined && it.unitPrice !== null && Math.abs(it.unitPrice - p.price) > 0.001;
     });
     return `<div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
-      <div class="flex justify-between items-start gap-2 flex-wrap">
+      <div class="flex justify-between items-start gap-2">
         <div>
           <p class="text-sm font-medium">${o.orderNumber ? `<span class="t-muted">#${o.orderNumber}</span> ` : ''}${client ? client.name : 'Sin cliente'} ${o.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}${hasDiscountedItem ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle ml-1">Descuento</span>' : ''}</p>
           <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}${o.webShipping ? ' · '+o.webShipping : ''}${o.webAddress ? ' · '+o.webAddress : ''}</p>
         </div>
-        <div class="flex items-start gap-2">
-          <div class="text-left">
-            <p class="font-medium" style="color:var(--success)">${fmtOrderTotal(o)}</p>
-            ${vesText}
-          </div>
-          ${o.orderNumber ? `<button onclick="openOrderTracking('${o.id}')" title="Ver seguimiento" class="w-8 h-8 shrink-0 rounded-lg bg-surface hover:opacity-80 flex items-center justify-center"><span class="msi" style="font-size:18px">local_shipping</span></button>` : ''}
-        </div>
+        ${o.orderNumber ? `<button onclick="openTrackingPopup('${o.id}')" title="Seguimiento" class="w-9 h-9 shrink-0 rounded-lg bg-surface hover:opacity-80 flex items-center justify-center"><span class="msi" style="font-size:18px">local_shipping</span></button>` : ''}
+      </div>
+      <div>
+        <p class="font-medium" style="color:var(--success)">${fmtOrderTotal(o)}</p>
+        ${vesText}
       </div>
       <div>${itemsText}</div>
-      <div class="flex items-center gap-1.5 pt-1">
-        ${['recibido','preparando','enviado','entregado'].map(s => {
-          const active = (o.fulfillmentStage || 'recibido') === s;
-          const labels = { recibido:'Recibido', preparando:'Preparando', enviado:'Enviado', entregado:'Entregado' };
-          return `<button onclick="setOrderFulfillmentStage('${o.id}', '${s}')" class="flex-1 px-1.5 py-1.5 rounded-lg text-[10px] font-bold text-center transition-colors ${active ? 'bg-accent text-white' : 'bg-surface t-muted hover:opacity-80'}">${labels[s]}</button>`;
-        }).join('')}
-      </div>
       <div class="flex justify-between items-center pt-2 border-t b flex-wrap gap-2">
         ${statusBadge}
         <div class="flex gap-1.5">
@@ -1859,6 +1869,23 @@ function renderOrdersList(){
       </div>
     </div>`;
   }).join('');
+}
+
+let trackingModalOrderId = null;
+
+function openTrackingPopup(id){
+  const order = appData.orders.find(o=>o.id===id);
+  if(!order || !order.orderNumber) return;
+  trackingModalOrderId = id;
+  document.getElementById('tracking-modal-order-number').textContent = `#${order.orderNumber}`;
+  document.getElementById('tracking-modal-stage-select').value = order.fulfillmentStage || 'recibido';
+  document.getElementById('tracking-modal-view-link').onclick = () => openOrderTracking(id);
+  openModal('tracking-modal');
+}
+
+function onTrackingModalStageChange(){
+  const stage = document.getElementById('tracking-modal-stage-select').value;
+  if(trackingModalOrderId) setOrderFulfillmentStage(trackingModalOrderId, stage);
 }
 
 async function setOrderFulfillmentStage(id, stage){
