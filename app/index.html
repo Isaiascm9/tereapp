@@ -598,9 +598,13 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <div class="surface-alt rounded-2xl overflow-hidden">
         <div class="p-3 border-b b">
           <h4 class="text-sm font-medium" id="wa-preview-title"></h4>
+          <p class="text-xs t-muted mt-0.5">Cliente: <span id="wa-preview-client"></span></p>
         </div>
         <div id="wa-preview-items" class="divide-y" style="--tw-divide-opacity:1;"></div>
-        <div class="p-3 flex justify-between items-center" style="background:var(--surface)">
+        <div class="p-3 border-t b">
+          <p class="text-xs t-muted">Método de pago: <span id="wa-preview-payment" class="t-primary font-medium"></span></p>
+        </div>
+        <div class="p-3 flex justify-between items-center border-t b" style="background:var(--surface)">
           <span class="text-sm font-medium">Total</span>
           <div class="text-right">
             <span id="wa-preview-total" class="text-base font-medium accent"></span>
@@ -2248,6 +2252,8 @@ function openWhatsappPreview(id){
   const client = appData.clients.find(c=>c.id===order.clientId);
 
   document.getElementById('wa-preview-title').textContent = order.orderNumber ? `Pedido #${order.orderNumber}` : 'Pedido';
+  document.getElementById('wa-preview-client').textContent = client ? client.name : 'Sin cliente';
+  document.getElementById('wa-preview-payment').textContent = order.payment || '—';
 
   const itemsEl = document.getElementById('wa-preview-items');
   itemsEl.innerHTML = order.items.map(it => {
