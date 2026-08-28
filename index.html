@@ -2202,10 +2202,21 @@
         }
 
         function navigateToWhatsApp(url) {
-            window.open(url, '_blank');
+            // Simulamos un toque real sobre un link (<a href>), igual que el
+            // botón flotante de WhatsApp — algunos navegadores de celular
+            // manejan window.open() como "abrir una ventana" y se quedan
+            // atascados en la página web de WhatsApp, en vez de reconocerlo
+            // como un link y abrir la app de verdad.
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
-        async function executeWhatsAppOrder() {
+        function executeWhatsAppOrder() {
             const name = document.getElementById('client-name').value.trim();
             const phone = document.getElementById('client-phone').value.trim();
             const address = document.getElementById('client-address').value.trim();
@@ -2297,11 +2308,14 @@
             const sellerPhone = storeConfig.whatsappNumber || "";
             const whatsappUrl = `https://wa.me/${sellerPhone}?text=${encodeURIComponent(text)}`;
 
-            // Guardamos el pedido ANTES de navegar (con un límite de tiempo,
-            // por si la conexión está lenta) — así no se pierde el registro
-            // al salir hacia WhatsApp. Navegar en la misma pantalla, en vez
-            // de una pestaña nueva, evita que quede una pantalla en blanco
-            // al volver atrás desde WhatsApp en el celular.
+            // Abrimos WhatsApp de inmediato, en el mismo instante del clic,
+            // simulando un toque real sobre un link — así el navegador del
+            // celular lo reconoce como un link normal (y abre la app),
+            // en vez de quedarse atascado en la página web de WhatsApp.
+            // El registro en Firestore corre en paralelo, sin detener al
+            // cliente ni arriesgar que se pierda el reconocimiento del toque.
+            navigateToWhatsApp(whatsappUrl);
+
             try {
                 const fb = window.__terea_fb;
                 // La moneda general del pedido: solo tiene sentido si TODOS
@@ -2311,7 +2325,7 @@
                 const orderCurrency = currencies.size === 1 ? [...currencies][0] : 'MIXED';
                 trackPixelEvent('Purchase', { value: Number(total.toFixed(2)), currency: orderCurrency === 'MIXED' ? 'USD' : orderCurrency, content_ids: structuredItems.map(i => i.productId), num_items: structuredItems.reduce((sum, i) => sum + i.qty, 0) });
 
-                await withTimeout(fb.addDoc(fb.collection(fb.db, 'pedidos_web'), {
+                fb.addDoc(fb.collection(fb.db, 'pedidos_web'), {
                     orderNumber: reservedOrderNumber || null,
                     discountCode: appliedDiscountCode ? appliedDiscountCode.code : null,
                     discountAmount: discountAmount || null,
@@ -2328,13 +2342,13 @@
                     total: Number(total.toFixed(2)),
                     status: 'preliminar',
                     createdAt: fb.serverTimestamp(),
-                }), 3000);
+                }).catch(e => console.error('No se pudo registrar el pedido en la base de datos:', e));
 
                 if (appliedDiscountCode && appliedDiscountCode.id) {
                     registerDiscountCodeUsage(appliedDiscountCode.id);
                 }
             } catch (e) {
-                console.error('No se pudo registrar el pedido en la base de datos (igual se envía por WhatsApp):', e);
+                console.error('No se pudo registrar el pedido en la base de datos:', e);
             }
 
             // Vaciamos el carrito ANTES de navegar, para que si el cliente
@@ -2348,8 +2362,6 @@
             document.getElementById('cart-reminder-banner').classList.add('hidden');
             updateCartUI();
             closeCart();
-
-            navigateToWhatsApp(whatsappUrl);
         }
     </script>
 </body>
