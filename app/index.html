@@ -768,7 +768,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <button onclick="closeModal('edit-sale-modal')" class="t-muted"><span class="msi">close</span></button>
     </div>
     <div class="space-y-2">
-      <label class="block text-xs font-medium t-muted uppercase">Artículos</label>
+      <div class="flex justify-between items-center">
+        <label class="block text-xs font-medium t-muted uppercase">Artículos</label>
+        <button id="edit-sale-sent-toggle" onclick="toggleEditSaleSent()" title="Marcar como enviado" class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center transition-colors bg-surface"><span class="msi" style="font-size:16px">inventory_2</span></button>
+      </div>
       <div id="edit-sale-items-container" class="space-y-2"></div>
       <button type="button" onclick="addEditSaleItemRow()" class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add</span>Agregar producto</button>
     </div>
@@ -1575,6 +1578,7 @@ function openSaleEditModal(id){
   if(!sale) return;
   editSaleId = id;
   document.getElementById('edit-sale-modal-title').innerHTML = `<span class="msi accent">edit</span>Editar venta${sale.orderNumber ? ' #'+sale.orderNumber : ''}`;
+  updateEditSaleSentToggleUI(sale.sentFlag);
   editSaleItems = sale.items.map(it=>({ productId: it.productId, qty: it.qty }));
   renderEditSaleItemRows();
 
@@ -1947,6 +1951,25 @@ async function toggleOrderSent(id){
   await saveData();
   renderOrdersList();
   syncSeguimientoStage(order);
+}
+
+function updateEditSaleSentToggleUI(sentFlag){
+  const btn = document.getElementById('edit-sale-sent-toggle');
+  btn.title = sentFlag ? 'Marcado como enviado' : 'Marcar como enviado';
+  btn.classList.toggle('bg-accent', !!sentFlag);
+  btn.classList.toggle('text-white', !!sentFlag);
+  btn.classList.toggle('bg-surface', !sentFlag);
+  btn.querySelector('.msi').textContent = sentFlag ? 'send' : 'inventory_2';
+}
+
+async function toggleEditSaleSent(){
+  const sale = appData.sales.find(s=>s.id===editSaleId);
+  if(!sale) return;
+  sale.sentFlag = !sale.sentFlag;
+  updateEditSaleSentToggleUI(sale.sentFlag);
+  await saveData();
+  renderAll();
+  syncSeguimientoStage(sale);
 }
 
 // Código de seguimiento público: últimos 4 dígitos del teléfono + número
