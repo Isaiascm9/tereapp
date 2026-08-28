@@ -167,7 +167,9 @@
             `).join('');
             document.getElementById('order-total').textContent = `${currencySymbol(data.currency)}${Number(data.total).toFixed(2)}`;
             const vesEl = document.getElementById('order-total-ves');
-            vesEl.textContent = data.totalVES ? `Bs. ${Number(data.totalVES).toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '';
+            vesEl.textContent = data.totalVES
+                ? `Bs. ${Number(data.totalVES).toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${data.rateLabel ? ' (' + data.rateLabel + ')' : ''}`
+                : '';
             renderStages(data.fulfillmentStage || 'recibido');
             document.getElementById('completed-block').classList.toggle('hidden', data.fulfillmentStage !== 'enviado');
             document.getElementById('order-view').classList.remove('hidden');
