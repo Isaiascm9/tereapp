@@ -770,7 +770,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     <div class="space-y-2">
       <div class="flex justify-between items-center">
         <label class="block text-xs font-medium t-muted uppercase">Artículos</label>
-        <button id="edit-sale-sent-toggle" onclick="toggleEditSaleSent()" title="Marcar como enviado" class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center transition-colors bg-surface"><span class="msi" style="font-size:16px">inventory_2</span></button>
+        <div class="flex items-center gap-1.5">
+          <button onclick="openEditSaleTracking()" title="Ver seguimiento" class="w-9 h-9 shrink-0 rounded-lg bg-surface hover:opacity-80 flex items-center justify-center"><span class="msi" style="font-size:18px">local_shipping</span></button>
+          <button id="edit-sale-sent-toggle" onclick="toggleEditSaleSent()" title="Marcar como enviado" class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center transition-colors bg-surface"><span class="msi" style="font-size:16px">inventory_2</span></button>
+        </div>
       </div>
       <div id="edit-sale-items-container" class="space-y-2"></div>
       <button type="button" onclick="addEditSaleItemRow()" class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add</span>Agregar producto</button>
@@ -1951,6 +1954,15 @@ async function toggleOrderSent(id){
   await saveData();
   renderOrdersList();
   syncSeguimientoStage(order);
+}
+
+function openEditSaleTracking(){
+  const sale = appData.sales.find(s=>s.id===editSaleId);
+  if(!sale || !sale.orderNumber) return;
+  const client = appData.clients.find(c=>c.id===sale.clientId);
+  const trackingCode = generateTrackingCode(client ? client.phone : '', sale.orderNumber);
+  if(!trackingCode) return;
+  window.open(`https://tereave.store/seguimiento/?p=${trackingCode}`, '_blank');
 }
 
 function updateEditSaleSentToggleUI(sentFlag){
