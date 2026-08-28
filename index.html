@@ -671,6 +671,17 @@
 
         // Si algo se cuelga por una conexión inestable, esto corta la
         // espera en vez de dejar una reserva pendiente para siempre.
+        // Código de seguimiento público: últimos 4 dígitos del teléfono +
+        // número de pedido (ej. teléfono termina en 3210, pedido #56 ->
+        // "321056"). No es perfecto, pero hace que adivinar un pedido de
+        // otra persona sea poco práctico, sin pedirle nada extra al cliente.
+        function generateTrackingCode(phone, orderNumber) {
+            if (!orderNumber) return null;
+            const digitsOnly = (phone || '').replace(/\D/g, '');
+            const last4 = digitsOnly.slice(-4).padStart(4, '0');
+            return `${last4}${orderNumber}`;
+        }
+
         function withTimeout(promise, ms) {
             return Promise.race([
                 promise,
@@ -2262,6 +2273,7 @@
                     qty: i.qty,
                     price: i.price,
                     currency: i.currency || 'USD',
+                    image: i.image || '',
                 });
             });
 
@@ -2303,6 +2315,10 @@
                 const rateLabel = rateTypes.size === 1 ? rateLabelText([...rateTypes][0]) : '';
                 text += ` (Bs. ${totalVES.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${rateLabel ? ' — ' + rateLabel : ''})`;
             }
+            const trackingCode = generateTrackingCode(phone, reservedOrderNumber);
+            if (trackingCode) {
+                text += `\n🔗 Sigue tu pedido: https://tereave.store/seguimiento/?p=${trackingCode}`;
+            }
             text += `\n\n${msgSettings.closing || '¡Gracias por tu compra!'}`;
 
             const sellerPhone = storeConfig.whatsappNumber || "";
@@ -2343,6 +2359,19 @@
                     status: 'preliminar',
                     createdAt: fb.serverTimestamp(),
                 }).catch(e => console.error('No se pudo registrar el pedido en la base de datos:', e));
+
+                if (trackingCode) {
+                    const vesIsAccurate = allHaveVES && totalVES > 0 && discountAmount === 0 && boosterDiscountAmountFinal === 0;
+                    fb.setDoc(fb.doc(fb.db, 'seguimiento', trackingCode), {
+                        fulfillmentStage: 'recibido',
+                        items: structuredItems.map(i => ({ name: i.name, qty: i.qty, price: i.price, currency: i.currency, image: i.image || '' })),
+                        total: Number(total.toFixed(2)),
+                        currency: orderCurrency,
+                        totalVES: vesIsAccurate ? Number(totalVES.toFixed(2)) : null,
+                        orderNumber: reservedOrderNumber,
+                        expireAt: new Date(Date.now() + 30 * 60 * 60 * 24 * 1000),
+                    }).catch(e => console.error('No se pudo crear el registro de seguimiento (el pedido igual se envió):', e));
+                }
 
                 if (appliedDiscountCode && appliedDiscountCode.id) {
                     registerDiscountCodeUsage(appliedDiscountCode.id);
