@@ -446,6 +446,18 @@
                     </div>
                 </div>
 
+                <!-- Instagram / Facebook Shops -->
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 mb-2">Catálogo para Instagram / Facebook Shops</h2>
+                    <div class="bg-white rounded-2xl border border-gray-200 p-4">
+                        <p class="text-xs text-slate-500 mb-3">Descarga un archivo con tus productos, en el formato que pide Meta Commerce Manager. Súbelo ahí donde dice "Sube un archivo de datos". Vuelve a descargarlo y a subirlo cada vez que agregues o cambies productos importantes.</p>
+                        <p class="text-[11px] text-slate-400 mb-3">Nota: los productos sin foto no se incluyen (Meta los exige). Y como este archivo se arma desde aquí, no desde Téreapp, siempre marca "disponible" — si algo se agota, tendrías que quitarlo a mano de Meta Commerce Manager mientras tanto.</p>
+                        <button onclick="exportMetaCatalogFeed()" class="w-full py-3 bg-madera hover:bg-arena active:bg-arena text-arena hover:text-madera active:text-madera font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
+                            <i data-lucide="download" class="w-4 h-4"></i> Exportar catálogo para Meta
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Meta Pixel -->
                 <div>
                     <h2 class="text-lg font-bold text-slate-900 mb-2">Meta Pixel (Facebook / Instagram Ads)</h2>
@@ -2906,6 +2918,57 @@
                 text += '\n\n' + closing;
             }
             document.getElementById('msg-preview-bubble').textContent = text;
+        }
+
+        // ============ EXPORTAR CATÁLOGO PARA META (Instagram/Facebook Shops) ============
+        function csvEscapeMeta(value) {
+            const str = String(value == null ? '' : value);
+            if (/[",\n]/.test(str)) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        }
+
+        function exportMetaCatalogFeed() {
+            const catalogBaseUrl = 'https://tereave.store/';
+            const header = ['id', 'title', 'description', 'availability', 'condition', 'price', 'link', 'image_link', 'brand'];
+            const rows = [header];
+
+            state.products.forEach(p => {
+                const currency = p.priceCurrency || 'USD';
+                const price = `${Number(p.price || 0).toFixed(2)} ${currency}`;
+                const link = `${catalogBaseUrl}?p=${p.id}`;
+                const image = (p.images && p.images[0]) || '';
+                if (!image) return; // Meta exige foto — sin foto, ese producto no puede entrar al catálogo
+                rows.push([
+                    p.id,
+                    p.name || '',
+                    p.description || p.name || '',
+                    'in stock',
+                    'new',
+                    price,
+                    link,
+                    image,
+                    'térea'
+                ]);
+            });
+
+            if (rows.length === 1) {
+                showToast('No hay productos con foto para exportar');
+                return;
+            }
+
+            const csvContent = rows.map(row => row.map(csvEscapeMeta).join(',')).join('\r\n');
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'terea-catalogo-meta.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`Catálogo exportado: ${rows.length - 1} productos`);
         }
 
         function saveStoreConfig() {
