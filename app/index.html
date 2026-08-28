@@ -579,11 +579,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <h3 class="font-medium text-base">Seguimiento <span id="tracking-modal-order-number" class="t-muted"></span></h3>
       <button onclick="closeModal('tracking-modal')" class="t-muted"><span class="msi">close</span></button>
     </div>
+    <p class="text-xs t-muted">Así ve el cliente el progreso de su pedido.</p>
     <button id="tracking-modal-view-link" onclick="" class="btn-secondary w-full py-2.5 text-sm flex items-center justify-center gap-1.5"><span class="msi" style="font-size:17px">open_in_new</span>Ver pedido (como lo ve el cliente)</button>
-    <div>
-      <label class="text-xs t-muted block mb-1.5">Etapa actual del pedido</label>
-      <div id="tracking-modal-stage-list" class="space-y-1.5"></div>
-    </div>
   </div>
 </div>
 
@@ -1818,7 +1815,7 @@ async function handleGenerateOrder(){
     webCurrency: oldOrder ? (oldOrder.webCurrency || null) : null,
     webAddress: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-address').value.trim() : (oldOrder ? (oldOrder.webAddress || null) : null),
     webShipping: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-shipping').value.trim() : (oldOrder ? (oldOrder.webShipping || null) : null),
-    fulfillmentStage: oldOrder ? (oldOrder.fulfillmentStage || 'recibido') : 'recibido'
+    sentFlag: oldOrder ? (oldOrder.sentFlag || false) : false
   };
 
   const wasEditing = !!editingOrderId;
@@ -1830,6 +1827,11 @@ async function handleGenerateOrder(){
     appData.orders.unshift(order);
   }
   await saveData();
+
+  // El estado de pago (Pendiente/Pagado) que se acaba de guardar arriba
+  // puede haber cambiado la etapa que ve el cliente — la sincronizamos
+  // sola, sin que haga falta ningún paso aparte.
+  if (wasEditing) syncSeguimientoStage(order);
 
   if (!wasEditing && orderNumber) {
     const client = appData.clients.find(c => c.id === order.clientId);
@@ -1879,7 +1881,11 @@ function renderOrdersList(){
           <p class="text-sm font-medium">${o.orderNumber ? `<span class="t-muted">#${o.orderNumber}</span> ` : ''}${client ? client.name : 'Sin cliente'} ${o.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}${hasDiscountedItem ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle ml-1">Descuento</span>' : ''}</p>
           <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}${o.webShipping ? ' · '+o.webShipping : ''}${o.webAddress ? ' · '+o.webAddress : ''}</p>
         </div>
-        ${o.orderNumber ? `<button onclick="openTrackingPopup('${o.id}')" title="Seguimiento" class="w-9 h-9 shrink-0 rounded-lg bg-surface hover:opacity-80 flex items-center justify-center"><span class="msi" style="font-size:18px">local_shipping</span></button>` : ''}
+        ${o.orderNumber ? `
+        <div class="flex flex-col items-center gap-1">
+          <button onclick="openTrackingPopup('${o.id}')" title="Seguimiento" class="w-9 h-9 shrink-0 rounded-lg bg-surface hover:opacity-80 flex items-center justify-center"><span class="msi" style="font-size:18px">local_shipping</span></button>
+          <button onclick="toggleOrderSent('${o.id}')" title="${o.sentFlag ? 'Marcado como enviado' : 'Marcar como enviado'}" class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center transition-colors ${o.sentFlag ? 'bg-accent text-white' : 'bg-surface'}"><span class="msi" style="font-size:16px">${o.sentFlag ? 'send' : 'inventory_2'}</span></button>
+        </div>` : ''}
       </div>
       <div>
         <p class="font-medium" style="color:var(--success)">${fmtOrderTotal(o)}</p>
@@ -1901,55 +1907,45 @@ function renderOrdersList(){
 
 let trackingModalOrderId = null;
 
-const TRACKING_STAGES = [
-  { key: 'recibido', label: 'Recibido', icon: 'inbox' },
-  { key: 'preparando', label: 'Preparando', icon: 'build' },
-  { key: 'enviado', label: 'Enviado', icon: 'local_shipping' },
-  { key: 'entregado', label: 'Entregado', icon: 'check_circle' },
-];
-
 function openTrackingPopup(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order || !order.orderNumber) return;
   trackingModalOrderId = id;
   document.getElementById('tracking-modal-order-number').textContent = `#${order.orderNumber}`;
-  renderTrackingStageList(order.fulfillmentStage || 'recibido');
   document.getElementById('tracking-modal-view-link').onclick = () => openOrderTracking(id);
   openModal('tracking-modal');
 }
 
-function renderTrackingStageList(currentStage){
-  const list = document.getElementById('tracking-modal-stage-list');
-  list.innerHTML = TRACKING_STAGES.map(s => {
-    const active = s.key === currentStage;
-    return `<button onclick="selectTrackingStage('${s.key}')" class="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm text-left transition-colors ${active ? 'bg-accent text-white' : 'surface-alt hover:opacity-80'}">
-      <span class="msi" style="font-size:18px">${s.icon}</span>
-      <span class="flex-1 font-medium">${s.label}</span>
-      ${active ? '<span class="msi" style="font-size:18px">check</span>' : ''}
-    </button>`;
-  }).join('');
+// La etapa se calcula sola: Recibido siempre que existe el pedido,
+// Pendiente/Pagado según el estado de pago que ya pones en el pedido, y
+// Enviado solo si lo marcaste a mano con el interruptor — nada de esto
+// se elige manualmente por separado.
+function computeFulfillmentStage(order){
+  if (order.sentFlag) return 'enviado';
+  if (order.status === 'Pagado') return 'pagado';
+  return 'pendiente';
 }
 
-function selectTrackingStage(stage){
-  if(!trackingModalOrderId) return;
-  renderTrackingStageList(stage);
-  setOrderFulfillmentStage(trackingModalOrderId, stage);
+async function syncSeguimientoStage(order){
+  if(!order.orderNumber) return;
+  const client = appData.clients.find(c=>c.id===order.clientId);
+  const trackingCode = generateTrackingCode(client ? client.phone : '', order.orderNumber);
+  if(!trackingCode) return;
+  const stage = computeFulfillmentStage(order);
+  try{
+    await window.dbUpdateFulfillmentStage(trackingCode, stage);
+  }catch(e){
+    console.warn('No se pudo actualizar el seguimiento público (el cambio local sí se guardó):', e);
+  }
 }
 
-async function setOrderFulfillmentStage(id, stage){
+async function toggleOrderSent(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order) return;
-  order.fulfillmentStage = stage;
+  order.sentFlag = !order.sentFlag;
   await saveData();
   renderOrdersList();
-
-  if(order.orderNumber){
-    const client = appData.clients.find(c=>c.id===order.clientId);
-    const trackingCode = generateTrackingCode(client ? client.phone : '', order.orderNumber);
-    if(trackingCode){
-      window.dbUpdateFulfillmentStage(trackingCode, stage).catch(e=>console.warn('No se pudo actualizar el seguimiento público (el cambio local sí se guardó):', e));
-    }
-  }
+  syncSeguimientoStage(order);
 }
 
 // Código de seguimiento público: últimos 4 dígitos del teléfono + número
@@ -1967,7 +1963,7 @@ async function createInitialSeguimiento(trackingCode, order){
     return { name: it.name, qty: it.qty, price: it.unitPrice, currency: order.webCurrency || 'USD', image: (p && p.photo) || '' };
   });
   await withTimeout(window.dbCreateSeguimiento(trackingCode, {
-    fulfillmentStage: 'recibido',
+    fulfillmentStage: computeFulfillmentStage(order),
     items,
     total: order.total,
     currency: order.webCurrency || 'USD',
@@ -2330,12 +2326,14 @@ async function confirmOrderAsSale(id){
     source: order.source || null,
     webCurrency: order.webCurrency || null,
     webAddress: order.webAddress || null,
-    webShipping: order.webShipping || null
+    webShipping: order.webShipping || null,
+    sentFlag: order.sentFlag || false
   };
   appData.sales.unshift(sale);
   appData.orders = appData.orders.filter(o=>o.id!==id);
   await saveData();
   renderAll();
+  syncSeguimientoStage(sale);
   showAlert('Pedido confirmado como venta y stock actualizado');
 }
 
