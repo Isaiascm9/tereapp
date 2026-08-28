@@ -581,13 +581,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </div>
     <button id="tracking-modal-view-link" onclick="" class="btn-secondary w-full py-2.5 text-sm flex items-center justify-center gap-1.5"><span class="msi" style="font-size:17px">open_in_new</span>Ver pedido (como lo ve el cliente)</button>
     <div>
-      <label class="text-xs t-muted block mb-1">Etapa actual del pedido</label>
-      <select id="tracking-modal-stage-select" onchange="onTrackingModalStageChange()" class="w-full px-3.5 py-2.5 rounded-xl text-sm border b bg-transparent">
-        <option value="recibido">Recibido</option>
-        <option value="preparando">Preparando</option>
-        <option value="enviado">Enviado</option>
-        <option value="entregado">Entregado</option>
-      </select>
+      <label class="text-xs t-muted block mb-1.5">Etapa actual del pedido</label>
+      <div id="tracking-modal-stage-list" class="space-y-1.5"></div>
     </div>
   </div>
 </div>
@@ -1873,19 +1868,39 @@ function renderOrdersList(){
 
 let trackingModalOrderId = null;
 
+const TRACKING_STAGES = [
+  { key: 'recibido', label: 'Recibido', icon: 'inbox' },
+  { key: 'preparando', label: 'Preparando', icon: 'build' },
+  { key: 'enviado', label: 'Enviado', icon: 'local_shipping' },
+  { key: 'entregado', label: 'Entregado', icon: 'check_circle' },
+];
+
 function openTrackingPopup(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order || !order.orderNumber) return;
   trackingModalOrderId = id;
   document.getElementById('tracking-modal-order-number').textContent = `#${order.orderNumber}`;
-  document.getElementById('tracking-modal-stage-select').value = order.fulfillmentStage || 'recibido';
+  renderTrackingStageList(order.fulfillmentStage || 'recibido');
   document.getElementById('tracking-modal-view-link').onclick = () => openOrderTracking(id);
   openModal('tracking-modal');
 }
 
-function onTrackingModalStageChange(){
-  const stage = document.getElementById('tracking-modal-stage-select').value;
-  if(trackingModalOrderId) setOrderFulfillmentStage(trackingModalOrderId, stage);
+function renderTrackingStageList(currentStage){
+  const list = document.getElementById('tracking-modal-stage-list');
+  list.innerHTML = TRACKING_STAGES.map(s => {
+    const active = s.key === currentStage;
+    return `<button onclick="selectTrackingStage('${s.key}')" class="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-sm text-left transition-colors ${active ? 'bg-accent text-white' : 'surface-alt hover:opacity-80'}">
+      <span class="msi" style="font-size:18px">${s.icon}</span>
+      <span class="flex-1 font-medium">${s.label}</span>
+      ${active ? '<span class="msi" style="font-size:18px">check</span>' : ''}
+    </button>`;
+  }).join('');
+}
+
+function selectTrackingStage(stage){
+  if(!trackingModalOrderId) return;
+  renderTrackingStageList(stage);
+  setOrderFulfillmentStage(trackingModalOrderId, stage);
 }
 
 async function setOrderFulfillmentStage(id, stage){
