@@ -872,7 +872,8 @@ function fmt(n){ return '$'+(Number(n)||0).toFixed(2); }
 // sigue igual para ellos. Los que vienen del catálogo web pueden traer
 // euros, así que este helper elige el símbolo correcto según ese pedido.
 function fmtOrderTotal(o){
-  const symbol = o.webCurrency === 'EUR' ? '€' : '$';
+  const currency = o.webCurrency || (o.rateType === 'BCV_EUR' ? 'EUR' : 'USD');
+  const symbol = currency === 'EUR' ? '€' : '$';
   return symbol+(Number(o.total)||0).toFixed(2);
 }
 function isoDate(d){ return d.toISOString().slice(0,10); }
@@ -1958,16 +1959,18 @@ function generateTrackingCode(phone, orderNumber){
 }
 
 async function createInitialSeguimiento(trackingCode, order){
+  const orderCurrency = order.webCurrency || (order.rateType === 'BCV_EUR' ? 'EUR' : 'USD');
   const items = order.items.map(it => {
     const p = appData.products.find(x => x.id === it.productId);
-    return { name: it.name, qty: it.qty, price: it.unitPrice, currency: order.webCurrency || 'USD', image: (p && p.photo) || '' };
+    return { name: it.name, qty: it.qty, price: it.unitPrice, currency: orderCurrency, image: (p && p.photo) || '' };
   });
   await withTimeout(window.dbCreateSeguimiento(trackingCode, {
     fulfillmentStage: computeFulfillmentStage(order),
     items,
     total: order.total,
-    currency: order.webCurrency || 'USD',
+    currency: orderCurrency,
     totalVES: order.totalVES || null,
+    rateLabel: order.totalVES ? rateLabelText(order.rateType) : null,
     orderNumber: order.orderNumber,
     expireAt: new Date(Date.now() + 30*24*60*60*1000),
   }), 4000);
@@ -1986,7 +1989,7 @@ function buildInvoiceText(o){
   if(o.webShipping) lines.push(`Envío: ${o.webShipping}`);
   lines.push('');
   lines.push('*Productos:*');
-  o.items.forEach(it=> lines.push(`${it.qty}x ${it.name} - ${fmtOrderTotal({total: it.subtotal, webCurrency: o.webCurrency})}`));
+  o.items.forEach(it=> lines.push(`${it.qty}x ${it.name} - ${fmtOrderTotal({total: it.subtotal, webCurrency: o.webCurrency, rateType: o.rateType})}`));
   lines.push('');
   lines.push(`Método de pago: ${o.payment}`);
   lines.push(`Estado de pago: *${o.status}*`);
@@ -2262,9 +2265,9 @@ function openWhatsappPreview(id){
       ${photoHtml}
       <div class="flex-1 min-w-0">
         <p class="text-sm font-medium truncate">${it.name}</p>
-        <p class="text-xs t-muted">${it.qty}x ${fmtOrderTotal({total: it.unitPrice, webCurrency: order.webCurrency})}</p>
+        <p class="text-xs t-muted">${it.qty}x ${fmtOrderTotal({total: it.unitPrice, webCurrency: order.webCurrency, rateType: order.rateType})}</p>
       </div>
-      <span class="text-sm font-medium">${fmtOrderTotal({total: it.subtotal, webCurrency: order.webCurrency})}</span>
+      <span class="text-sm font-medium">${fmtOrderTotal({total: it.subtotal, webCurrency: order.webCurrency, rateType: order.rateType})}</span>
     </div>`;
   }).join('');
 
