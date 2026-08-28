@@ -1770,7 +1770,8 @@ async function handleGenerateOrder(){
     source: oldOrder ? (oldOrder.source || null) : null,
     webCurrency: oldOrder ? (oldOrder.webCurrency || null) : null,
     webAddress: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-address').value.trim() : (oldOrder ? (oldOrder.webAddress || null) : null),
-    webShipping: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-shipping').value.trim() : (oldOrder ? (oldOrder.webShipping || null) : null)
+    webShipping: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-shipping').value.trim() : (oldOrder ? (oldOrder.webShipping || null) : null),
+    fulfillmentStage: oldOrder ? (oldOrder.fulfillmentStage || 'recibido') : 'recibido'
   };
 
   const wasEditing = !!editingOrderId;
@@ -1782,6 +1783,14 @@ async function handleGenerateOrder(){
     appData.orders.unshift(order);
   }
   await saveData();
+
+  if (!wasEditing && orderNumber) {
+    const client = appData.clients.find(c => c.id === order.clientId);
+    const trackingCode = generateTrackingCode(client ? client.phone : '', orderNumber);
+    if (trackingCode) {
+      createInitialSeguimiento(trackingCode, order).catch(e => console.warn('No se pudo crear el registro de seguimiento (el pedido igual se guardó):', e));
+    }
+  }
 
   currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
   document.getElementById('sale-discount').value=0;
@@ -1829,10 +1838,18 @@ function renderOrdersList(){
         </div>
       </div>
       <div>${itemsText}</div>
+      <div class="flex items-center gap-1.5 pt-1">
+        ${['recibido','preparando','enviado','entregado'].map(s => {
+          const active = (o.fulfillmentStage || 'recibido') === s;
+          const labels = { recibido:'Recibido', preparando:'Preparando', enviado:'Enviado', entregado:'Entregado' };
+          return `<button onclick="setOrderFulfillmentStage('${o.id}', '${s}')" class="flex-1 px-1.5 py-1.5 rounded-lg text-[10px] font-bold text-center transition-colors ${active ? 'bg-accent text-white' : 'bg-surface t-muted hover:opacity-80'}">${labels[s]}</button>`;
+        }).join('')}
+      </div>
       <div class="flex justify-between items-center pt-2 border-t b flex-wrap gap-2">
         ${statusBadge}
         <div class="flex gap-1.5">
           <button onclick="sendOrderWhatsapp('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">chat</span>WhatsApp</button>
+          ${o.orderNumber ? `<button onclick="openOrderTracking('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">local_shipping</span>Seguimiento</button>` : ''}
           <button onclick="openOrderForEdit('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">edit</span>Editar</button>
           <button onclick="confirmOrderAsSale('${o.id}')" class="btn-primary px-2.5 py-1.5 text-xs flex items-center gap-1"><span class="msi" style="font-size:15px">check</span>Confirmar venta</button>
           <button onclick="deleteOrder('${o.id}')" class="btn-secondary px-2.5 py-1.5 text-xs" style="color:var(--danger)"><span class="msi" style="font-size:15px">delete</span></button>
@@ -1840,6 +1857,46 @@ function renderOrdersList(){
       </div>
     </div>`;
   }).join('');
+}
+
+async function setOrderFulfillmentStage(id, stage){
+  const order = appData.orders.find(o=>o.id===id);
+  if(!order) return;
+  order.fulfillmentStage = stage;
+  await saveData();
+  renderOrdersList();
+
+  if(order.orderNumber){
+    const client = appData.clients.find(c=>c.id===order.clientId);
+    const trackingCode = generateTrackingCode(client ? client.phone : '', order.orderNumber);
+    if(trackingCode){
+      window.dbUpdateFulfillmentStage(trackingCode, stage).catch(e=>console.warn('No se pudo actualizar el seguimiento público (el cambio local sí se guardó):', e));
+    }
+  }
+}
+
+// Código de seguimiento público: últimos 4 dígitos del teléfono + número
+// de pedido (ej. teléfono termina en 3210, pedido #56 -> "321056").
+function generateTrackingCode(phone, orderNumber){
+  if(!orderNumber) return null;
+  const digitsOnly = (phone || '').replace(/\D/g, '');
+  const last4 = digitsOnly.slice(-4).padStart(4, '0');
+  return `${last4}${orderNumber}`;
+}
+
+async function createInitialSeguimiento(trackingCode, order){
+  const items = order.items.map(it => {
+    const p = appData.products.find(x => x.id === it.productId);
+    return { name: it.name, qty: it.qty, price: it.unitPrice, currency: order.webCurrency || 'USD', image: (p && p.photo) || '' };
+  });
+  await withTimeout(window.dbCreateSeguimiento(trackingCode, {
+    fulfillmentStage: 'recibido',
+    items,
+    total: order.total,
+    currency: order.webCurrency || 'USD',
+    orderNumber: order.orderNumber,
+    expireAt: new Date(Date.now() + 30*24*60*60*1000),
+  }), 4000);
 }
 
 function buildInvoiceText(o){
@@ -1863,6 +1920,10 @@ function buildInvoiceText(o){
   lines.push(`*Total: ${fmtOrderTotal(o)}*`);
   if(showVESInMsg && o.totalVES){
     lines.push(`*Bs ${o.totalVES.toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2})}* (Tasa ${rateLabelText(o.rateType)})`);
+  }
+  const trackingCode = generateTrackingCode(client ? client.phone : '', o.orderNumber);
+  if(trackingCode){
+    lines.push(`🔗 Sigue tu pedido: https://tereave.store/seguimiento/?p=${trackingCode}`);
   }
   lines.push('');
   lines.push(msgSettings.closing || '¡Gracias por tu compra!');
@@ -2116,6 +2177,15 @@ function sendOrderWhatsapp(id){
   const phone = client && client.phone ? normalizePhoneVE(client.phone) : '';
   const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(url, '_blank');
+}
+
+function openOrderTracking(id){
+  const order = appData.orders.find(o=>o.id===id);
+  if(!order || !order.orderNumber) return;
+  const client = appData.clients.find(c=>c.id===order.clientId);
+  const trackingCode = generateTrackingCode(client ? client.phone : '', order.orderNumber);
+  if(!trackingCode) return;
+  window.open(`https://tereave.store/seguimiento/?p=${trackingCode}`, '_blank');
 }
 
 async function confirmOrderAsSale(id){
@@ -3121,6 +3191,16 @@ setReportPeriod('monthly');
       const snap = await getDoc(doc(db, 'catalogo_config', 'general'));
       window.__cachedMessageSettings = snap.exists() ? (snap.data().messageSettings || null) : null;
     }catch(e){ /* se queda con lo que ya tenía en caché, o sin nada */ }
+  };
+
+  window.dbCreateSeguimiento = async function(trackingCode, data){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await setDoc(doc(db, 'seguimiento', trackingCode), data);
+  };
+
+  window.dbUpdateFulfillmentStage = async function(trackingCode, stage){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await updateDoc(doc(db, 'seguimiento', trackingCode), { fulfillmentStage: stage });
   };
 
   window.dbGetWebOrders = async function(){
