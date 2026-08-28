@@ -1876,18 +1876,18 @@ function renderOrdersList(){
       const p = appData.products.find(x=>x.id===it.productId);
       return p && it.unitPrice !== undefined && it.unitPrice !== null && Math.abs(it.unitPrice - p.price) > 0.001;
     });
-    return `<div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
+    return `<div class="surface-alt p-4 rounded-2xl space-y-2 anim-item relative">
       <div class="flex justify-between items-start gap-2">
-        <div>
+        <div class="pr-11">
           <p class="text-sm font-medium">${o.orderNumber ? `<span class="t-muted">#${o.orderNumber}</span> ` : ''}${client ? client.name : 'Sin cliente'} ${o.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}${hasDiscountedItem ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle ml-1">Descuento</span>' : ''}</p>
           <p class="text-xs t-muted">${displayDate(o.dateIso)} · ${o.payment}${o.webShipping ? ' · '+o.webShipping : ''}${o.webAddress ? ' · '+o.webAddress : ''}</p>
         </div>
-        ${o.orderNumber ? `
-        <div class="flex flex-col items-center gap-1">
-          <button onclick="openTrackingPopup('${o.id}')" title="Seguimiento" class="w-9 h-9 shrink-0 rounded-lg bg-surface hover:opacity-80 flex items-center justify-center"><span class="msi" style="font-size:18px">local_shipping</span></button>
-          <button onclick="toggleOrderSent('${o.id}')" title="${o.sentFlag ? 'Marcado como enviado' : 'Marcar como enviado'}" class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center transition-colors ${o.sentFlag ? 'bg-accent text-white' : 'bg-surface'}"><span class="msi" style="font-size:16px">${o.sentFlag ? 'send' : 'inventory_2'}</span></button>
-        </div>` : ''}
       </div>
+      ${o.orderNumber ? `
+      <div class="absolute top-4 right-4 flex flex-col items-center gap-1">
+        <button onclick="openTrackingPopup('${o.id}')" title="Seguimiento" class="w-9 h-9 shrink-0 rounded-lg bg-surface hover:opacity-80 flex items-center justify-center"><span class="msi" style="font-size:18px">local_shipping</span></button>
+        <button onclick="toggleOrderSent('${o.id}')" title="${o.sentFlag ? 'Marcado como enviado' : 'Marcar como enviado'}" class="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center transition-colors ${o.sentFlag ? 'bg-accent text-white' : 'bg-surface'}"><span class="msi" style="font-size:16px">${o.sentFlag ? 'send' : 'inventory_2'}</span></button>
+      </div>` : ''}
       <div>
         <p class="font-medium" style="color:var(--success)">${fmtOrderTotal(o)}</p>
         ${vesText}
