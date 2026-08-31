@@ -2220,7 +2220,12 @@
             const totalQty = cart.reduce((sum, i) => sum + i.qty, 0);
             const boosterDiscount = getCartBoosterPercentOffAmount(totalPrice, totalQty);
             const hasDiscount = (appliedDiscountCode !== null) || boosterDiscount > 0;
-            return (allHaveVES && !hasDiscount) ? totalVES : null;
+            if (!allHaveVES || hasDiscount) return { totalVES: null, rateLabel: '' };
+
+            const rateTypes = new Set(cart.map(i => i.priceVESRateType).filter(Boolean));
+            const rateLabelRaw = rateTypes.size === 1 ? rateLabelText([...rateTypes][0]) : '';
+            const rateLabel = rateLabelRaw.replace(/^Tasa /, '');
+            return { totalVES, rateLabel };
         }
 
         function handleWhatsAppClick() {
@@ -2262,10 +2267,10 @@
             document.getElementById('payment-reference-input').value = '';
 
             const detailsToShow = (method.details || []).filter(d => d.label && d.value).map(d => ({ label: d.label, value: d.value }));
-            const totalVES = computeCartVESTotal();
+            const { totalVES, rateLabel } = computeCartVESTotal();
             if (totalVES !== null) {
                 const formattedVES = totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                detailsToShow.unshift({ label: 'Monto a pagar', value: `Bs. ${formattedVES}` });
+                detailsToShow.unshift({ label: rateLabel ? `Monto a pagar (${rateLabel})` : 'Monto a pagar', value: `Bs. ${formattedVES}` });
             }
 
             const container = document.getElementById('payment-instructions-details');
