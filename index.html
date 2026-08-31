@@ -2199,6 +2199,30 @@
             return null;
         }
 
+        // Calcula el total en bolívares del carrito actual, sin tener que
+        // armar todo el mensaje de WhatsApp — lo usa la pantalla de pago
+        // para mostrar el monto exacto a transferir. Si hay un descuento o
+        // booster activo, el cálculo en bolívares deja de ser preciso (el
+        // descuento se aplica en dólares), así que en ese caso no se
+        // muestra ningún monto en bolívares — mejor nada que uno mal.
+        function computeCartVESTotal() {
+            let totalPrice = 0;
+            let totalVES = 0;
+            let allHaveVES = true;
+            cart.forEach(i => {
+                totalPrice += i.price * i.qty;
+                if (i.priceVES) {
+                    totalVES += i.priceVES * i.qty;
+                } else {
+                    allHaveVES = false;
+                }
+            });
+            const totalQty = cart.reduce((sum, i) => sum + i.qty, 0);
+            const boosterDiscount = getCartBoosterPercentOffAmount(totalPrice, totalQty);
+            const hasDiscount = (appliedDiscountCode !== null) || boosterDiscount > 0;
+            return (allHaveVES && !hasDiscount) ? totalVES : null;
+        }
+
         function handleWhatsAppClick() {
             const name = document.getElementById('client-name').value.trim();
             const phone = document.getElementById('client-phone').value.trim();
@@ -2237,9 +2261,16 @@
             document.getElementById('payment-instructions-method-name').textContent = method.title;
             document.getElementById('payment-reference-input').value = '';
 
+            const detailsToShow = (method.details || []).filter(d => d.label && d.value).map(d => ({ label: d.label, value: d.value }));
+            const totalVES = computeCartVESTotal();
+            if (totalVES !== null) {
+                const formattedVES = totalVES.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                detailsToShow.unshift({ label: 'Monto a pagar', value: `Bs. ${formattedVES}` });
+            }
+
             const container = document.getElementById('payment-instructions-details');
-            container.innerHTML = (method.details || []).filter(d => d.label && d.value).map((d, i) => `
-                <div class="p-3.5 flex items-center justify-between gap-2">
+            container.innerHTML = detailsToShow.map((d, i) => `
+                <div class="p-3.5 flex items-center justify-between gap-2 ${i === 0 && totalVES !== null ? 'bg-satin-100' : ''}">
                     <div class="min-w-0">
                         <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">${escapeAttr(d.label)}</p>
                         <p class="text-sm font-bold text-slate-900 truncate">${escapeAttr(d.value)}</p>
@@ -2249,7 +2280,7 @@
                     </button>
                 </div>
             `).join('');
-            window.__currentPaymentDetails = (method.details || []).filter(d => d.label && d.value);
+            window.__currentPaymentDetails = detailsToShow;
             if (window.lucide) lucide.createIcons();
         }
 
