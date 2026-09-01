@@ -2467,6 +2467,7 @@ function openOrderForEdit(id){
 
   renderSalesItemRows();
   document.getElementById('sale-client').value = order.clientId || '';
+  document.getElementById('sale-date').value = order.dateIso || todayIso();
   document.getElementById('sale-payment').value = order.payment;
   document.getElementById('sale-discount').value = order.discount || 0;
   document.getElementById('sale-status').value = order.status;
