@@ -895,7 +895,16 @@ function fmtOrderTotal(o){
   const symbol = currency === 'EUR' ? '€' : '$';
   return symbol+(Number(o.total)||0).toFixed(2);
 }
-function isoDate(d){ return d.toISOString().slice(0,10); }
+// OJO: antes esto usaba d.toISOString(), que siempre calcula en UTC —
+// eso hacía que, desde las 8:00 PM en adelante hora de Venezuela (UTC-4),
+// la app ya "creyera" que era el día siguiente. Ahora se arma la fecha
+// con los mismos números que muestra el reloj de tu computadora/celular.
+function isoDate(d){
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 function todayIso(){ return isoDate(new Date()); }
 function monthKey(iso){ return iso.slice(0,7); }
 function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString(); }
