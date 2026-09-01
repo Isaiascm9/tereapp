@@ -2515,6 +2515,8 @@
                         currency: orderCurrency,
                         totalVES: vesIsAccurate ? Number(totalVES.toFixed(2)) : null,
                         orderNumber: reservedOrderNumber,
+                        orderDateIso: new Date().toISOString(),
+                        shipping: selectedShipping || null,
                         expireAt: new Date(Date.now() + 30 * 60 * 60 * 24 * 1000),
                     }).catch(e => console.error('No se pudo crear el registro de seguimiento (el pedido igual se envió):', e));
                 }
