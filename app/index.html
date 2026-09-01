@@ -523,6 +523,14 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <button onclick="signOutGoogle()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">logout</span>Cerrar sesión</button>
     </div>
     <div class="py-2 space-y-2 border-b b">
+      <p class="text-sm font-medium">Espacio usado en la base de datos</p>
+      <p class="text-xs t-muted">Firestore guarda todo lo de Téreapp (ventas, clientes, productos, gastos) en un solo documento, con un límite de 1 MB. Si se acerca al límite, usa "Archivar período" abajo para aligerarlo.</p>
+      <div class="w-full h-2.5 rounded-full overflow-hidden" style="background:var(--surface-alt)">
+        <div id="storage-usage-bar" class="h-full rounded-full transition-all" style="width:0%; background:var(--accent)"></div>
+      </div>
+      <p id="storage-usage-label" class="text-xs t-muted">Calculando...</p>
+    </div>
+    <div class="py-2 space-y-2 border-b b">
       <p class="text-sm font-medium">Copia de seguridad</p>
       <p class="text-xs t-muted">Exportá todos tus datos a un archivo, o restauralos en otro dispositivo.</p>
       <div class="flex gap-2 flex-wrap">
@@ -533,13 +541,18 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         </label>
       </div>
     </div>
-    <div class="py-2 space-y-2">
+    <div class="py-2 space-y-2 border-b b">
       <p class="text-sm font-medium">Archivar período</p>
       <p class="text-xs t-muted">Descarga un respaldo en PDF y Excel de las ventas, gastos y lotes anteriores a la fecha elegida, y los elimina del documento activo (así se mantiene liviano). El catálogo, clientes, stock y pedidos preliminares no se tocan.</p>
       <div class="flex gap-2 items-center flex-wrap">
         <input type="date" id="archive-date" class="input w-44">
         <button onclick="archivePeriod()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"><span class="msi" style="font-size:16px">archive</span>Generar respaldo y archivar</button>
       </div>
+    </div>
+    <div class="py-2 space-y-2">
+      <p class="text-sm font-medium">Limpiar pedidos web cancelados</p>
+      <p class="text-xs t-muted">Borra para siempre los pedidos web que cancelaste y nunca llegaste a importar. Los pendientes por revisar y los ya importados no se tocan.</p>
+      <button onclick="cleanCanceledWebOrders()" class="btn-secondary text-xs px-3 py-2 flex items-center gap-1.5" style="color:var(--danger)"><span class="msi" style="font-size:16px">delete_sweep</span>Borrar pedidos cancelados</button>
     </div>
   </div>
 </section>
@@ -1197,6 +1210,24 @@ function renderAll(){
   renderReports();
   document.getElementById('settings-low-stock').value = appData.settings.lowStockDefault;
   document.getElementById('settings-account-email').innerText = window.currentUserEmail || '—';
+  updateStorageUsageBar();
+}
+
+// El límite real de Firestore es 1 MB (1.048.576 bytes) POR DOCUMENTO, y
+// todo lo de Téreapp vive en un solo documento — por eso medimos el
+// tamaño real que ocuparía "appData" tal cual se guarda, byte por byte
+// (no caracteres, porque tildes/emojis pueden ocupar más de 1 byte).
+function updateStorageUsageBar(){
+  const bar = document.getElementById('storage-usage-bar');
+  const label = document.getElementById('storage-usage-label');
+  if(!bar || !label) return;
+  const bytes = new Blob([JSON.stringify(appData)]).size;
+  const limit = 1048576; // 1 MB
+  const pct = Math.min(100, (bytes / limit) * 100);
+  bar.style.width = pct.toFixed(1) + '%';
+  bar.style.background = pct >= 90 ? 'var(--danger)' : pct >= 70 ? 'var(--warning)' : 'var(--accent)';
+  const kb = (bytes / 1024).toFixed(0);
+  label.textContent = `${kb} KB de 1024 KB usados (${pct.toFixed(1)}%)`;
 }
 
 function getFabricCost(p){
@@ -2060,6 +2091,39 @@ function webOrderSortTime(v){
   if(typeof v.toMillis === 'function') return v.toMillis();
   if(typeof v.seconds === 'number') return v.seconds * 1000;
   return 0;
+}
+
+async function cleanCanceledWebOrders(){
+  let all;
+  try{
+    all = await window.dbGetWebOrders();
+  }catch(e){
+    console.error('No se pudieron cargar los pedidos web para revisar cuáles limpiar:', e);
+    showAlert('No se pudo revisar los pedidos web — revisá tu conexión', 'error');
+    return;
+  }
+  const canceled = all.filter(o => o.status === 'cancelado');
+  if(canceled.length === 0){
+    showAlert('No hay pedidos cancelados para borrar');
+    return;
+  }
+  const ok = await askConfirm(`Se van a borrar ${canceled.length} pedido${canceled.length!==1?'s':''} web cancelado${canceled.length!==1?'s':''} para siempre. Los pendientes por revisar y los ya importados NO se tocan. ¿Confirmás?`);
+  if(!ok) return;
+
+  let deleted = 0, failed = 0;
+  for(const o of canceled){
+    try{
+      await window.dbDeleteWebOrder(o.id);
+      deleted++;
+    }catch(e){
+      console.error(`No se pudo borrar el pedido web cancelado ${o.id}:`, e);
+      failed++;
+    }
+  }
+  showAlert(failed === 0
+    ? `${deleted} pedido${deleted!==1?'s':''} cancelado${deleted!==1?'s':''} borrado${deleted!==1?'s':''}`
+    : `${deleted} borrados, ${failed} no se pudieron borrar (revisá tu conexión)`,
+    failed === 0 ? 'success' : 'error');
 }
 
 async function loadWebOrders(){
@@ -3242,7 +3306,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -3370,6 +3434,12 @@ setReportPeriod('monthly');
   window.dbCancelWebOrder = async function(id){
     if(!authReady) throw new Error('Firebase todavía no está listo');
     await updateDoc(doc(db, 'pedidos_web', id), { status: 'cancelado', canceledAt: new Date().toISOString() });
+    return true;
+  };
+
+  window.dbDeleteWebOrder = async function(id){
+    if(!authReady) throw new Error('Firebase todavía no está listo');
+    await deleteDoc(doc(db, 'pedidos_web', id));
     return true;
   };
 
