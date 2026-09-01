@@ -2038,6 +2038,8 @@ async function createInitialSeguimiento(trackingCode, order){
     totalVES: order.totalVES || null,
     rateLabel: order.totalVES ? rateLabelText(order.rateType) : null,
     orderNumber: order.orderNumber,
+    orderDateIso: order.dateIso ? new Date(order.dateIso + 'T00:00:00').toISOString() : new Date().toISOString(),
+    shipping: order.webShipping || null,
     expireAt: new Date(Date.now() + 30*24*60*60*1000),
   }), 4000);
 }
