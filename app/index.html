@@ -1846,7 +1846,7 @@ async function handleGenerateOrder(){
   const order = {
     id: editingOrderId || uid(),
     orderNumber,
-    dateIso: editingOrderId ? (appData.orders.find(o=>o.id===editingOrderId)?.dateIso || todayIso()) : todayIso(),
+    dateIso: document.getElementById('sale-date').value || todayIso(),
     items: itemsSummary,
     total: finalTotal,
     totalCost,
@@ -1980,8 +1980,9 @@ async function syncSeguimientoStage(order){
   const trackingCode = generateTrackingCode(client ? client.phone : '', order.orderNumber);
   if(!trackingCode) return;
   const stage = computeFulfillmentStage(order);
+  const orderDateIso = order.dateIso ? new Date(order.dateIso + 'T00:00:00').toISOString() : null;
   try{
-    await window.dbUpdateFulfillmentStage(trackingCode, stage);
+    await window.dbUpdateFulfillmentStage(trackingCode, stage, orderDateIso);
   }catch(e){
     console.warn('No se pudo actualizar el seguimiento público (el cambio local sí se guardó):', e);
   }
@@ -3426,9 +3427,11 @@ setReportPeriod('monthly');
     await setDoc(doc(db, 'seguimiento', trackingCode), data);
   };
 
-  window.dbUpdateFulfillmentStage = async function(trackingCode, stage){
+  window.dbUpdateFulfillmentStage = async function(trackingCode, stage, orderDateIso){
     if(!authReady) throw new Error('Firebase todavía no está listo');
-    await updateDoc(doc(db, 'seguimiento', trackingCode), { fulfillmentStage: stage });
+    const updateData = { fulfillmentStage: stage };
+    if (orderDateIso) updateData.orderDateIso = orderDateIso;
+    await updateDoc(doc(db, 'seguimiento', trackingCode), updateData);
   };
 
   window.dbGetWebOrders = async function(){
