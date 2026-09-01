@@ -2425,7 +2425,7 @@ async function confirmOrderAsSale(id){
   const sale = {
     id: uid(),
     orderNumber: order.orderNumber || null,
-    dateIso: todayIso(),
+    dateIso: order.dateIso || todayIso(),
     items: order.items,
     total: order.total,
     totalCost,
