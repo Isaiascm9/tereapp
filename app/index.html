@@ -810,6 +810,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <h3 id="edit-sale-total" class="text-xl font-medium">$0.00</h3>
       <p id="edit-sale-total-ves" class="text-xs t-secondary hidden"></p>
     </div>
+    <div class="surface-alt rounded-xl p-4">
+      <p class="text-xs font-medium uppercase t-muted mb-2">Cronología</p>
+      <div id="edit-sale-historial-list" class="space-y-2.5"></div>
+    </div>
     <div class="flex gap-3 pt-2">
       <button onclick="deleteSaleFromEdit()" class="btn-secondary flex-1 py-2.5 text-sm" style="color:var(--danger)">Eliminar venta</button>
       <button onclick="saveEditedSale()" class="btn-primary flex-1 py-2.5 text-sm">Guardar cambios</button>
@@ -1100,6 +1104,39 @@ function renderRatesCard(){
 
 function formatDateTime(iso){
   try{ return new Date(iso).toLocaleString(); }catch(e){ return iso; }
+}
+
+// ============ CRONOLOGÍA DE PEDIDOS/VENTAS ============
+// Cada pedido preliminar y cada venta lleva un arreglo `historial` con
+// una entrada por cada evento importante (creación, edición, cambio de
+// estado, etc.), para poder ver después qué pasó y cuándo. Los pedidos
+// y ventas guardados antes de este cambio simplemente no tienen este
+// campo — por eso siempre se trata como opcional (Array.isArray check)
+// en vez de asumir que existe.
+function pushHistorial(obj, text){
+  if(!Array.isArray(obj.historial)) obj.historial = [];
+  obj.historial.push({ ts: Date.now(), text });
+}
+function formatHistorialDate(ts){
+  try{ return new Date(ts).toLocaleString('es-VE', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }); }
+  catch(e){ return ''; }
+}
+// Compara cuánto había de cada producto antes vs. después de una edición
+// (mismo mapa que ya se usa para ajustar el stock) y arma una lista de
+// textos cortos como "+1x Colita beige" o "Gorro morado: 2→1".
+function describeItemsDiff(oldQtyMap, newQtyMap){
+  const allIds = [...new Set([...Object.keys(oldQtyMap), ...Object.keys(newQtyMap)])];
+  const parts = [];
+  allIds.forEach(pid=>{
+    const oldQ = oldQtyMap[pid]||0, newQ = newQtyMap[pid]||0;
+    if(oldQ===newQ) return;
+    const product = appData.products.find(p=>p.id===pid);
+    const name = product ? product.name : 'producto eliminado';
+    if(oldQ===0) parts.push(`+${newQ}x ${name}`);
+    else if(newQ===0) parts.push(`-${oldQ}x ${name}`);
+    else parts.push(`${name}: ${oldQ}→${newQ}`);
+  });
+  return parts;
 }
 
 function updateSaleCurrencyOptions(){
@@ -1590,8 +1627,10 @@ async function handleMultiSaleSubmit(){
     notes: document.getElementById('sale-notes').value,
     rateType: rate ? rate.type : null,
     rateValue: rate ? rate.value : null,
-    totalVES: rate ? finalTotal*rate.value : null
+    totalVES: rate ? finalTotal*rate.value : null,
+    historial: []
   };
+  pushHistorial(sale, 'Creado como venta directa');
   appData.sales.unshift(sale);
   appData.sales.sort((a,b)=> b.dateIso.localeCompare(a.dateIso));
   await saveData();
@@ -1635,7 +1674,30 @@ function openSaleEditModal(id){
   updateEditSaleCurrencyOptions();
   document.getElementById('edit-sale-currency').value = sale.rateType || 'USD';
   calculateEditSaleTotal();
+  renderEditSaleHistorial(sale);
   openModal('edit-sale-modal');
+}
+
+// Lista de eventos de la venta, más reciente primero. Los pedidos/ventas
+// guardados antes de esta función no tienen `historial` — en ese caso
+// se muestra un aviso en vez de una lista vacía confusa.
+function renderEditSaleHistorial(sale){
+  const container = document.getElementById('edit-sale-historial-list');
+  if(!container) return;
+  const historial = Array.isArray(sale.historial) ? sale.historial.slice().reverse() : [];
+  if(historial.length === 0){
+    container.innerHTML = '<p class="text-xs t-muted">Sin eventos registrados (esta venta es de antes de activar la cronología).</p>';
+    return;
+  }
+  container.innerHTML = historial.map(h => `
+    <div class="flex gap-2">
+      <span class="msi t-muted shrink-0" style="font-size:14px; margin-top:2px">fiber_manual_record</span>
+      <div class="min-w-0">
+        <p class="text-[11px] t-muted">${formatHistorialDate(h.ts)}</p>
+        <p class="text-xs">${escapeHtmlWeb(h.text)}</p>
+      </div>
+    </div>
+  `).join('');
 }
 
 function updateEditSaleCurrencyOptions(){
@@ -1697,6 +1759,7 @@ function calculateEditSaleTotal(){
 async function saveEditedSale(){
   const sale = appData.sales.find(s=>s.id===editSaleId);
   if(!sale) return;
+  const oldSaleSnapshot = { total: sale.total, payment: sale.payment, discount: sale.discount||0, status: sale.status, clientId: sale.clientId||null };
 
   const oldQtyMap = {};
   sale.items.forEach(it=>{ oldQtyMap[it.productId] = (oldQtyMap[it.productId]||0) + it.qty; });
@@ -1752,6 +1815,15 @@ async function saveEditedSale(){
   sale.rateValue = rateValue;
   sale.totalVES = rateType ? finalTotal*rateValue : null;
 
+  const itemChanges = describeItemsDiff(oldQtyMap, newQtyMap);
+  const changes = itemChanges.length ? [`Productos: ${itemChanges.join(', ')}`] : [];
+  if(oldSaleSnapshot.total !== sale.total) changes.push(`Total: ${fmt(oldSaleSnapshot.total)} → ${fmt(sale.total)}`);
+  if(oldSaleSnapshot.payment !== sale.payment) changes.push(`Pago: ${oldSaleSnapshot.payment} → ${sale.payment}`);
+  if(oldSaleSnapshot.discount !== sale.discount) changes.push(`Descuento: ${fmt(oldSaleSnapshot.discount)} → ${fmt(sale.discount)}`);
+  if(oldSaleSnapshot.status !== sale.status) changes.push(`Estado: ${oldSaleSnapshot.status} → ${sale.status}`);
+  if(oldSaleSnapshot.clientId !== sale.clientId) changes.push('Cliente cambiado');
+  if(changes.length) pushHistorial(sale, `Editado — ${changes.join('; ')}`);
+
   await saveData();
   closeModal('edit-sale-modal');
   renderAll();
@@ -1803,6 +1875,7 @@ function toggleDueDateField(){
 async function handleGenerateOrder(){
   if(isDoubleSubmit()) return;
   const oldOrder = editingOrderId ? appData.orders.find(o=>o.id===editingOrderId) : null;
+  const oldOrderSnapshot = oldOrder ? { total: oldOrder.total, payment: oldOrder.payment, discount: oldOrder.discount||0, status: oldOrder.status, clientId: oldOrder.clientId||null } : null;
   const oldQtyMap = {};
   if(oldOrder) oldOrder.items.forEach(it=>{ oldQtyMap[it.productId] = (oldQtyMap[it.productId]||0) + it.qty; });
   const newQtyMap = {};
@@ -1863,8 +1936,21 @@ async function handleGenerateOrder(){
     webCurrency: oldOrder ? (oldOrder.webCurrency || null) : null,
     webAddress: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-address').value.trim() : (oldOrder ? (oldOrder.webAddress || null) : null),
     webShipping: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-shipping').value.trim() : (oldOrder ? (oldOrder.webShipping || null) : null),
-    sentFlag: oldOrder ? (oldOrder.sentFlag || false) : false
+    sentFlag: oldOrder ? (oldOrder.sentFlag || false) : false,
+    historial: oldOrder ? (Array.isArray(oldOrder.historial) ? oldOrder.historial.slice() : []) : []
   };
+
+  if(!oldOrder){
+    pushHistorial(order, 'Creado como pedido preliminar');
+  } else {
+    const changes = describeItemsDiff(oldQtyMap, newQtyMap).length ? [`Productos: ${describeItemsDiff(oldQtyMap, newQtyMap).join(', ')}`] : [];
+    if(oldOrderSnapshot.total !== order.total) changes.push(`Total: ${fmt(oldOrderSnapshot.total)} → ${fmt(order.total)}`);
+    if(oldOrderSnapshot.payment !== order.payment) changes.push(`Pago: ${oldOrderSnapshot.payment} → ${order.payment}`);
+    if(oldOrderSnapshot.discount !== order.discount) changes.push(`Descuento: ${fmt(oldOrderSnapshot.discount)} → ${fmt(order.discount)}`);
+    if(oldOrderSnapshot.status !== order.status) changes.push(`Estado: ${oldOrderSnapshot.status} → ${order.status}`);
+    if(oldOrderSnapshot.clientId !== order.clientId) changes.push('Cliente cambiado');
+    if(changes.length) pushHistorial(order, `Editado — ${changes.join('; ')}`);
+  }
 
   const wasEditing = !!editingOrderId;
   if(editingOrderId){
@@ -1992,6 +2078,7 @@ async function toggleOrderSent(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order) return;
   order.sentFlag = !order.sentFlag;
+  pushHistorial(order, order.sentFlag ? 'Marcado como enviado' : 'Desmarcado como enviado');
   await saveData();
   renderOrdersList();
   syncSeguimientoStage(order);
@@ -2019,7 +2106,9 @@ async function toggleEditSaleSent(){
   const sale = appData.sales.find(s=>s.id===editSaleId);
   if(!sale) return;
   sale.sentFlag = !sale.sentFlag;
+  pushHistorial(sale, sale.sentFlag ? 'Marcado como enviado' : 'Desmarcado como enviado');
   updateEditSaleSentToggleUI(sale.sentFlag);
+  renderEditSaleHistorial(sale);
   await saveData();
   renderAll();
   syncSeguimientoStage(sale);
@@ -2331,8 +2420,10 @@ async function importWebOrder(webOrderId){
     source: 'web',
     webCurrency: order.currency || 'USD',
     webAddress: order.clientAddress || '',
-    webShipping: order.shipping || ''
+    webShipping: order.shipping || '',
+    historial: []
   };
+  pushHistorial(newOrder, 'Creado desde un pedido web importado');
 
   appData.orders.unshift(newOrder);
   await saveData();
@@ -2442,8 +2533,10 @@ async function confirmOrderAsSale(id){
     webCurrency: order.webCurrency || null,
     webAddress: order.webAddress || null,
     webShipping: order.webShipping || null,
-    sentFlag: order.sentFlag || false
+    sentFlag: order.sentFlag || false,
+    historial: Array.isArray(order.historial) ? order.historial.slice() : []
   };
+  pushHistorial(sale, 'Confirmado como venta');
   appData.sales.unshift(sale);
   appData.orders = appData.orders.filter(o=>o.id!==id);
   await saveData();
