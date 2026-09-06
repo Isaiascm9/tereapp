@@ -353,6 +353,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         <button id="confirm-sale-btn" onclick="handleMultiSaleSubmit()" class="btn-primary py-3 px-6 text-sm">Confirmar venta</button>
       </div>
     </div>
+    <div id="order-historial-card" class="hidden surface-alt rounded-xl p-4">
+      <p class="text-xs font-medium uppercase t-muted mb-2">Cronología</p>
+      <div id="order-historial-list" class="space-y-2.5"></div>
+    </div>
   </div>
 </section>
 
@@ -1678,15 +1682,15 @@ function openSaleEditModal(id){
   openModal('edit-sale-modal');
 }
 
-// Lista de eventos de la venta, más reciente primero. Los pedidos/ventas
-// guardados antes de esta función no tienen `historial` — en ese caso
-// se muestra un aviso en vez de una lista vacía confusa.
-function renderEditSaleHistorial(sale){
-  const container = document.getElementById('edit-sale-historial-list');
+// Lista de eventos, más reciente primero. Los pedidos/ventas guardados
+// antes de esta función no tienen `historial` — en ese caso se muestra
+// un aviso en vez de una lista vacía confusa.
+function renderHistorialList(containerId, historialArr, emptyMsg){
+  const container = document.getElementById(containerId);
   if(!container) return;
-  const historial = Array.isArray(sale.historial) ? sale.historial.slice().reverse() : [];
+  const historial = Array.isArray(historialArr) ? historialArr.slice().reverse() : [];
   if(historial.length === 0){
-    container.innerHTML = '<p class="text-xs t-muted">Sin eventos registrados (esta venta es de antes de activar la cronología).</p>';
+    container.innerHTML = `<p class="text-xs t-muted">${emptyMsg}</p>`;
     return;
   }
   container.innerHTML = historial.map(h => `
@@ -1698,6 +1702,9 @@ function renderEditSaleHistorial(sale){
       </div>
     </div>
   `).join('');
+}
+function renderEditSaleHistorial(sale){
+  renderHistorialList('edit-sale-historial-list', sale.historial, 'Sin eventos registrados (esta venta es de antes de activar la cronología).');
 }
 
 function updateEditSaleCurrencyOptions(){
@@ -1988,6 +1995,7 @@ async function handleGenerateOrder(){
   document.getElementById('sale-web-shipping').value = '';
   document.getElementById('order-edit-web-currency-note').classList.add('hidden');
   document.getElementById('edit-order-banner').classList.add('hidden');
+  document.getElementById('order-historial-card').classList.add('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">point_of_sale</span>Registrar venta';
   document.getElementById('order-submit-btn').innerHTML = '<span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar';
   document.getElementById('confirm-sale-btn').classList.remove('hidden');
@@ -2588,6 +2596,8 @@ function openOrderForEdit(id){
   document.getElementById('edit-order-banner').classList.remove('hidden');
   document.getElementById('sales-form-title').innerHTML = `<span class="msi accent">edit</span>Editar pedido preliminar${order.orderNumber ? ' #'+order.orderNumber : ''}`;
   document.getElementById('confirm-sale-btn').classList.add('hidden');
+  document.getElementById('order-historial-card').classList.remove('hidden');
+  renderHistorialList('order-historial-list', order.historial, 'Sin eventos registrados todavía.');
   const btn = document.getElementById('order-submit-btn');
   btn.innerHTML = '<span class="msi" style="font-size:16px">save</span>Guardar cambios';
 }
@@ -2606,6 +2616,7 @@ function cancelOrderEdit(){
   document.getElementById('sale-web-shipping').value = '';
   document.getElementById('order-edit-web-currency-note').classList.add('hidden');
   document.getElementById('edit-order-banner').classList.add('hidden');
+  document.getElementById('order-historial-card').classList.add('hidden');
   document.getElementById('sales-form-title').innerHTML = '<span class="msi accent">point_of_sale</span>Registrar venta';
   document.getElementById('order-submit-btn').innerHTML = '<span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar';
   document.getElementById('confirm-sale-btn').classList.remove('hidden');
