@@ -104,6 +104,14 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
 #rail.collapsed .rail-toggle{ justify-content:center; padding:0 0 10px; }
 #rail .rail-toggle button{ color:var(--header-text); opacity:.6; background:none; border:none; cursor:pointer; padding:4px; display:flex; }
 #rail .rail-toggle button:hover{ opacity:1; }
+
+/* Layout de escritorio: reglas propias (no depende de que Tailwind combine
+   varias utilidades sueltas correctamente) para que el contenido SIEMPRE
+   ocupe el espacio que sobra junto al riel, sin dejar franjas vacías. */
+@media (min-width:640px){
+  #desktop-layout{ display:flex; align-items:flex-start; max-width:72rem; margin:0 auto; padding:0 1rem; margin-top:1.5rem; gap:1.5rem; }
+  #desktop-layout main{ max-width:none; margin:0; padding:0; margin-top:0; flex:1 1 0%; min-width:0; width:100%; }
+}
 .fab{background:var(--accent); color:#fff; box-shadow:0 3px 6px rgba(0,0,0,.28); border-radius:16px!important; width:56px; height:56px; display:flex; align-items:center; justify-content:center;}
 .input{background:var(--surface); border:1.5px solid var(--border); border-radius:4px!important; color:var(--text-primary); padding:.55rem .75rem; font-size:1rem; width:100%; box-sizing:border-box; max-width:100%;}
 input[type="month"].input, input[type="date"].input{min-width:0;}
@@ -172,7 +180,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
 </header>
 
-<div class="sm:flex sm:items-start sm:max-w-6xl sm:mx-auto sm:px-4 sm:mt-6 sm:gap-6">
+<div id="desktop-layout">
   <aside id="rail" class="hidden sm:flex sm:flex-col">
     <div class="rail-toggle">
       <button onclick="toggleRail()" title="Colapsar/expandir"><span class="msi" id="rail-toggle-icon" style="font-size:20px">dock_to_right</span></button>
@@ -194,7 +202,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </nav>
   </aside>
 
-  <main class="max-w-6xl mx-auto px-4 mt-6 sm:max-w-none sm:mx-0 sm:px-0 sm:mt-0 sm:flex-1 sm:min-w-0">
+  <main class="max-w-6xl mx-auto px-4 mt-6">
 
 <section id="tab-dashboard" class="space-y-6">
   <p id="user-greeting" class="text-sm font-medium t-secondary"></p>
