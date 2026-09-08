@@ -108,13 +108,30 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 #rail .rail-collapse-btn:hover{ color:var(--text-primary); }
 #rail.collapsed .rail-brand{ justify-content:center; padding:0 0 20px; }
 #rail.collapsed .rail-brand-text{ display:none; }
-#rail .rail-account{ display:flex; align-items:center; gap:10px; padding:14px 20px; margin:12px 12px 0; border-top:1px dashed var(--border); padding-top:16px; flex-shrink:0; }
 #rail .rail-account .avatar{ width:32px; height:32px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:600; flex-shrink:0; }
 #rail .rail-account .who{ flex:1; min-width:0; }
 #rail .rail-account .who .name{ font-size:13px; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #rail .rail-account .who .role{ font-size:11px; color:var(--text-muted); }
 #rail.collapsed .rail-account{ justify-content:center; padding:14px 0; }
 #rail.collapsed .rail-account .who{ display:none; }
+
+#rail .rail-account-wrap{ position:relative; flex-shrink:0; margin:12px 12px 0; }
+#rail .rail-account{ cursor:pointer; display:flex; align-items:center; gap:10px; padding:10px 8px; border-top:1px dashed var(--border); padding-top:16px; border-radius:10px; }
+#rail .rail-account:hover{ background:var(--surface-alt); }
+#rail .rail-account-chevron{ font-size:18px; color:var(--text-muted); flex-shrink:0; }
+#rail.collapsed .rail-account-chevron{ display:none; }
+#account-menu{
+  position:absolute; bottom:calc(100% + 8px); left:0; right:0; min-width:200px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,.18); padding:8px; z-index:20;
+}
+#rail.collapsed #account-menu{ left:0; width:220px; }
+.account-menu-email{ font-size:11.5px; color:var(--text-muted); padding:4px 10px 8px; word-break:break-all; border-bottom:1px solid var(--border); margin-bottom:4px; }
+.account-menu-item{
+  display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:9px 10px;
+  border-radius:8px; font-size:13.5px; color:var(--text-primary); background:none; border:none; cursor:pointer;
+}
+.account-menu-item:hover{ background:var(--accent-bg); color:var(--accent); }
 
 /* Layout de escritorio: reglas propias (no depende de que Tailwind combine
    varias utilidades sueltas correctamente) para que el contenido SIEMPRE
@@ -214,9 +231,16 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <div class="rail-group-label">Cuenta</div>
       <button onclick="switchTab('settings')" id="btn-settings" class="tab-btn"><span class="msi">settings</span><span class="rail-lbl">Ajustes</span></button>
     </nav>
-    <div class="rail-account">
-      <div class="avatar" id="rail-account-avatar">·</div>
-      <div class="who"><div class="name" id="rail-account-name">Cuenta</div><div class="role">Administrador</div></div>
+    <div class="rail-account-wrap">
+      <div id="account-menu" class="account-menu hidden">
+        <p class="account-menu-email" id="account-menu-email">—</p>
+        <button onclick="signOutGoogle()" class="account-menu-item"><span class="msi" style="font-size:17px">logout</span>Cerrar sesión</button>
+      </div>
+      <div class="rail-account" onclick="toggleAccountMenu()">
+        <div class="avatar" id="rail-account-avatar">·</div>
+        <div class="who"><div class="name" id="rail-account-name">Cuenta</div><div class="role">Administrador</div></div>
+        <span class="msi rail-account-chevron">expand_less</span>
+      </div>
     </div>
   </aside>
 
@@ -1291,6 +1315,21 @@ function closeModal(id){ document.getElementById(id).classList.add('hidden'); do
 function openModal(id){ document.getElementById(id).classList.remove('hidden'); document.getElementById(id).classList.add('flex'); }
 function openMoreSheet(){ openModal('more-sheet'); }
 
+function toggleAccountMenu(){
+  const menu = document.getElementById('account-menu');
+  const opening = menu.classList.contains('hidden');
+  menu.classList.toggle('hidden');
+  if(opening){
+    document.getElementById('account-menu-email').textContent = window.currentUserEmail || 'Cuenta de Google';
+  }
+}
+document.addEventListener('click', (e)=>{
+  const wrap = document.querySelector('.rail-account-wrap');
+  const menu = document.getElementById('account-menu');
+  if(!wrap || !menu || menu.classList.contains('hidden')) return;
+  if(!wrap.contains(e.target)) menu.classList.add('hidden');
+});
+
 function toggleRail(){
   const rail = document.getElementById('rail');
   rail.classList.toggle('collapsed');
@@ -1365,7 +1404,11 @@ function renderAll(){
   if(railName){
     const first = window.currentUserFirstName || 'Cuenta';
     railName.textContent = first;
-    railAvatar.textContent = first.charAt(0).toUpperCase();
+    if(window.currentUserPhoto){
+      railAvatar.innerHTML = `<img src="${window.currentUserPhoto}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent='${first.charAt(0).toUpperCase()}';">`;
+    } else {
+      railAvatar.textContent = first.charAt(0).toUpperCase();
+    }
   }
 }
 
@@ -3728,6 +3771,7 @@ setReportPeriod('monthly');
       // Nombre de pila para el saludo del resumen (ej. "Isaias Contreras" -> "Isaias")
       const rawName = user.displayName || (user.email ? user.email.split('@')[0] : '');
       window.currentUserFirstName = rawName ? rawName.trim().split(' ')[0] : '';
+      window.currentUserPhoto = user.photoURL || null;
       hideLoginScreen();
       if(window.initStorage) window.initStorage();
     } else {
