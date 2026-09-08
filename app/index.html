@@ -88,7 +88,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 .bottom-nav-btn.active .nav-icon-wrap{background:var(--accent-bg);}
 
 /* Riel lateral de escritorio (reemplaza la barra de pestañas de arriba solo en sm+; celular no se toca) */
-#rail{ width:232px; flex-shrink:0; background:var(--header-bg); color:var(--header-text); padding:28px 0; position:sticky; top:var(--header-h, 88px); height:calc(100vh - var(--header-h, 88px)); overflow:hidden; transition:width var(--md-dur-short4) var(--md-ease-standard); }
+#rail{ width:232px; flex-shrink:0; background:var(--header-bg); color:var(--header-text); padding:28px 0; overflow:hidden; transition:width var(--md-dur-short4) var(--md-ease-standard); }
 #rail.collapsed{ width:72px; }
 #rail nav{ display:flex; flex-direction:column; gap:2px; flex:1; overflow-y:auto; }
 #rail .rail-group-label{ font-size:11px; opacity:.55; padding:16px 24px 6px; }
@@ -98,7 +98,7 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 #rail .tab-btn.active{ background:rgba(255,255,255,.12); border-left-color:var(--accent-hover); opacity:1; }
 html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
 #rail.collapsed .tab-btn{ justify-content:center; padding:12px 0; }
-#rail.collapsed .rail-lbl{ display:none; }
+#rail.collapsed .rail-lbl, #rail.collapsed .rail-count{ display:none; }
 #rail .rail-count{ font-size:10.5px; background:rgba(255,255,255,.14); padding:1px 7px; border-radius:100px; margin-left:auto; }
 #rail .tab-btn.active .rail-count{ background:var(--accent-hover); }
 #rail .rail-toggle{ display:flex; justify-content:flex-end; padding:0 16px 10px; }
@@ -117,8 +117,8 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
    varias utilidades sueltas correctamente) para que el contenido SIEMPRE
    ocupe el espacio que sobra junto al riel, sin dejar franjas vacías. */
 @media (min-width:640px){
-  #desktop-layout{ display:flex; align-items:flex-start; padding:0 1.5rem; margin-top:1.5rem; gap:1.5rem; }
-  #desktop-layout main{ max-width:none; margin:0; padding:0; margin-top:0; flex:1 1 0%; min-width:0; width:100%; }
+  #desktop-layout{ display:flex; align-items:stretch; padding:0 1.5rem; margin-top:1.5rem; gap:1.5rem; height:calc(100vh - var(--header-h, 88px) - 1.5rem); }
+  #desktop-layout main{ max-width:none; margin:0; padding:0; margin-top:0; flex:1 1 0%; min-width:0; width:100%; overflow-y:auto; padding-bottom:2rem; }
 }
 .fab{background:var(--accent); color:#fff; box-shadow:0 3px 6px rgba(0,0,0,.28); border-radius:16px!important; width:56px; height:56px; display:flex; align-items:center; justify-content:center;}
 .input{background:var(--surface); border:1.5px solid var(--border); border-radius:4px!important; color:var(--text-primary); padding:.55rem .75rem; font-size:1rem; width:100%; box-sizing:border-box; max-width:100%;}
@@ -1268,6 +1268,8 @@ function switchTab(id){
   else if(['sales','clients','orders','weborders','expenses','reports','settings'].includes(id)){ document.getElementById('bn-more').classList.add('active'); }
 
   window.scrollTo({top:0, behavior:'smooth'});
+  const desktopMain = document.querySelector('#desktop-layout main');
+  if(desktopMain) desktopMain.scrollTop = 0;
   renderAll();
   if(id==='weborders'){ loadWebOrders(); }
 }
