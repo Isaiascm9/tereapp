@@ -122,9 +122,9 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
    ocupe el espacio que sobra junto al riel, sin dejar franjas vacías. */
 @media (min-width:640px){
   html, body{ height:100%; overflow:hidden; }
-  #desktop-layout{ display:flex; align-items:stretch; gap:1.25rem; height:100vh; }
-  #desktop-layout main{ max-width:none; margin:0; padding:0 1.5rem 2rem 0; flex:1 1 0%; min-width:0; width:100%; overflow-y:auto; box-sizing:border-box; }
-  #desktop-topbar{ align-items:center; justify-content:space-between; background:var(--topbar-bg); color:var(--header-text); padding:12px 24px; margin:0 -1.5rem 1.5rem 0; position:sticky; top:0; z-index:10; }
+  #desktop-layout{ display:flex; align-items:stretch; gap:0; height:100vh; }
+  #desktop-layout main{ max-width:none; margin:0; padding:0 1.5rem 2rem 1.5rem; flex:1 1 0%; min-width:0; width:100%; overflow-y:auto; box-sizing:border-box; }
+  #desktop-topbar{ align-items:center; justify-content:space-between; background:var(--topbar-bg); color:var(--header-text); padding:12px 24px; margin:0 -1.5rem 1.5rem -1.5rem; position:sticky; top:0; z-index:10; }
 }
 .fab{background:var(--accent); color:#fff; box-shadow:0 3px 6px rgba(0,0,0,.28); border-radius:16px!important; width:56px; height:56px; display:flex; align-items:center; justify-content:center;}
 .input{background:var(--surface); border:1.5px solid var(--border); border-radius:4px!important; color:var(--text-primary); padding:.55rem .75rem; font-size:1rem; width:100%; box-sizing:border-box; max-width:100%;}
@@ -188,8 +188,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <span class="sync-status flex text-xs px-2 sm:px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2)">
         <span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado
       </span>
-      <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2 rounded-lg"><span class="msi dark-icon">dark_mode</span></button>
-      <button onclick="exportToExcel()" title="Exportar CSV" class="btn-header p-2 rounded-lg"><span class="msi">download</span></button>
+      <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2"><span class="msi dark-icon">dark_mode</span></button>
+      <button onclick="exportToExcel()" title="Exportar CSV" class="btn-header p-2"><span class="msi">download</span></button>
     </div>
   </div>
 </header>
@@ -198,7 +198,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   <aside id="rail" class="hidden sm:flex sm:flex-col">
     <div class="rail-brand">
       <span class="rail-brand-text">Téreapp <span class="opacity-50" style="font-size:9px">v10</span></span>
-      <button onclick="toggleRail()" title="Colapsar/expandir" class="rail-collapse-btn"><span class="msi" id="rail-toggle-icon">dock_to_right</span></button>
+      <button onclick="toggleRail()" title="Colapsar/expandir" class="rail-collapse-btn"><span class="msi" id="rail-toggle-icon" style="position:relative; top:1px;">dock_to_right</span></button>
     </div>
     <nav>
       <div class="rail-group-label">Hoy</div>
@@ -228,8 +228,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <span class="sync-status flex text-xs px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2); color:var(--header-text)">
         <span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado
       </span>
-      <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2 rounded-lg"><span class="msi dark-icon">dark_mode</span></button>
-      <button onclick="exportToExcel()" title="Exportar CSV" class="btn-header p-2 rounded-lg"><span class="msi">download</span></button>
+      <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2"><span class="msi dark-icon">dark_mode</span></button>
+      <button onclick="exportToExcel()" title="Exportar CSV" class="btn-header p-2"><span class="msi">download</span></button>
     </div>
   </div>
 
