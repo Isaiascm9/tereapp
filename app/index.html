@@ -105,7 +105,7 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
 #rail .tab-btn.active .rail-count{ background:var(--accent-hover); }
 #rail .rail-brand{ display:flex; align-items:center; gap:10px; padding:0 20px 20px; margin-bottom:8px; }
 #rail .rail-brand-text{ font-size:15px; font-weight:500; flex:1; white-space:nowrap; }
-#rail .rail-collapse-btn{ color:var(--header-text); opacity:.6; background:none; border:none; cursor:pointer; padding:4px; display:flex; flex-shrink:0; }
+#rail .rail-collapse-btn{ color:var(--header-text); opacity:.6; background:none; border:none; cursor:pointer; padding:4px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 #rail .rail-collapse-btn:hover{ opacity:1; }
 #rail.collapsed .rail-brand{ justify-content:center; padding:0 0 20px; }
 #rail.collapsed .rail-brand-text{ display:none; }
@@ -198,7 +198,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   <aside id="rail" class="hidden sm:flex sm:flex-col">
     <div class="rail-brand">
       <span class="rail-brand-text">Téreapp <span class="opacity-50" style="font-size:9px">v10</span></span>
-      <button onclick="toggleRail()" title="Colapsar/expandir" class="rail-collapse-btn"><span class="msi" id="rail-toggle-icon" style="font-size:23px">dock_to_right</span></button>
+      <button onclick="toggleRail()" title="Colapsar/expandir" class="rail-collapse-btn"><span class="msi" id="rail-toggle-icon" style="font-size:26px">dock_to_right</span></button>
     </div>
     <nav>
       <div class="rail-group-label">Hoy</div>
