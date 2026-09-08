@@ -102,10 +102,13 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
 #rail.collapsed .rail-lbl, #rail.collapsed .rail-count{ display:none; }
 #rail .rail-count{ font-size:10.5px; background:rgba(255,255,255,.14); padding:1px 7px; border-radius:100px; margin-left:auto; }
 #rail .tab-btn.active .rail-count{ background:var(--accent-hover); }
-#rail .rail-toggle{ display:flex; justify-content:flex-end; padding:0 16px 10px; }
-#rail.collapsed .rail-toggle{ justify-content:center; padding:0 0 10px; }
-#rail .rail-toggle button{ color:var(--header-text); opacity:.6; background:none; border:none; cursor:pointer; padding:4px; display:flex; }
-#rail .rail-toggle button:hover{ opacity:1; }
+#rail .rail-brand{ display:flex; align-items:center; gap:10px; padding:0 20px 20px; }
+#rail .rail-brand-text{ font-size:15px; font-weight:500; flex:1; white-space:nowrap; }
+#rail .rail-collapse-btn{ color:var(--header-text); opacity:.6; background:none; border:none; cursor:pointer; padding:4px; display:flex; flex-shrink:0; }
+#rail .rail-collapse-btn:hover{ opacity:1; }
+#rail.collapsed .rail-brand{ justify-content:center; padding:0 0 20px; }
+#rail.collapsed .rail-brand-text{ display:none; }
+#desktop-topbar{ display:flex; align-items:center; justify-content:space-between; padding-bottom:1.25rem; margin-bottom:.25rem; border-bottom:1px dashed var(--border); }
 #rail .rail-account{ display:flex; align-items:center; gap:10px; padding:14px 20px; margin:12px 12px 0; border-top:1px dashed rgba(255,255,255,.18); padding-top:16px; flex-shrink:0; }
 #rail .rail-account .avatar{ width:32px; height:32px; border-radius:50%; background:var(--accent-hover); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:600; flex-shrink:0; }
 #rail .rail-account .who{ flex:1; min-width:0; }
@@ -119,7 +122,7 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
    ocupe el espacio que sobra junto al riel, sin dejar franjas vacías. */
 @media (min-width:640px){
   html, body{ height:100%; overflow:hidden; }
-  #desktop-layout{ display:flex; align-items:stretch; gap:1.5rem; height:calc(100vh - var(--header-h, 88px)); }
+  #desktop-layout{ display:flex; align-items:stretch; gap:0; height:100vh; }
   #desktop-layout main{ max-width:none; margin:0; padding:1.5rem 1.5rem 2rem 0; flex:1 1 0%; min-width:0; width:100%; overflow-y:auto; box-sizing:border-box; }
 }
 .fab{background:var(--accent); color:#fff; box-shadow:0 3px 6px rgba(0,0,0,.28); border-radius:16px!important; width:56px; height:56px; display:flex; align-items:center; justify-content:center;}
@@ -174,17 +177,17 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
 </div>
 
-<header class="app-header sticky top-0 z-50">
+<header class="app-header sticky top-0 z-50 sm:hidden">
   <div class="px-6 py-3 flex justify-between items-center">
     <div class="flex items-center space-x-2.5">
       <span class="msi" style="font-size:26px">workspace_premium</span>
       <h1 class="text-xl font-medium">Téreapp <span class="text-[9px] font-normal opacity-40">v10</span></h1>
     </div>
     <div class="flex items-center space-x-2">
-      <span id="sync-status" class="flex text-xs px-2 sm:px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2)">
+      <span class="sync-status flex text-xs px-2 sm:px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2)">
         <span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado
       </span>
-      <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2 rounded-lg"><span class="msi" id="dark-icon">dark_mode</span></button>
+      <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2 rounded-lg"><span class="msi dark-icon">dark_mode</span></button>
       <button onclick="exportToExcel()" title="Exportar CSV" class="btn-header p-2 rounded-lg"><span class="msi">download</span></button>
     </div>
   </div>
@@ -192,8 +195,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 
 <div id="desktop-layout">
   <aside id="rail" class="hidden sm:flex sm:flex-col">
-    <div class="rail-toggle">
-      <button onclick="toggleRail()" title="Colapsar/expandir"><span class="msi" id="rail-toggle-icon" style="font-size:20px">dock_to_right</span></button>
+    <div class="rail-brand">
+      <span class="msi" style="font-size:24px">workspace_premium</span>
+      <span class="rail-brand-text">Téreapp <span class="opacity-50" style="font-size:9px">v10</span></span>
+      <button onclick="toggleRail()" title="Colapsar/expandir" class="rail-collapse-btn"><span class="msi" id="rail-toggle-icon" style="font-size:19px">dock_to_right</span></button>
     </div>
     <nav>
       <div class="rail-group-label">Hoy</div>
@@ -217,6 +222,16 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </aside>
 
   <main class="max-w-6xl mx-auto px-4 mt-6">
+  <div id="desktop-topbar" class="hidden sm:flex">
+    <h1 id="desktop-page-title" class="text-xl font-medium">Resumen</h1>
+    <div class="flex items-center space-x-2">
+      <span class="sync-status flex text-xs px-3 py-1.5 rounded-full font-medium items-center" style="background:var(--accent-bg); color:var(--accent)">
+        <span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado
+      </span>
+      <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-secondary p-2 rounded-lg"><span class="msi dark-icon">dark_mode</span></button>
+      <button onclick="exportToExcel()" title="Exportar CSV" class="btn-secondary p-2 rounded-lg"><span class="msi">download</span></button>
+    </div>
+  </div>
 
 <section id="tab-dashboard" class="space-y-6">
   <p id="user-greeting" class="text-sm font-medium t-secondary"></p>
@@ -1019,36 +1034,31 @@ const FIREBASE_ERROR_MESSAGES = {
   'cancelled': 'La operación se canceló'
 };
 
+function setSyncHTML(html, title){
+  document.querySelectorAll('.sync-status').forEach(el=>{ el.innerHTML = html; el.title = title || ''; });
+}
 function updateSyncStatus(state, error){
-  const el = document.getElementById('sync-status');
-  if(!el) return;
+  if(document.querySelectorAll('.sync-status').length === 0) return;
   if(state==='saving'){
-    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_sync</span> Guardando…';
-    el.title = '';
+    setSyncHTML('<span class="msi mr-1" style="font-size:14px">cloud_sync</span> Guardando…');
   } else if(state==='saved'){
-    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado';
-    el.title = '';
+    setSyncHTML('<span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado');
   } else if(state==='offline-queued'){
-    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión, se sincroniza solo';
-    el.title = 'Los cambios se guardaron en este dispositivo y se van a subir automáticamente cuando vuelva la conexión.';
+    setSyncHTML('<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión, se sincroniza solo', 'Los cambios se guardaron en este dispositivo y se van a subir automáticamente cuando vuelva la conexión.');
   } else if(state==='blocked'){
-    el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin guardar';
-    el.title = 'Todavía no se confirmó la carga de datos desde la nube.';
+    setSyncHTML('<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin guardar', 'Todavía no se confirmó la carga de datos desde la nube.');
   } else if(state==='error'){
     const code = error && error.code;
     const msg = (code && FIREBASE_ERROR_MESSAGES[code]) || (error && error.message) || 'Error desconocido al guardar';
-    el.innerHTML = `<span class="msi mr-1" style="font-size:14px">error</span> ${msg}`;
-    el.title = code ? `Código: ${code}` : '';
+    setSyncHTML(`<span class="msi mr-1" style="font-size:14px">error</span> ${msg}`, code ? `Código: ${code}` : '');
   }
 }
 
 window.addEventListener('online', ()=>{
-  const el = document.getElementById('sync-status');
-  if(el){ el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_sync</span> Reconectando…'; }
+  setSyncHTML('<span class="msi mr-1" style="font-size:14px">cloud_sync</span> Reconectando…');
 });
 window.addEventListener('offline', ()=>{
-  const el = document.getElementById('sync-status');
-  if(el){ el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión, se sincroniza solo'; el.title = 'Los cambios se guardan en este dispositivo y se suben cuando vuelva la conexión.'; }
+  setSyncHTML('<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión, se sincroniza solo', 'Los cambios se guardan en este dispositivo y se suben cuando vuelva la conexión.');
 });
 
 function showAccessDenied(){
@@ -1061,8 +1071,7 @@ function showAccessDenied(){
 }
 
 function showConnectionError(){
-  const el = document.getElementById('sync-status');
-  if(el) el.innerHTML = '<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión';
+  setSyncHTML('<span class="msi mr-1" style="font-size:14px">cloud_off</span> Sin conexión');
   const overlay = document.getElementById('connection-error-overlay');
   if(overlay){ overlay.classList.remove('hidden'); overlay.classList.add('flex'); }
 }
@@ -1256,6 +1265,7 @@ function showAlert(message, type='success'){
 }
 
 const BOTTOM_NAV_MAP = { dashboard:'bn-dashboard', inventory:'bn-inventory', products:'bn-products' };
+const DESKTOP_TAB_TITLES = { dashboard:'Resumen', sales:'Ventas', products:'Catálogo', inventory:'Stock', clients:'Clientes', orders:'Pedidos', weborders:'Pedidos Web', expenses:'Gastos', reports:'Reportes', settings:'Ajustes' };
 function switchTab(id){
   ['dashboard','sales','products','inventory','clients','orders','weborders','expenses','reports','settings'].forEach(t=>{
     document.getElementById('tab-'+t).classList.add('hidden');
@@ -1263,6 +1273,8 @@ function switchTab(id){
   });
   document.getElementById('tab-'+id).classList.remove('hidden');
   document.getElementById('btn-'+id).classList.add('active');
+  const titleEl = document.getElementById('desktop-page-title');
+  if(titleEl) titleEl.textContent = DESKTOP_TAB_TITLES[id] || '';
 
   ['bn-dashboard','bn-inventory','bn-products','bn-more'].forEach(bid=>document.getElementById(bid).classList.remove('active'));
   const directBtn = BOTTOM_NAV_MAP[id];
@@ -1309,7 +1321,7 @@ function toggleDarkMode(){
 }
 function applyDarkMode(){
   document.documentElement.classList.toggle('dark', appData.settings.darkMode);
-  document.getElementById('dark-icon').innerText = appData.settings.darkMode ? 'light_mode' : 'dark_mode';
+  document.querySelectorAll('.dark-icon').forEach(el=>{ el.innerText = appData.settings.darkMode ? 'light_mode' : 'dark_mode'; });
   document.getElementById('settings-dark').checked = appData.settings.darkMode;
   renderCharts();
 }
