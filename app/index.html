@@ -19,7 +19,7 @@
   --success:#2E6E3E; --success-bg:#DCF2E0;
   --danger:#BA1A1A; --danger-bg:#FFDAD6;
   --warning:#8A5A00; --warning-bg:#FFEACC;
-  --header-bg:#7A4A28; --header-text:#ffffff;
+  --header-bg:#7A4A28; --header-text:#ffffff; --topbar-bg:#8E5E3C;
   --btn-secondary-bg:#F3E1C4; --btn-secondary-text:#4A2E14; --btn-secondary-border:transparent;
 }
 html.dark{
@@ -29,7 +29,7 @@ html.dark{
   --success:#8FDA9E; --success-bg:#1F3A26;
   --danger:#FFB4AB; --danger-bg:#5C1712;
   --warning:#F4C077; --warning-bg:#4A3313;
-  --header-bg:#4A2E14; --header-text:#F5E9DA;
+  --header-bg:#4A2E14; --header-text:#F5E9DA; --topbar-bg:#5E4228;
   --btn-secondary-bg:#3A2E20; --btn-secondary-text:#EAD9C4; --btn-secondary-border:transparent;
 }
 *{font-family:'Roboto',Arial,sans-serif; touch-action:manipulation;}
@@ -108,7 +108,7 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
 #rail .rail-collapse-btn:hover{ opacity:1; }
 #rail.collapsed .rail-brand{ justify-content:center; padding:0 0 20px; }
 #rail.collapsed .rail-brand-text{ display:none; }
-#desktop-topbar{ display:flex; align-items:center; justify-content:space-between; background:var(--header-bg); color:var(--header-text); padding:12px 24px; margin:0 -1.5rem 1.5rem 0; position:sticky; top:0; z-index:10; }
+#desktop-topbar{ display:flex; align-items:center; justify-content:space-between; background:var(--topbar-bg); color:var(--header-text); padding:12px 24px; margin:0 -1.5rem 1.5rem 0; position:sticky; top:0; z-index:10; }
 #rail .rail-account{ display:flex; align-items:center; gap:10px; padding:14px 20px; margin:12px 12px 0; border-top:1px dashed rgba(255,255,255,.18); padding-top:16px; flex-shrink:0; }
 #rail .rail-account .avatar{ width:32px; height:32px; border-radius:50%; background:var(--accent-hover); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:600; flex-shrink:0; }
 #rail .rail-account .who{ flex:1; min-width:0; }
