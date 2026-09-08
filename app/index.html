@@ -88,9 +88,9 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 .bottom-nav-btn.active .nav-icon-wrap{background:var(--accent-bg);}
 
 /* Riel lateral de escritorio (reemplaza la barra de pestañas de arriba solo en sm+; celular no se toca) */
-#rail{ width:224px; flex-shrink:0; background:var(--header-bg); color:var(--header-text); padding:16px 0; position:sticky; top:88px; align-self:stretch; transition:width var(--md-dur-short4) var(--md-ease-standard); }
-#rail.collapsed{ width:68px; }
-#rail nav{ display:flex; flex-direction:column; gap:2px; }
+#rail{ width:232px; flex-shrink:0; background:var(--header-bg); color:var(--header-text); padding:28px 0; position:sticky; top:var(--header-h, 88px); height:calc(100vh - var(--header-h, 88px)); overflow:hidden; transition:width var(--md-dur-short4) var(--md-ease-standard); }
+#rail.collapsed{ width:72px; }
+#rail nav{ display:flex; flex-direction:column; gap:2px; flex:1; overflow-y:auto; }
 #rail .rail-group-label{ font-size:11px; opacity:.55; padding:16px 24px 6px; }
 #rail .rail-group-label:first-child{ padding-top:0; }
 #rail.collapsed .rail-group-label{ display:none; }
@@ -105,6 +105,13 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
 #rail.collapsed .rail-toggle{ justify-content:center; padding:0 0 10px; }
 #rail .rail-toggle button{ color:var(--header-text); opacity:.6; background:none; border:none; cursor:pointer; padding:4px; display:flex; }
 #rail .rail-toggle button:hover{ opacity:1; }
+#rail .rail-account{ display:flex; align-items:center; gap:10px; padding:14px 20px; margin:12px 12px 0; border-top:1px dashed rgba(255,255,255,.18); padding-top:16px; flex-shrink:0; }
+#rail .rail-account .avatar{ width:32px; height:32px; border-radius:50%; background:var(--accent-hover); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:600; flex-shrink:0; }
+#rail .rail-account .who{ flex:1; min-width:0; }
+#rail .rail-account .who .name{ font-size:13px; color:var(--header-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#rail .rail-account .who .role{ font-size:11px; opacity:.6; }
+#rail.collapsed .rail-account{ justify-content:center; padding:14px 0; }
+#rail.collapsed .rail-account .who{ display:none; }
 
 /* Layout de escritorio: reglas propias (no depende de que Tailwind combine
    varias utilidades sueltas correctamente) para que el contenido SIEMPRE
@@ -201,6 +208,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <div class="rail-group-label">Cuenta</div>
       <button onclick="switchTab('settings')" id="btn-settings" class="tab-btn"><span class="msi">settings</span><span class="rail-lbl">Ajustes</span></button>
     </nav>
+    <div class="rail-account">
+      <div class="avatar" id="rail-account-avatar">·</div>
+      <div class="who"><div class="name" id="rail-account-name">Cuenta</div><div class="role">Administrador</div></div>
+    </div>
   </aside>
 
   <main class="max-w-6xl mx-auto px-4 mt-6">
@@ -1279,6 +1290,14 @@ function toggleRail(){
   }
 })();
 
+function updateHeaderHeightVar(){
+  const header = document.querySelector('.app-header');
+  if(header){ document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px'); }
+}
+updateHeaderHeightVar();
+window.addEventListener('resize', updateHeaderHeightVar);
+window.addEventListener('load', updateHeaderHeightVar);
+
 function toggleDarkMode(){
   appData.settings.darkMode = !appData.settings.darkMode;
   applyDarkMode();
@@ -1325,6 +1344,13 @@ function renderAll(){
     const n = lowStockProducts().length;
     lowstockBadge.textContent = n;
     lowstockBadge.classList.toggle('hidden', n === 0);
+  }
+  const railName = document.getElementById('rail-account-name');
+  const railAvatar = document.getElementById('rail-account-avatar');
+  if(railName){
+    const first = window.currentUserFirstName || 'Cuenta';
+    railName.textContent = first;
+    railAvatar.textContent = first.charAt(0).toUpperCase();
   }
 }
 
