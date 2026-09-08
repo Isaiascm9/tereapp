@@ -117,8 +117,9 @@ html.dark #rail .tab-btn.active{ border-left-color:var(--accent); }
    varias utilidades sueltas correctamente) para que el contenido SIEMPRE
    ocupe el espacio que sobra junto al riel, sin dejar franjas vacías. */
 @media (min-width:640px){
-  #desktop-layout{ display:flex; align-items:stretch; padding:0 1.5rem; margin-top:1.5rem; gap:1.5rem; height:calc(100vh - var(--header-h, 88px) - 1.5rem); }
-  #desktop-layout main{ max-width:none; margin:0; padding:0; margin-top:0; flex:1 1 0%; min-width:0; width:100%; overflow-y:auto; padding-bottom:2rem; }
+  html, body{ height:100%; overflow:hidden; }
+  #desktop-layout{ display:flex; align-items:stretch; gap:1.5rem; height:calc(100vh - var(--header-h, 88px)); }
+  #desktop-layout main{ max-width:none; margin:0; padding:1.5rem 1.5rem 2rem 0; flex:1 1 0%; min-width:0; width:100%; overflow-y:auto; box-sizing:border-box; }
 }
 .fab{background:var(--accent); color:#fff; box-shadow:0 3px 6px rgba(0,0,0,.28); border-radius:16px!important; width:56px; height:56px; display:flex; align-items:center; justify-content:center;}
 .input{background:var(--surface); border:1.5px solid var(--border); border-radius:4px!important; color:var(--text-primary); padding:.55rem .75rem; font-size:1rem; width:100%; box-sizing:border-box; max-width:100%;}
