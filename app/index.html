@@ -597,15 +597,6 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     <button onclick="runMigration()" id="migration-btn" class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit"><span class="msi" style="font-size:18px">cloud_upload</span>Migrar ahora</button>
     <p id="migration-result" class="text-xs t-muted"></p>
   </div>
-  <div class="card p-6 space-y-3" style="border:1.5px solid var(--danger, #C0392B)">
-    <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi" style="color:var(--danger, #C0392B)">history</span>Restaurar ventas recuperadas</h2>
-    <p class="text-sm t-secondary">Carga las ventas reconstruidas a partir de tu respaldo de julio-agosto. Cada una se guarda como su propio documento en <code>ventas</code>, exactamente igual que una venta nueva — se puede correr las veces que haga falta, no duplica las que ya estén cargadas (se fija en el mismo id).</p>
-    <label class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit cursor-pointer">
-      <span class="msi" style="font-size:18px">upload</span>Elegir archivo y restaurar
-      <input type="file" accept=".json" class="hidden" onchange="runRestoreSales(event)">
-    </label>
-    <p id="restore-sales-result" class="text-xs t-muted"></p>
-  </div>
   <div class="card p-6 space-y-4">
     <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">settings</span>Ajustes</h2>
     <div class="py-2 border-b b space-y-2">
@@ -1024,31 +1015,6 @@ function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleD
 
 let storageInitialized = false;
 let dataLoadSafe = false;
-
-async function runRestoreSales(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const resultEl = document.getElementById('restore-sales-result');
-  resultEl.textContent = 'Leyendo archivo…';
-  try{
-    const text = await file.text();
-    const sales = JSON.parse(text);
-    if(!Array.isArray(sales)) throw new Error('El archivo no tiene el formato esperado (debe ser una lista de ventas).');
-    resultEl.textContent = `Restaurando ${sales.length} ventas…`;
-    let ok = 0;
-    for(const sale of sales){
-      await window.dbSaveSale(sale);
-      ok++;
-      resultEl.textContent = `Restaurando… ${ok}/${sales.length}`;
-    }
-    resultEl.textContent = `Listo — se restauraron ${ok} ventas. Fijate en "Historial reciente de ventas" en el Resumen para confirmar.`;
-    showAlert(`${ok} ventas restauradas`);
-  }catch(e){
-    console.error('Error restaurando ventas:', e);
-    resultEl.textContent = 'Hubo un error leyendo o subiendo el archivo — probá de nuevo.';
-  }
-  event.target.value = '';
-}
 
 async function runMigration(){
   const btn = document.getElementById('migration-btn');
