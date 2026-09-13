@@ -597,6 +597,15 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     <button onclick="runMigration()" id="migration-btn" class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit"><span class="msi" style="font-size:18px">cloud_upload</span>Migrar ahora</button>
     <p id="migration-result" class="text-xs t-muted"></p>
   </div>
+  <div class="card p-6 space-y-3" style="border:1.5px solid var(--danger, #C0392B)">
+    <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi" style="color:var(--danger, #C0392B)">history</span>Actualizar ventas recuperadas (con número de pedido)</h2>
+    <p class="text-sm t-secondary">Vuelve a subir las 32 ventas ya cargadas, esta vez con su número de pedido (#001 al #032, en orden cronológico). Sobrescribe cada una por su mismo id — no duplica nada.</p>
+    <label class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit cursor-pointer">
+      <span class="msi" style="font-size:18px">upload</span>Elegir archivo y actualizar
+      <input type="file" accept=".json" class="hidden" onchange="runRestoreSales(event)">
+    </label>
+    <p id="restore-sales-result" class="text-xs t-muted"></p>
+  </div>
   <div class="card p-6 space-y-4">
     <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">settings</span>Ajustes</h2>
     <div class="py-2 border-b b space-y-2">
@@ -1015,6 +1024,31 @@ function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleD
 
 let storageInitialized = false;
 let dataLoadSafe = false;
+
+async function runRestoreSales(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const resultEl = document.getElementById('restore-sales-result');
+  resultEl.textContent = 'Leyendo archivo…';
+  try{
+    const text = await file.text();
+    const sales = JSON.parse(text);
+    if(!Array.isArray(sales)) throw new Error('El archivo no tiene el formato esperado (debe ser una lista de ventas).');
+    resultEl.textContent = `Actualizando ${sales.length} ventas…`;
+    let ok = 0;
+    for(const sale of sales){
+      await window.dbSaveSale(sale);
+      ok++;
+      resultEl.textContent = `Actualizando… ${ok}/${sales.length}`;
+    }
+    resultEl.textContent = `Listo — se actualizaron ${ok} ventas con su número de pedido.`;
+    showAlert(`${ok} ventas actualizadas`);
+  }catch(e){
+    console.error('Error actualizando ventas:', e);
+    resultEl.textContent = 'Hubo un error leyendo o subiendo el archivo — probá de nuevo.';
+  }
+  event.target.value = '';
+}
 
 async function runMigration(){
   const btn = document.getElementById('migration-btn');
