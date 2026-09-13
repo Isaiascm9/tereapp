@@ -591,6 +591,12 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 </section>
 
 <section id="tab-settings" class="hidden space-y-6">
+  <div id="migration-card" class="card p-6 space-y-3 hidden" style="border:1.5px solid var(--accent)">
+    <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">cloud_upload</span>Actualizar cómo se guardan ventas y pedidos</h2>
+    <p class="text-sm t-secondary">Para que dos dispositivos abiertos a la vez nunca puedan volver a pisarse los datos, cada venta y cada pedido preliminar va a pasar a guardarse por separado, en vez de todos juntos en un solo lugar. Es un solo paso, no se pierde nada, y no hace falta repetirlo.</p>
+    <button onclick="runMigration()" id="migration-btn" class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit"><span class="msi" style="font-size:18px">cloud_upload</span>Migrar ahora</button>
+    <p id="migration-result" class="text-xs t-muted"></p>
+  </div>
   <div class="card p-6 space-y-4">
     <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">settings</span>Ajustes</h2>
     <div class="py-2 border-b b space-y-2">
@@ -1010,6 +1016,28 @@ function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleD
 let storageInitialized = false;
 let dataLoadSafe = false;
 
+async function runMigration(){
+  const btn = document.getElementById('migration-btn');
+  const resultEl = document.getElementById('migration-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="msi" style="font-size:18px">sync</span>Migrando…';
+  try{
+    const result = await window.dbMigrateSalesAndOrders();
+    if(result.skipped){
+      resultEl.textContent = 'No había nada para migrar (ya estaba vacío o ya se había hecho antes).';
+    } else {
+      resultEl.textContent = `Listo — se migraron ${result.sales} venta${result.sales!==1?'s':''} y ${result.orders} pedido${result.orders!==1?'s':''} preliminar${result.orders!==1?'es':''}.`;
+    }
+    document.getElementById('migration-card').classList.add('hidden');
+    showAlert('Migración completada');
+  }catch(e){
+    console.error('Error migrando ventas y pedidos:', e);
+    resultEl.textContent = 'Hubo un error y no se movió nada (nada se perdió) — probá de nuevo en un momento.';
+    btn.disabled = false;
+    btn.innerHTML = '<span class="msi" style="font-size:18px">cloud_upload</span>Migrar ahora';
+  }
+}
+
 async function initStorage(){
   if(storageInitialized) return;
   storageInitialized = true;
@@ -1037,6 +1065,15 @@ async function initStorage(){
       appData.fabrics = [{ id:'f-default', name:'Tela principal', pricePerMeter: appData.settings.fabricPricePerMeter }];
       appData.products.forEach(p=>{ if(p.fabricMeters!=null && !p.fabricId){ p.fabricId = 'f-default'; } });
     }
+    // Ojo: se fija en loadResult.data (el dato tal como llegó de Firestore
+    // en este momento puntual), no en appData — porque appData.sales/orders
+    // pueden cambiar en cualquier momento apenas arranque la escucha en
+    // tiempo real de las colecciones nuevas (que empiezan vacías).
+    const needsMigration = !loadResult.data.migratedToCollections &&
+      ((Array.isArray(loadResult.data.sales) && loadResult.data.sales.length > 0) ||
+       (Array.isArray(loadResult.data.orders) && loadResult.data.orders.length > 0));
+    const migrationCard = document.getElementById('migration-card');
+    if(migrationCard) migrationCard.classList.toggle('hidden', !needsMigration);
   }
   // Si loadResult.exists es false, es realmente la primera vez que se usa la app: no hay nada que perder.
 
@@ -1785,8 +1822,7 @@ async function handleMultiSaleSubmit(){
     historial: []
   };
   pushHistorial(sale, 'Creado como venta directa');
-  appData.sales.unshift(sale);
-  appData.sales.sort((a,b)=> b.dateIso.localeCompare(a.dateIso));
+  await window.dbSaveSale(sale);
   await saveData();
 
   currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
@@ -1981,6 +2017,7 @@ async function saveEditedSale(){
   if(oldSaleSnapshot.clientId !== sale.clientId) changes.push('Cliente cambiado');
   if(changes.length) pushHistorial(sale, `Editado — ${changes.join('; ')}`);
 
+  await window.dbSaveSale(sale);
   await saveData();
   closeModal('edit-sale-modal');
   renderAll();
@@ -2001,7 +2038,7 @@ async function deleteSale(id){
     const p = appData.products.find(x=>x.id===it.productId);
     if(p) p.stock += it.qty;
   });
-  appData.sales = appData.sales.filter(s=>s.id!==id);
+  await window.dbDeleteSale(id);
   await saveData();
   renderAll();
   showAlert('Venta eliminada y stock devuelto','error');
@@ -2110,13 +2147,8 @@ async function handleGenerateOrder(){
   }
 
   const wasEditing = !!editingOrderId;
-  if(editingOrderId){
-    const idx = appData.orders.findIndex(o=>o.id===editingOrderId);
-    if(idx>=0) appData.orders[idx] = order;
-    editingOrderId = null;
-  } else {
-    appData.orders.unshift(order);
-  }
+  editingOrderId = null;
+  await window.dbSaveOrder(order);
   await saveData();
 
   // El estado de pago (Pendiente/Pagado) que se acaba de guardar arriba
@@ -2237,7 +2269,7 @@ async function toggleOrderSent(id){
   if(!order) return;
   order.sentFlag = !order.sentFlag;
   pushHistorial(order, order.sentFlag ? 'Marcado como enviado' : 'Desmarcado como enviado');
-  await saveData();
+  await window.dbSaveOrder(order);
   renderOrdersList();
   syncSeguimientoStage(order);
 }
@@ -2267,7 +2299,7 @@ async function toggleEditSaleSent(){
   pushHistorial(sale, sale.sentFlag ? 'Marcado como enviado' : 'Desmarcado como enviado');
   updateEditSaleSentToggleUI(sale.sentFlag);
   renderEditSaleHistorial(sale);
-  await saveData();
+  await window.dbSaveSale(sale);
   renderAll();
   syncSeguimientoStage(sale);
 }
@@ -2583,7 +2615,7 @@ async function importWebOrder(webOrderId){
   };
   pushHistorial(newOrder, 'Creado desde un pedido web importado');
 
-  appData.orders.unshift(newOrder);
+  await window.dbSaveOrder(newOrder);
   await saveData();
 
   try{
@@ -2695,12 +2727,10 @@ async function confirmOrderAsSale(id){
     historial: Array.isArray(order.historial) ? order.historial.slice() : []
   };
   pushHistorial(sale, 'Confirmado como venta');
-  appData.sales.unshift(sale);
-  appData.orders = appData.orders.filter(o=>o.id!==id);
-  await saveData();
+  await window.dbConfirmOrderAsSale(id, sale);
   renderAll();
   syncSeguimientoStage(sale);
-  showAlert('Pedido confirmado como venta y stock actualizado');
+  showAlert('Pedido confirmado como venta');
 }
 
 let editingOrderId = null;
@@ -2794,7 +2824,7 @@ async function deleteOrder(id){
       if(p) p.stock += it.qty;
     });
   }
-  appData.orders = appData.orders.filter(o=>o.id!==id);
+  await window.dbDeleteOrder(id);
   await saveData();
   renderAll();
   showAlert('Pedido eliminado y stock devuelto','error');
@@ -3530,7 +3560,9 @@ async function archivePeriod(){
   buildArchivePdf(candidates, cutoff);
   buildArchiveExcel(candidates, cutoff);
 
-  appData.sales = appData.sales.filter(s=>s.dateIso>=cutoff);
+  if(candidates.sales.length){
+    await window.dbDeleteSalesBatch(candidates.sales.map(s=>s.id));
+  }
   appData.expenses = appData.expenses.filter(e=>e.dateIso>=cutoff);
   appData.batches = appData.batches.filter(b=>b.dateIso>=cutoff);
   await saveData();
@@ -3573,7 +3605,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc, deleteDoc, runTransaction, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -3589,6 +3621,84 @@ setReportPeriod('monthly');
   const db = getFirestore(app);
   const DOC_REF = doc(db, 'tereapp', 'data');
   const CATALOG_REF = doc(db, 'tereapp', 'catalog');
+  // ============ VENTAS Y PEDIDOS COMO DOCUMENTOS INDEPENDIENTES ============
+  // Desde el bug de la pestaña vieja que borró ventas/pedidos reales (sept 2026):
+  // en vez de guardar todo dentro de un solo documento gigante (tereapp/data),
+  // cada venta y cada pedido preliminar es su PROPIO documento en su propia
+  // colección. Así ninguna pestaña puede "reemplazar todo" sin querer — un
+  // guardado solo puede tocar el documento puntual que está editando.
+  const VENTAS_COL = collection(db, 'ventas');
+  const PEDIDOS_COL = collection(db, 'pedidos_preliminares');
+  let ventasListenerReady = false, pedidosListenerReady = false;
+  function attachRealtimeListeners(){
+    onSnapshot(VENTAS_COL, (snap)=>{
+      appData.sales = snap.docs.map(d=>d.data());
+      appData.sales.sort((a,b)=> b.dateIso.localeCompare(a.dateIso));
+      ventasListenerReady = true;
+      if(window.renderAll) window.renderAll();
+    }, (err)=>{
+      console.error('Error escuchando ventas en tiempo real:', err);
+      showAlert('No se pudo conectar con las ventas en la nube — revisá tu conexión', 'error');
+    });
+    onSnapshot(PEDIDOS_COL, (snap)=>{
+      appData.orders = snap.docs.map(d=>d.data());
+      pedidosListenerReady = true;
+      if(window.renderAll) window.renderAll();
+    }, (err)=>{
+      console.error('Error escuchando pedidos preliminares en tiempo real:', err);
+      showAlert('No se pudo conectar con los pedidos en la nube — revisá tu conexión', 'error');
+    });
+  }
+  window.dbSaveSale = async function(sale){ await setDoc(doc(db,'ventas', sale.id), sale); };
+  window.dbDeleteSale = async function(id){ await deleteDoc(doc(db,'ventas', id)); };
+  window.dbDeleteSalesBatch = async function(ids){
+    if(!ids.length) return;
+    const batch = writeBatch(db);
+    ids.forEach(id => batch.delete(doc(db,'ventas', id)));
+    await batch.commit();
+  };
+  window.dbSaveOrder = async function(order){ await setDoc(doc(db,'pedidos_preliminares', order.id), order); };
+  window.dbDeleteOrder = async function(id){ await deleteDoc(doc(db,'pedidos_preliminares', id)); };
+  // Confirmar pedido -> venta tiene que mover el documento de una colección
+  // a la otra de forma atómica: o pasan las dos cosas, o no pasa ninguna.
+  window.dbConfirmOrderAsSale = async function(orderId, sale){
+    const batch = writeBatch(db);
+    batch.delete(doc(db,'pedidos_preliminares', orderId));
+    batch.set(doc(db,'ventas', sale.id), sale);
+    await batch.commit();
+  };
+  // Migración de una sola vez: copia lo que hoy vive dentro de tereapp/data
+  // (los arreglos sales/orders) hacia las colecciones nuevas, documento por
+  // documento, y después vacía esos dos campos del documento viejo para no
+  // dejar todo duplicado. Lee el documento directo de Firestore (no usa
+  // appData.sales/orders) porque para cuando alguien aprieta el botón, la
+  // escucha en tiempo real ya pudo haber puesto esos arreglos en [] (las
+  // colecciones nuevas empiezan vacías).
+  window.dbMigrateSalesAndOrders = async function(){
+    const snap = await getDoc(DOC_REF);
+    if(!snap.exists()) throw new Error('No se encontró el documento de datos');
+    const raw = snap.data();
+    const oldSales = Array.isArray(raw.sales) ? raw.sales : [];
+    const oldOrders = Array.isArray(raw.orders) ? raw.orders : [];
+    if(oldSales.length === 0 && oldOrders.length === 0){
+      return { sales: 0, orders: 0, skipped: true };
+    }
+    let batch = writeBatch(db);
+    let count = 0;
+    for(const s of oldSales){
+      batch.set(doc(db,'ventas', s.id), s);
+      count++;
+      if(count % 400 === 0){ await batch.commit(); batch = writeBatch(db); }
+    }
+    for(const o of oldOrders){
+      batch.set(doc(db,'pedidos_preliminares', o.id), o);
+      count++;
+      if(count % 400 === 0){ await batch.commit(); batch = writeBatch(db); }
+    }
+    await batch.commit();
+    await updateDoc(DOC_REF, { sales: [], orders: [], migratedToCollections: true, migratedAt: new Date().toISOString() });
+    return { sales: oldSales.length, orders: oldOrders.length, skipped: false };
+  };
   const provider = new GoogleAuthProvider();
   let authReady = false;
 
@@ -3764,7 +3874,7 @@ setReportPeriod('monthly');
 
   getRedirectResult(auth).catch(err => console.error('Error al procesar el login con Google:', err));
 
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if(user){
       authReady = true;
       window.currentUserEmail = user.email || user.displayName || 'Cuenta de Google';
@@ -3774,7 +3884,8 @@ setReportPeriod('monthly');
       window.currentUserFirstName = rawName ? rawName.trim().split(' ')[0] : '';
       window.currentUserPhoto = user.photoURL || null;
       hideLoginScreen();
-      if(window.initStorage) window.initStorage();
+      if(window.initStorage) await window.initStorage();
+      attachRealtimeListeners();
     } else {
       authReady = false;
       showLoginScreen();
