@@ -1029,7 +1029,7 @@ async function runMigration(){
       resultEl.textContent = `Listo — se migraron ${result.sales} venta${result.sales!==1?'s':''} y ${result.orders} pedido${result.orders!==1?'s':''} preliminar${result.orders!==1?'es':''}.`;
     }
     document.getElementById('migration-card').classList.add('hidden');
-    showAlert('Migración completada');
+    showAlert(result.skipped ? 'No había nada para migrar' : 'Migración completada');
   }catch(e){
     console.error('Error migrando ventas y pedidos:', e);
     resultEl.textContent = 'Hubo un error y no se movió nada (nada se perdió) — probá de nuevo en un momento.';
@@ -3649,23 +3649,33 @@ setReportPeriod('monthly');
       showAlert('No se pudo conectar con los pedidos en la nube — revisá tu conexión', 'error');
     });
   }
-  window.dbSaveSale = async function(sale){ await setDoc(doc(db,'ventas', sale.id), sale); };
-  window.dbDeleteSale = async function(id){ await deleteDoc(doc(db,'ventas', id)); };
+  // Mismo criterio que dbSave: si la conexión está lenta, no dejamos la
+  // pantalla esperando para siempre — seguimos después de unos segundos
+  // y el guardado real termina de subirse solo, en segundo plano.
+  async function writeWithTimeout(writePromise, ms = 3000){
+    const timeoutPromise = new Promise(resolve => setTimeout(()=>resolve('timeout'), ms));
+    const result = await Promise.race([writePromise.then(()=>'done'), timeoutPromise]);
+    if(result === 'timeout'){
+      writePromise.catch(err => console.error('Un guardado tardó más de lo esperado y falló en segundo plano:', err));
+    }
+  }
+  window.dbSaveSale = async function(sale){ await writeWithTimeout(setDoc(doc(db,'ventas', sale.id), sale)); };
+  window.dbDeleteSale = async function(id){ await writeWithTimeout(deleteDoc(doc(db,'ventas', id))); };
   window.dbDeleteSalesBatch = async function(ids){
     if(!ids.length) return;
     const batch = writeBatch(db);
     ids.forEach(id => batch.delete(doc(db,'ventas', id)));
-    await batch.commit();
+    await writeWithTimeout(batch.commit(), 6000);
   };
-  window.dbSaveOrder = async function(order){ await setDoc(doc(db,'pedidos_preliminares', order.id), order); };
-  window.dbDeleteOrder = async function(id){ await deleteDoc(doc(db,'pedidos_preliminares', id)); };
+  window.dbSaveOrder = async function(order){ await writeWithTimeout(setDoc(doc(db,'pedidos_preliminares', order.id), order)); };
+  window.dbDeleteOrder = async function(id){ await writeWithTimeout(deleteDoc(doc(db,'pedidos_preliminares', id))); };
   // Confirmar pedido -> venta tiene que mover el documento de una colección
   // a la otra de forma atómica: o pasan las dos cosas, o no pasa ninguna.
   window.dbConfirmOrderAsSale = async function(orderId, sale){
     const batch = writeBatch(db);
     batch.delete(doc(db,'pedidos_preliminares', orderId));
     batch.set(doc(db,'ventas', sale.id), sale);
-    await batch.commit();
+    await writeWithTimeout(batch.commit());
   };
   // Migración de una sola vez: copia lo que hoy vive dentro de tereapp/data
   // (los arreglos sales/orders) hacia las colecciones nuevas, documento por
