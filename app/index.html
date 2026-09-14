@@ -1049,6 +1049,7 @@ let dataLoadSafe = false;
 const VAPID_PUBLIC_KEY = 'BO0IIN7Jtspf_wUeQ2O-3nzRt9KTmjnkXYiaOGapzKHmCEhDaKZjzRKL3SXmlR-1RqwIZU4rVBZruvzbzXMfFtE';
 
 function urlBase64ToUint8Array(base64String){
+  base64String = base64String.trim();
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = atob(base64);
