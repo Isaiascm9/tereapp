@@ -610,6 +610,24 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     <p id="migration-result" class="text-xs t-muted"></p>
   </div>
   <div class="card p-6 space-y-4">
+    <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">notifications</span>Notificaciones</h2>
+    <p class="text-sm t-secondary">Recibí un aviso en este dispositivo cuando pase algo importante — sin abrir la app.</p>
+    <div id="push-inactive" class="space-y-2">
+      <button onclick="activatePushNotifications()" id="push-activate-btn" class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit"><span class="msi" style="font-size:18px">notifications_active</span>Activar notificaciones en este dispositivo</button>
+      <p id="push-activate-error" class="text-xs" style="color:var(--danger, #C0392B)"></p>
+    </div>
+    <div id="push-active" class="hidden py-2 border-b b">
+      <p class="text-sm font-medium flex items-center gap-1.5"><span class="msi" style="font-size:16px; color:var(--accent)">check_circle</span>Notificaciones activadas en este dispositivo</p>
+      <button onclick="deactivatePushNotifications()" class="text-xs mt-1" style="color:var(--danger, #C0392B)">Desactivar en este dispositivo</button>
+    </div>
+    <div class="py-2 border-t b space-y-2">
+      <p class="text-xs t-muted">Solo para pruebas mientras armamos el Worker de Cloudflare — se borra cuando esté todo funcionando.</p>
+      <input type="text" id="push-worker-url" placeholder="https://tu-worker.workers.dev" class="input w-full text-xs" onchange="localStorage.setItem('tereapp-worker-url', this.value)">
+      <button onclick="sendTestPush()" class="btn-secondary text-xs px-3 py-2">Enviar notificación de prueba</button>
+      <p id="push-test-result" class="text-xs t-muted"></p>
+    </div>
+  </div>
+  <div class="card p-6 space-y-4">
     <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">settings</span>Ajustes</h2>
     <div class="py-2 border-b b space-y-2">
       <p class="text-sm font-medium">Panel del catálogo</p>
@@ -1028,6 +1046,95 @@ function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleD
 let storageInitialized = false;
 let dataLoadSafe = false;
 
+const VAPID_PUBLIC_KEY = 'BO0IIN7Jtspf_wUeQ2O-3nzRt9KTmjnkXYiaOGapzKHmCEhDaKZjzRKL3SXmlR-1RqwIZU4rVBZruvzbzXMfFtE';
+
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function updatePushUI(){
+  const reg = await navigator.serviceWorker.getRegistration().catch(()=>null);
+  const sub = reg ? await reg.pushManager.getSubscription().catch(()=>null) : null;
+  document.getElementById('push-inactive').classList.toggle('hidden', !!sub);
+  document.getElementById('push-active').classList.toggle('hidden', !sub);
+  const savedUrl = localStorage.getItem('tereapp-worker-url');
+  if(savedUrl) document.getElementById('push-worker-url').value = savedUrl;
+}
+
+async function activatePushNotifications(){
+  const errEl = document.getElementById('push-activate-error');
+  errEl.textContent = '';
+  if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+    errEl.textContent = 'Este navegador no admite notificaciones. Probá con Chrome o Safari, y en iPhone agregá primero Téreapp a tu pantalla de inicio.';
+    return;
+  }
+  try{
+    const permission = await Notification.requestPermission();
+    if(permission !== 'granted'){
+      errEl.textContent = 'No se dio el permiso — no se puede activar sin él. Revisá los permisos de notificaciones de este sitio en tu navegador.';
+      return;
+    }
+    const reg = await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await window.dbSavePushSubscription({
+      id: uid(),
+      uid: window.currentUserUid || null,
+      userLabel: window.currentUserFirstName || 'Cuenta',
+      endpoint: sub.endpoint,
+      keys: sub.toJSON().keys,
+      createdAt: new Date().toISOString()
+    });
+    await updatePushUI();
+    showAlert('Notificaciones activadas en este dispositivo');
+  }catch(e){
+    console.error('Error activando notificaciones push:', e);
+    errEl.textContent = 'No se pudo activar — ' + (e.message || 'error desconocido') + '.';
+  }
+}
+
+async function deactivatePushNotifications(){
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    if(sub){
+      await window.dbDeletePushSubscription(sub.endpoint);
+      await sub.unsubscribe();
+    }
+    await updatePushUI();
+    showAlert('Notificaciones desactivadas en este dispositivo', 'error');
+  }catch(e){
+    console.error('Error desactivando notificaciones push:', e);
+  }
+}
+
+async function sendTestPush(){
+  const workerUrl = localStorage.getItem('tereapp-worker-url');
+  const resultEl = document.getElementById('push-test-result');
+  if(!workerUrl){ resultEl.textContent = 'Primero pegá la URL del Worker arriba.'; return; }
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  if(!sub){ resultEl.textContent = 'Primero activá las notificaciones arriba.'; return; }
+  resultEl.textContent = 'Enviando…';
+  try{
+    const res = await fetch(workerUrl.replace(/\/$/,'') + '/test', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    });
+    const text = await res.text();
+    resultEl.textContent = res.ok ? 'Enviado — fijate si te llegó la notificación.' : ('Error: ' + text);
+  }catch(e){
+    resultEl.textContent = 'No se pudo conectar con el Worker — revisá la URL.';
+  }
+}
+
 async function runMigration(){
   const btn = document.getElementById('migration-btn');
   const resultEl = document.getElementById('migration-result');
@@ -1362,6 +1469,7 @@ function switchTab(id){
   if(desktopMain) desktopMain.scrollTop = 0;
   renderAll();
   if(id==='weborders'){ loadWebOrders(); }
+  if(id==='settings'){ updatePushUI(); }
 }
 
 function closeModal(id){ document.getElementById(id).classList.add('hidden'); document.getElementById(id).classList.remove('flex'); }
@@ -3688,6 +3796,16 @@ setReportPeriod('monthly');
     await writeWithTimeout(batch.commit(), 6000);
   };
   window.dbSaveOrder = async function(order){ await writeWithTimeout(setDoc(doc(db,'pedidos_preliminares', order.id), order)); };
+  // Suscripciones push: una por dispositivo, en su propia colección desde
+  // el arranque (no en tereapp/data) — así varias personas pueden activar
+  // notificaciones en varios dispositivos sin pisarse entre sí.
+  window.dbSavePushSubscription = async function(sub){ await writeWithTimeout(setDoc(doc(db,'push_subscriptions', sub.id), sub)); };
+  window.dbDeletePushSubscription = async function(endpoint){
+    const q = await getDocs(collection(db,'push_subscriptions'));
+    const batch = writeBatch(db);
+    q.forEach(d => { if(d.data().endpoint === endpoint) batch.delete(d.ref); });
+    await writeWithTimeout(batch.commit());
+  };
   window.dbDeleteOrder = async function(id){ await writeWithTimeout(deleteDoc(doc(db,'pedidos_preliminares', id))); };
   // Confirmar pedido -> venta tiene que mover el documento de una colección
   // a la otra de forma atómica: o pasan las dos cosas, o no pasa ninguna.
