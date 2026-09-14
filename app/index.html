@@ -172,6 +172,18 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
 </div>
 
+<div id="stale-tab-overlay" class="hidden fixed inset-0 bg-app z-[100] items-center justify-center p-4">
+  <div class="card p-8 w-full max-w-sm text-center space-y-4">
+    <span class="msi" style="font-size:40px; color:var(--danger)">warning</span>
+    <h2 class="font-medium text-lg t-primary">Esta pestaña quedó desactualizada</h2>
+    <p class="text-sm t-secondary">Alguien guardó algo desde otro dispositivo mientras esta pestaña estaba abierta. Para no pisar ese cambio, no se guardó lo último que intentaste hacer acá.</p>
+    <p class="text-sm t-secondary">Recargá esta pantalla para traer lo más reciente, y volvé a hacer el cambio.</p>
+    <button onclick="location.reload()" class="btn-primary w-full py-2.5 flex items-center justify-center gap-2">
+      <span class="msi" style="font-size:18px">refresh</span>Recargar ahora
+    </button>
+  </div>
+</div>
+
 <div id="connection-error-overlay" class="hidden fixed inset-0 bg-app z-[100] items-center justify-center p-4">
   <div class="card p-8 w-full max-w-sm text-center space-y-4">
     <span class="msi" style="font-size:40px; color:var(--danger)">cloud_off</span>
@@ -1361,7 +1373,10 @@ function saveData(){
   updateSyncStatus('saving');
   window.dbSave(appData)
     .then(()=> updateSyncStatus(navigator.onLine ? 'saved' : 'offline-queued'))
-    .catch(e=>{ console.error('Error al guardar en Firebase:', e); updateSyncStatus('error', e); });
+    .catch(e=>{
+      if(e && e.code === 'stale-tab') return; // el aviso bloqueante ya se encarga, no hace falta duplicar el mensaje
+      console.error('Error al guardar en Firebase:', e); updateSyncStatus('error', e);
+    });
   syncPublicCatalog();
   return Promise.resolve();
 }
@@ -1447,6 +1462,11 @@ function toggleRail(){
     if(rail){ rail.classList.add('collapsed'); document.getElementById('rail-toggle-icon').textContent = 'dock_to_left'; }
   }
 })();
+
+window.addEventListener('tereapp-stale-tab', ()=>{
+  document.getElementById('stale-tab-overlay').classList.remove('hidden');
+  document.getElementById('stale-tab-overlay').classList.add('flex');
+});
 
 function updateHeaderHeightVar(){
   const header = document.querySelector('.app-header');
@@ -3794,15 +3814,60 @@ setReportPeriod('monthly');
 
   window.dbSave = async function(data){
     if(!authReady) throw new Error('Firebase todavía no está listo');
-    const writePromise = setDoc(DOC_REF, data).then(()=>'done');
-    const timeoutPromise = new Promise(resolve => setTimeout(()=>resolve('timeout'), 6000));
-    const result = await Promise.race([writePromise, timeoutPromise]);
-    if(result === 'timeout'){
-      writePromise.catch(err => console.error('El guardado en la nube falló en segundo plano:', err));
+
+    // Sin conexión no hay con qué comparar — guardamos directo, como
+    // siempre (offline-first), y confiamos en que Firestore lo sincronice
+    // solo cuando vuelva la señal. Este es el único caso que este freno
+    // no puede cubrir del todo.
+    if(!navigator.onLine){
+      const writePromise = setDoc(DOC_REF, data).then(()=>'done');
+      const timeoutPromise = new Promise(resolve => setTimeout(()=>resolve('timeout'), 6000));
+      await Promise.race([writePromise, timeoutPromise]);
       return true;
     }
+
+    // Con conexión: antes de reemplazar el documento, la transacción
+    // revisa qué versión hay ahora mismo en el servidor. Si no coincide
+    // con la última versión que esta pestaña conoce, quiere decir que
+    // OTRA pestaña guardó algo mientras tanto — rechazamos el guardado
+    // en vez de pisarlo a ciegas (que fue justo la causa del problema
+    // de septiembre 2026).
+    const txPromise = runTransaction(db, async (tx) => {
+      const snap = await tx.get(DOC_REF);
+      const serverVersion = snap.exists() ? (snap.data()._version || 0) : 0;
+      if(window.__docVersion != null && serverVersion !== window.__docVersion){
+        const err = new Error('Esta pestaña quedó desactualizada');
+        err.code = 'stale-tab';
+        throw err;
+      }
+      const newVersion = serverVersion + 1;
+      tx.set(DOC_REF, Object.assign({}, data, { _version: newVersion }));
+      return newVersion;
+    });
+
+    const timeoutPromise = new Promise(resolve => setTimeout(()=>resolve('timeout'), 6000));
+    let raced;
+    try{
+      raced = await Promise.race([txPromise.then(v => ({ status:'done', version:v })), timeoutPromise]);
+    }catch(e){
+      if(e && e.code === 'stale-tab') window.dispatchEvent(new CustomEvent('tereapp-stale-tab'));
+      throw e;
+    }
+    if(raced === 'timeout'){
+      txPromise.then(v => { window.__docVersion = v; }).catch(err => {
+        if(err && err.code === 'stale-tab') window.dispatchEvent(new CustomEvent('tereapp-stale-tab'));
+        else console.error('El guardado en la nube falló en segundo plano:', err);
+      });
+      return true;
+    }
+    window.__docVersion = raced.version;
     return true;
   };
+
+  function captureVersion(snap){
+    if(snap.exists()) window.__docVersion = snap.data()._version || 0;
+    return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
+  }
 
   window.dbLoad = async function(){
     if(!authReady) throw new Error('Firebase todavía no está listo');
@@ -3816,7 +3881,7 @@ setReportPeriod('monthly');
         throw err;
       }
       const snap = await getDocFromCache(DOC_REF);
-      return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
+      return captureVersion(snap);
     }
     try{
       const snap = await Promise.race([
@@ -3824,7 +3889,7 @@ setReportPeriod('monthly');
         new Promise((_, reject) => setTimeout(()=>reject(new Error('timeout')), 6000))
       ]);
       localStorage.setItem('tereapp-authorized-uid', currentUid || '');
-      return { exists: snap.exists(), data: snap.exists() ? snap.data() : null };
+      return captureVersion(snap);
     }catch(e){
       if(e && e.code === 'permission-denied'){
         throw e;
@@ -3834,7 +3899,7 @@ setReportPeriod('monthly');
       }
       try{
         const cacheSnap = await getDocFromCache(DOC_REF);
-        return { exists: cacheSnap.exists(), data: cacheSnap.exists() ? cacheSnap.data() : null };
+        return captureVersion(cacheSnap);
       }catch(cacheErr){
         throw e;
       }
