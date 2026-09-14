@@ -606,6 +606,15 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </label>
     <p id="restore-sales-result" class="text-xs t-muted"></p>
   </div>
+  <div class="card p-6 space-y-3" style="border:1.5px solid var(--danger, #C0392B)">
+    <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi" style="color:var(--danger, #C0392B)">emergency</span>Restaurar catálogo, clientes, gastos y telas</h2>
+    <p class="text-sm t-secondary">Reemplaza estos 5 campos en el documento único con los del respaldo elegido. No toca ventas, pedidos, tasas ni ajustes.</p>
+    <label class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit cursor-pointer">
+      <span class="msi" style="font-size:18px">upload</span>Elegir archivo y restaurar
+      <input type="file" accept=".json" class="hidden" onchange="runRestoreCatalog(event)">
+    </label>
+    <p id="restore-catalog-result" class="text-xs t-muted"></p>
+  </div>
   <div class="card p-6 space-y-4">
     <h2 class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">settings</span>Ajustes</h2>
     <div class="py-2 border-b b space-y-2">
@@ -1024,6 +1033,29 @@ function displayDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleD
 
 let storageInitialized = false;
 let dataLoadSafe = false;
+
+async function runRestoreCatalog(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const resultEl = document.getElementById('restore-catalog-result');
+  resultEl.textContent = 'Leyendo archivo…';
+  try{
+    const text = await file.text();
+    const fields = JSON.parse(text);
+    const expected = ['products','clients','expenses','batches','fabrics'];
+    const missing = expected.filter(k => !(k in fields));
+    if(missing.length) throw new Error('Al archivo le faltan estos campos: ' + missing.join(', '));
+    resultEl.textContent = 'Restaurando…';
+    await window.dbRestoreCatalogFields(fields);
+    resultEl.textContent = `Listo — se restauraron ${fields.products.length} productos, ${fields.clients.length} clientes, ${fields.expenses.length} gastos, ${fields.batches.length} lotes y ${fields.fabrics.length} telas. Recargando…`;
+    showAlert('Catálogo y clientes restaurados');
+    setTimeout(()=>location.reload(), 1500);
+  }catch(e){
+    console.error('Error restaurando catálogo:', e);
+    resultEl.textContent = 'Hubo un error leyendo o subiendo el archivo — probá de nuevo.';
+  }
+  event.target.value = '';
+}
 
 async function runRestoreSales(event){
   const file = event.target.files[0];
@@ -3702,6 +3734,12 @@ setReportPeriod('monthly');
     await writeWithTimeout(batch.commit(), 6000);
   };
   window.dbSaveOrder = async function(order){ await writeWithTimeout(setDoc(doc(db,'pedidos_preliminares', order.id), order)); };
+  // Restauración de emergencia: actualiza SOLO estos 5 campos del documento
+  // único (updateDoc, no setDoc — así no se toca ventas, pedidos, tasas ni
+  // ajustes, que están bien). No confundir con dbSave, que reemplaza todo.
+  window.dbRestoreCatalogFields = async function(fields){
+    await updateDoc(DOC_REF, fields);
+  };
   window.dbDeleteOrder = async function(id){ await writeWithTimeout(deleteDoc(doc(db,'pedidos_preliminares', id))); };
   // Confirmar pedido -> venta tiene que mover el documento de una colección
   // a la otra de forma atómica: o pasan las dos cosas, o no pasa ninguna.
