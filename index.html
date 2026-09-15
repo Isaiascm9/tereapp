@@ -1900,6 +1900,22 @@
             setTimeout(() => drawer.classList.add('hidden'), 300);
         }
 
+        // ============ NOTIFICACIONES (avisa al Worker cuando entra un pedido) ============
+        // De acá sale el aviso que le llega a Isaias por notificación push.
+        // Si el Worker está caído o sin internet, no debe frenar la compra
+        // en ningún caso — por eso siempre corre "en paralelo", sin esperar
+        // su respuesta ni mostrar ningún error al cliente si falla.
+        const NOTIFY_WORKER_URL = 'https://tereapp-notificaciones.isaiascontreras60.workers.dev';
+        function notifyNewOrder(itemsSummaryText, totalUsd, orderNumber) {
+            const title = orderNumber ? `Nuevo pedido #${orderNumber}` : 'Nuevo pedido web';
+            const body = `$${totalUsd.toFixed(2)} — ${itemsSummaryText}`;
+            fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, body })
+            }).catch(e => console.error('No se pudo avisar la venta nueva (no afecta el pedido):', e));
+        }
+
         // ============ RECORDATORIO DE CARRITO ABANDONADO (solo en este navegador) ============
         const CART_VISITS_KEY = 'terea_cart_visits_v1';
 
@@ -2505,6 +2521,8 @@
                     status: 'preliminar',
                     createdAt: fb.serverTimestamp(),
                 }).catch(e => console.error('No se pudo registrar el pedido en la base de datos:', e));
+
+                notifyNewOrder(itemsSummary.join(', '), total, reservedOrderNumber);
 
                 if (trackingCode) {
                     const vesIsAccurate = allHaveVES && totalVES > 0 && discountAmount === 0 && boosterDiscountAmountFinal === 0;
