@@ -1907,8 +1907,25 @@
         // su respuesta ni mostrar ningún error al cliente si falla.
         const NOTIFY_WORKER_URL = 'https://tereapp-notificaciones.isaiascontreras60.workers.dev';
         function notifyNewOrder(itemsSummaryText, totalUsd, orderNumber) {
-            const title = orderNumber ? `Nuevo pedido #${orderNumber}` : 'Nuevo pedido web';
-            const body = `$${totalUsd.toFixed(2)} — ${itemsSummaryText}`;
+            const cfg = (storeConfig && storeConfig.notifications) || {};
+            if (cfg.newOrderEnabled === false) return; // apagado desde el panel
+
+            const placeholders = {
+                '{total}': `$${totalUsd.toFixed(2)}`,
+                '{productos}': itemsSummaryText,
+                '{numero}': orderNumber ? `#${orderNumber}` : ''
+            };
+            function fillTemplate(tpl) {
+                return Object.entries(placeholders).reduce((s, [k, v]) => s.split(k).join(v), tpl);
+            }
+
+            const title = cfg.newOrderTitle
+                ? fillTemplate(cfg.newOrderTitle)
+                : (orderNumber ? `Nuevo pedido #${orderNumber}` : 'Nuevo pedido web');
+            const body = cfg.newOrderBody
+                ? fillTemplate(cfg.newOrderBody)
+                : `$${totalUsd.toFixed(2)} — ${itemsSummaryText}`;
+
             fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/notify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
