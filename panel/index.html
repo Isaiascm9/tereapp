@@ -570,12 +570,60 @@
                     </button>
                 </div>
 
-                <div class="bg-satin-50 border border-satin-200 rounded-2xl p-3 flex items-start gap-2">
-                    <i data-lucide="info" class="w-4 h-4 text-madera shrink-0 mt-0.5"></i>
-                    <p class="text-xs text-slate-600">Los recordatorios programados (pagos por vencer, avisos con hora y día fijo) todavía no están — se agregan en el próximo paso.</p>
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-sm font-bold text-slate-900">Recordatorios programados</h3>
+                        <button onclick="openReminderForm()" class="px-4 py-2.5 bg-madera hover:bg-arena active:bg-arena text-arena hover:text-madera active:text-madera font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Agregar recordatorio
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">Avisos con texto fijo que se mandan solos, en los días y a la hora que elijas — sin que tengas que hacer nada. Se revisan una vez por hora, así que eligí una hora en punto.</p>
+                    <div id="reminders-list" class="space-y-2"></div>
+                    <button onclick="testRemindersCron()" class="mt-3 text-xs font-bold text-madera hover:underline cursor-pointer flex items-center gap-1">
+                        <i data-lucide="play" class="w-3.5 h-3.5"></i> Probar ahora (sin esperar a la hora)
+                    </button>
+                    <p id="cron-test-result" class="text-[11px] text-slate-400 mt-1"></p>
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- ============ MODAL: RECORDATORIO PROGRAMADO ============ -->
+    <div id="reminder-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
+        <div class="bg-white rounded-2xl max-w-sm w-full max-h-[90vh] overflow-y-auto">
+            <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+                <h3 id="reminder-modal-title" class="font-bold text-slate-900">Nuevo recordatorio</h3>
+                <button onclick="closeReminderForm()" class="text-slate-400 hover:text-slate-600 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-5 space-y-3">
+                <input type="hidden" id="rm-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Título</label>
+                    <input type="text" id="rm-title" placeholder="Téreapp" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Texto</label>
+                    <input type="text" id="rm-body" placeholder="Revisá los pedidos pendientes de hoy" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Hora (en punto)</label>
+                    <select id="rm-hour" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Días</label>
+                    <div id="rm-days" class="flex flex-wrap gap-1.5"></div>
+                </div>
+                <label class="flex items-center gap-2 p-3 rounded-xl border border-gray-200 cursor-pointer text-xs font-semibold">
+                    <input type="checkbox" id="rm-active" checked class="accent-madera"> Activo
+                </label>
+            </div>
+            <div class="p-5 border-t border-gray-100 flex gap-2">
+                <button id="rm-delete-btn" onclick="deleteReminderFromForm()" class="hidden px-4 py-3 rounded-xl border border-rose-200 text-rose-600 text-xs font-bold hover:bg-rose-50 transition-colors cursor-pointer">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+                <button onclick="saveReminder()" class="flex-1 py-3 bg-madera hover:bg-arena active:bg-arena text-arena hover:text-madera active:text-madera font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer">Guardar recordatorio</button>
+            </div>
+        </div>
     </div>
 
     <!-- ============ MODAL: FORMULARIO PRODUCTO ============ -->
@@ -3245,6 +3293,7 @@
             document.getElementById('notif-neworder-enabled').checked = cfg.newOrderEnabled !== false;
             document.getElementById('notif-neworder-title').value = cfg.newOrderTitle || '';
             document.getElementById('notif-neworder-body').value = cfg.newOrderBody || '';
+            renderReminders();
         }
 
         function saveNotificationSettings() {
@@ -3255,6 +3304,142 @@
             };
             saveData();
             showToast('Notificaciones actualizadas');
+        }
+
+        // ============ RECORDATORIOS PROGRAMADOS ============
+        const REMINDER_DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        let currentReminderDays = [];
+
+        function renderReminders() {
+            const list = document.getElementById('reminders-list');
+            const reminders = state.storeConfig.reminders || [];
+            if (reminders.length === 0) {
+                list.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm bg-white rounded-2xl border border-gray-200">Sin recordatorios todavía.</div>`;
+                return;
+            }
+            list.innerHTML = reminders.map(r => {
+                const daysText = (r.days || []).length === 7 ? 'Todos los días' : (r.days || []).map(d => REMINDER_DAY_LABELS[d]).join(', ');
+                const hourText = `${String(r.hour).padStart(2, '0')}:00`;
+                return `
+                <div onclick="openReminderForm('${r.id}')" class="bg-white rounded-2xl border border-gray-200 p-4 cursor-pointer hover:border-madera transition-colors ${r.active === false ? 'opacity-50' : ''}">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-sm font-bold text-slate-900">${escapeHtml(r.title)}</span>
+                        <span class="text-xs font-bold text-madera shrink-0">${hourText}</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">${escapeHtml(r.body)}</p>
+                    <p class="text-[11px] text-slate-400 mt-1">${daysText}${r.active === false ? ' · Pausado' : ''}</p>
+                </div>
+            `}).join('');
+        }
+
+        function renderReminderHourOptions() {
+            const select = document.getElementById('rm-hour');
+            select.innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${String(h).padStart(2, '0')}:00</option>`).join('');
+        }
+
+        function renderReminderDayCheckboxes() {
+            const container = document.getElementById('rm-days');
+            container.innerHTML = REMINDER_DAY_LABELS.map((label, idx) => `
+                <label class="flex items-center justify-center w-11 h-9 rounded-lg border text-xs font-bold cursor-pointer ${currentReminderDays.includes(idx) ? 'bg-madera text-arena border-madera' : 'bg-gray-50 text-slate-500 border-gray-200'}" onclick="toggleReminderDay(${idx})">
+                    ${label}
+                </label>
+            `).join('');
+        }
+
+        function toggleReminderDay(idx) {
+            const pos = currentReminderDays.indexOf(idx);
+            if (pos >= 0) currentReminderDays.splice(pos, 1);
+            else currentReminderDays.push(idx);
+            renderReminderDayCheckboxes();
+        }
+
+        function openReminderForm(id) {
+            renderReminderHourOptions();
+            document.getElementById('rm-id').value = id || '';
+            if (id) {
+                const r = (state.storeConfig.reminders || []).find(x => x.id === id);
+                document.getElementById('reminder-modal-title').textContent = 'Editar recordatorio';
+                document.getElementById('rm-title').value = r.title;
+                document.getElementById('rm-body').value = r.body;
+                document.getElementById('rm-hour').value = r.hour;
+                document.getElementById('rm-active').checked = r.active !== false;
+                currentReminderDays = [...(r.days || [])];
+                document.getElementById('rm-delete-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('reminder-modal-title').textContent = 'Nuevo recordatorio';
+                document.getElementById('rm-title').value = 'Téreapp';
+                document.getElementById('rm-body').value = '';
+                document.getElementById('rm-hour').value = 9;
+                document.getElementById('rm-active').checked = true;
+                currentReminderDays = [1, 2, 3, 4, 5]; // lunes a viernes por defecto
+                document.getElementById('rm-delete-btn').classList.add('hidden');
+            }
+            renderReminderDayCheckboxes();
+            const modal = document.getElementById('reminder-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function closeReminderForm() {
+            const modal = document.getElementById('reminder-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function saveReminder() {
+            const id = document.getElementById('rm-id').value;
+            const title = document.getElementById('rm-title').value.trim();
+            const body = document.getElementById('rm-body').value.trim();
+            if (!title || !body) { showToast('Falta el título o el texto'); return; }
+            if (currentReminderDays.length === 0) { showToast('Elegí al menos un día'); return; }
+
+            const data = {
+                title, body,
+                hour: parseInt(document.getElementById('rm-hour').value),
+                days: [...currentReminderDays].sort(),
+                active: document.getElementById('rm-active').checked,
+            };
+
+            if (!state.storeConfig.reminders) state.storeConfig.reminders = [];
+            if (id) {
+                Object.assign(state.storeConfig.reminders.find(r => r.id === id), data);
+                showToast('Recordatorio actualizado');
+            } else {
+                data.id = 'rm' + Date.now();
+                state.storeConfig.reminders.push(data);
+                showToast('Recordatorio agregado');
+            }
+            saveData();
+            renderReminders();
+            closeReminderForm();
+        }
+
+        function deleteReminderFromForm() {
+            const id = document.getElementById('rm-id').value;
+            if (!id) return;
+            state.storeConfig.reminders = (state.storeConfig.reminders || []).filter(r => r.id !== id);
+            saveData();
+            renderReminders();
+            closeReminderForm();
+            showToast('Recordatorio eliminado');
+        }
+
+        async function testRemindersCron() {
+            const resultEl = document.getElementById('cron-test-result');
+            const workerUrl = localStorage.getItem('tereapp-worker-url');
+            if (!workerUrl) {
+                resultEl.textContent = 'No encontré la URL del Worker — activá notificaciones una vez desde Téreapp primero (ahí queda guardada).';
+                return;
+            }
+            resultEl.textContent = 'Probando…';
+            try {
+                const res = await fetch(workerUrl.replace(/\/$/, '') + '/test-cron', { method: 'POST' });
+                const data = await res.json();
+                resultEl.textContent = `Hora Venezuela: ${data.horaVenezuelaAhora} (día ${data.diaVenezuelaAhora}) — ${data.coincidieron} de ${data.totalRecordatorios} recordatorio(s) coinciden con este momento.`;
+            } catch (e) {
+                resultEl.textContent = 'No se pudo conectar con el Worker.';
+            }
         }
 
         function showToast(msg) {
