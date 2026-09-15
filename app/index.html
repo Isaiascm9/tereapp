@@ -672,8 +672,6 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <p id="push-test-result" class="text-xs t-muted"></p>
       <button onclick="sendTestPushAll()" class="btn-secondary text-xs px-3 py-2">Probar leyendo desde Firestore (todas las suscripciones)</button>
       <p id="push-test-all-result" class="text-xs t-muted"></p>
-      <button onclick="sendTestNotify()" class="btn-secondary text-xs px-3 py-2">Probar /notify (aparece también en la campanita)</button>
-      <p id="push-test-notify-result" class="text-xs t-muted"></p>
     </div>
   </div>
   <div class="card p-6 space-y-4">
@@ -1192,24 +1190,6 @@ async function sendTestPushAll(){
   resultEl.textContent = 'Leyendo Firestore y enviando…';
   try{
     const res = await fetch(workerUrl.replace(/\/$/,'') + '/test-all', { method: 'POST' });
-    const text = await res.text();
-    resultEl.textContent = res.ok ? text : ('Error: ' + text);
-  }catch(e){
-    resultEl.textContent = 'No se pudo conectar con el Worker — revisá la URL.';
-  }
-}
-
-async function sendTestNotify(){
-  const workerUrl = localStorage.getItem('tereapp-worker-url');
-  const resultEl = document.getElementById('push-test-notify-result');
-  if(!workerUrl){ resultEl.textContent = 'Primero pegá la URL del Worker arriba.'; return; }
-  resultEl.textContent = 'Enviando…';
-  try{
-    const res = await fetch(workerUrl.replace(/\/$/,'') + '/notify', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ title: 'Téreapp', body: 'Prueba de /notify — esta sí debería aparecer en la campanita.' })
-    });
     const text = await res.text();
     resultEl.textContent = res.ok ? text : ('Error: ' + text);
   }catch(e){
