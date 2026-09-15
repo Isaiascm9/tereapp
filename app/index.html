@@ -133,6 +133,31 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 }
 .account-menu-item:hover{ background:var(--accent-bg); color:var(--accent); }
 
+.notif-bell-wrap{ position:relative; }
+.notif-badge{
+  position:absolute; top:2px; right:2px; background:var(--danger, #C0392B); color:#fff;
+  font-size:10px; min-width:15px; height:15px; border-radius:100px; display:flex; align-items:center;
+  justify-content:center; padding:0 3px; line-height:1; border:1.5px solid var(--header-bg);
+}
+.notif-panel{
+  position:absolute; top:calc(100% + 8px); right:0; width:320px; max-width:85vw;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.2); z-index:30; overflow:hidden;
+}
+.notif-panel-header{
+  display:flex; align-items:center; justify-content:space-between; padding:12px 14px;
+  border-bottom:1px solid var(--border); color:var(--text-primary);
+}
+.notif-list-inner{ max-height:360px; overflow-y:auto; }
+.notif-item{ display:flex; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); }
+.notif-item:last-child{ border-bottom:none; }
+.notif-item.unread{ background:var(--accent-bg); }
+.notif-item .msi{ color:var(--accent); font-size:18px; margin-top:2px; flex-shrink:0; }
+.notif-item-title{ font-size:13px; font-weight:500; color:var(--text-primary); }
+.notif-item-body{ font-size:12.5px; color:var(--text-secondary); margin-top:1px; }
+.notif-item-time{ font-size:11px; color:var(--text-muted); margin-top:3px; }
+.notif-empty{ padding:24px 14px; text-align:center; font-size:12.5px; color:var(--text-muted); }
+
 /* Layout de escritorio: reglas propias (no depende de que Tailwind combine
    varias utilidades sueltas correctamente) para que el contenido SIEMPRE
    ocupe el espacio que sobra junto al riel, sin dejar franjas vacías. */
@@ -216,6 +241,16 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <span class="sync-status flex text-xs px-2 sm:px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2)">
         <span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado
       </span>
+      <div class="notif-bell-wrap">
+        <button onclick="toggleNotifPanel(event)" title="Notificaciones" class="btn-header p-2"><span class="msi">notifications</span><span class="notif-badge hidden">0</span></button>
+        <div class="notif-panel hidden">
+          <div class="notif-panel-header">
+            <span class="text-sm font-medium">Notificaciones</span>
+            <button onclick="markAllNotifsRead()" class="text-xs" style="color:var(--accent)">Marcar todo como leído</button>
+          </div>
+          <div class="notif-list"></div>
+        </div>
+      </div>
       <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2"><span class="msi dark-icon">dark_mode</span></button>
       <button onclick="exportToExcel()" title="Exportar CSV" class="btn-header p-2"><span class="msi">download</span></button>
     </div>
@@ -263,6 +298,16 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <span class="sync-status flex text-xs px-3 py-1.5 rounded-full font-medium items-center" style="background:rgba(255,255,255,.2); color:var(--header-text)">
         <span class="msi mr-1" style="font-size:14px">cloud_done</span> Guardado
       </span>
+      <div class="notif-bell-wrap">
+        <button onclick="toggleNotifPanel(event)" title="Notificaciones" class="btn-header p-2"><span class="msi">notifications</span><span class="notif-badge hidden">0</span></button>
+        <div class="notif-panel hidden">
+          <div class="notif-panel-header">
+            <span class="text-sm font-medium">Notificaciones</span>
+            <button onclick="markAllNotifsRead()" class="text-xs" style="color:var(--accent)">Marcar todo como leído</button>
+          </div>
+          <div class="notif-list"></div>
+        </div>
+      </div>
       <button onclick="toggleDarkMode()" title="Modo oscuro" class="btn-header p-2"><span class="msi dark-icon">dark_mode</span></button>
       <button onclick="exportToExcel()" title="Exportar CSV" class="btn-header p-2"><span class="msi">download</span></button>
     </div>
@@ -1507,6 +1552,61 @@ document.addEventListener('click', (e)=>{
   if(!wrap || !menu || menu.classList.contains('hidden')) return;
   if(!wrap.contains(e.target)) menu.classList.add('hidden');
 });
+
+// Solo puede haber un panel de notificaciones abierto a la vez (hay dos
+// copias en el DOM — una para celular, una para escritorio — pero nunca
+// se ven las dos juntas, así que basta con manejarlas todas igual).
+function toggleNotifPanel(event){
+  const wrap = event.currentTarget.closest('.notif-bell-wrap');
+  const panel = wrap.querySelector('.notif-panel');
+  const opening = panel.classList.contains('hidden');
+  document.querySelectorAll('.notif-panel').forEach(p => p.classList.add('hidden'));
+  if(opening) panel.classList.remove('hidden');
+}
+document.addEventListener('click', (e)=>{
+  document.querySelectorAll('.notif-bell-wrap').forEach(wrap => {
+    if(!wrap.contains(e.target)) wrap.querySelector('.notif-panel').classList.add('hidden');
+  });
+});
+
+function timeAgo(iso){
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60000);
+  if(min < 1) return 'ahora mismo';
+  if(min < 60) return `hace ${min} min`;
+  const hrs = Math.floor(min / 60);
+  if(hrs < 24) return `hace ${hrs} h`;
+  const days = Math.floor(hrs / 24);
+  return `hace ${days} d`;
+}
+
+window.renderNotifPanel = function(){
+  const notifs = window.__notifications || [];
+  const unreadIds = notifs.filter(n => !n.read).map(n => n.id);
+  document.querySelectorAll('.notif-badge').forEach(b=>{
+    b.textContent = unreadIds.length > 9 ? '9+' : unreadIds.length;
+    b.classList.toggle('hidden', unreadIds.length === 0);
+  });
+  const html = notifs.length === 0
+    ? '<div class="notif-empty">Todavía no hay ninguna notificación.</div>'
+    : `<div class="notif-list-inner">${notifs.map(n => `
+        <div class="notif-item ${n.read ? '' : 'unread'}">
+          <span class="msi filled">${n.read ? 'notifications' : 'notifications_active'}</span>
+          <div class="min-w-0">
+            <div class="notif-item-title">${escapeHtmlWeb(n.title || '')}</div>
+            <div class="notif-item-body">${escapeHtmlWeb(n.body || '')}</div>
+            <div class="notif-item-time">${n.createdAt ? timeAgo(n.createdAt) : ''}</div>
+          </div>
+        </div>
+      `).join('')}</div>`;
+  document.querySelectorAll('.notif-list').forEach(el => el.innerHTML = html);
+};
+
+async function markAllNotifsRead(){
+  const unreadIds = (window.__notifications || []).filter(n => !n.read).map(n => n.id);
+  if(!unreadIds.length) return;
+  await window.dbMarkAllNotifsRead(unreadIds);
+}
 
 function toggleRail(){
   const rail = document.getElementById('rail');
@@ -3750,7 +3850,7 @@ setReportPeriod('monthly');
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc, deleteDoc, runTransaction, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, getDocFromCache, setDoc, enableMultiTabIndexedDbPersistence, collection, getDocs, updateDoc, deleteDoc, runTransaction, onSnapshot, writeBatch, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAgB36ZxPfCAhmjTJbuInoPvIBNWXUDQ34",
@@ -3793,7 +3893,20 @@ setReportPeriod('monthly');
       console.error('Error escuchando pedidos preliminares en tiempo real:', err);
       showAlert('No se pudo conectar con los pedidos en la nube — revisá tu conexión', 'error');
     });
+    const notifQuery = query(collection(db,'notificaciones_log'), orderBy('createdAt','desc'), limit(30));
+    onSnapshot(notifQuery, (snap)=>{
+      window.__notifications = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+      if(window.renderNotifPanel) window.renderNotifPanel();
+    }, (err)=>{
+      console.error('Error escuchando notificaciones en tiempo real:', err);
+    });
   }
+  window.dbMarkAllNotifsRead = async function(ids){
+    if(!ids.length) return;
+    const batch = writeBatch(db);
+    ids.forEach(id => batch.update(doc(db,'notificaciones_log', id), { read: true }));
+    await batch.commit();
+  };
   // Mismo criterio que dbSave: si la conexión está lenta, no dejamos la
   // pantalla esperando para siempre — seguimos después de unos segundos
   // y el guardado real termina de subirse solo, en segundo plano.
