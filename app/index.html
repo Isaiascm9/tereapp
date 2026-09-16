@@ -1598,7 +1598,7 @@ window.renderNotifPanel = function(){
     : `<div class="notif-list-inner">${notifs.map(n => {
         const isActive = n.id === activeNotifId;
         return `
-        <div class="notif-item ${n.read ? '' : 'unread'}">
+        <div class="notif-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
           <div class="notif-item-content ${isActive ? 'shifted' : ''}">
             <span class="msi filled">${n.read ? 'notifications' : 'notifications_active'}</span>
             <div class="notif-item-text">
@@ -1607,29 +1607,47 @@ window.renderNotifPanel = function(){
               <div class="notif-item-time">${n.createdAt ? timeAgo(n.createdAt) : ''}</div>
             </div>
           </div>
-          <div class="notif-item-actions">
-            ${isActive ? `
-              <button onclick="deleteNotif('${n.id}')" title="Borrar" class="notif-action-btn danger notif-btn-in"><span class="msi" style="font-size:17px">delete</span></button>
-              <button onclick="collapseNotifActions(event)" title="Cerrar" class="notif-action-btn notif-btn-in"><span class="msi" style="font-size:17px">chevron_right</span></button>
-            ` : `
-              <button onclick="toggleNotifActions('${n.id}', event)" title="Opciones" class="notif-action-btn notif-btn-in"><span class="msi" style="font-size:17px">drag_indicator</span></button>
-            `}
-          </div>
+          <div class="notif-item-actions">${notifActionsHtml(n.id, isActive)}</div>
         </div>
       `}).join('')}</div>`;
   document.querySelectorAll('.notif-list').forEach(el => el.innerHTML = html);
 };
 
+function notifActionsHtml(id, isActive){
+  return isActive ? `
+    <button onclick="deleteNotif('${id}')" title="Borrar" class="notif-action-btn danger notif-btn-in"><span class="msi" style="font-size:17px">delete</span></button>
+    <button onclick="collapseNotifActions(event)" title="Cerrar" class="notif-action-btn notif-btn-in"><span class="msi" style="font-size:17px">chevron_right</span></button>
+  ` : `
+    <button onclick="toggleNotifActions('${id}', event)" title="Opciones" class="notif-action-btn notif-btn-in"><span class="msi" style="font-size:17px">drag_indicator</span></button>
+  `;
+}
+
+// A diferencia de renderNotifPanel (que reconstruye todo desde cero), esto
+// solo le cambia la clase al elemento que YA existe en la pantalla — por
+// eso el navegador sí alcanza a animar el deslizamiento. Si reconstruyéramos
+// el HTML entero cada vez, el texto "nacería" ya en su posición final y
+// nunca se vería el movimiento.
+function applyNotifActiveState(){
+  document.querySelectorAll('.notif-item').forEach(item => {
+    const id = item.dataset.id;
+    const isActive = id === activeNotifId;
+    const content = item.querySelector('.notif-item-content');
+    const actions = item.querySelector('.notif-item-actions');
+    if(content) content.classList.toggle('shifted', isActive);
+    if(actions) actions.innerHTML = notifActionsHtml(id, isActive);
+  });
+}
+
 function toggleNotifActions(id, event){
   if(event) event.stopPropagation();
   activeNotifId = id;
-  window.renderNotifPanel();
+  applyNotifActiveState();
 }
 
 function collapseNotifActions(event){
   if(event) event.stopPropagation();
   activeNotifId = null;
-  window.renderNotifPanel();
+  applyNotifActiveState();
 }
 
 async function markAllNotifsRead(){
