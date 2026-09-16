@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Téreapp">
 <meta name="theme-color" content="#472B17">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
@@ -3843,6 +3843,35 @@ setReportPeriod('monthly');
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
+
+  // Ícono para "agregar a pantalla de inicio", configurable desde el panel
+  // (junto al favicon) — no hace falta subir ningún archivo de imagen acá.
+  // Es lectura pública (mismo documento que ya lee el catálogo), no
+  // depende de haber iniciado sesión, y corre apenas carga la página para
+  // que esté listo si alguien va directo a "Agregar a inicio".
+  (async function applyTereappIcon(){
+    try{
+      const snap = await getDoc(doc(db, 'catalogo_config', 'general'));
+      const iconUrl = snap.exists() ? snap.data().tereappIconUrl : null;
+      if(!iconUrl) return;
+      const appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+      if(appleIcon) appleIcon.href = iconUrl;
+      const manifest = {
+        name: 'Téreapp', short_name: 'Téreapp', start_url: './', display: 'standalone',
+        background_color: '#472B17', theme_color: '#472B17',
+        icons: [
+          { src: iconUrl, sizes: '192x192', type: 'image/png' },
+          { src: iconUrl, sizes: '512x512', type: 'image/png' }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const manifestLink = document.querySelector('link[rel="manifest"]');
+      if(manifestLink) manifestLink.href = URL.createObjectURL(blob);
+    }catch(e){
+      console.warn('No se pudo cargar el ícono personalizado de Téreapp:', e);
+    }
+  })();
+
   const DOC_REF = doc(db, 'tereapp', 'data');
   const CATALOG_REF = doc(db, 'tereapp', 'catalog');
   // ============ VENTAS Y PEDIDOS COMO DOCUMENTOS INDEPENDIENTES ============
