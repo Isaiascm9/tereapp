@@ -414,13 +414,14 @@
                     <h2 class="text-lg font-bold text-slate-900 mb-2">Ícono de la pestaña (favicon)</h2>
                     <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
                         <div class="flex items-center gap-3">
-                            <img id="cfg-favicon-preview" class="w-12 h-12 rounded-lg border border-gray-200 object-cover hidden">
-                            <div class="flex-1">
-                                <input type="file" id="cfg-favicon-file" accept="image/*" onchange="handleIconUpload(this, 'favicon')" class="w-full text-xs">
-                                <p id="cfg-favicon-filesize" class="text-[11px] text-slate-400 mt-1"></p>
-                            </div>
-                            <button type="button" onclick="clearIcon('favicon')" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer shrink-0">Quitar</button>
+                            <img id="cfg-favicon-preview" style="width:48px;height:48px;object-fit:cover;border-radius:.5rem;border:1px solid #e5e7eb" class="hidden">
+                            <label class="px-4 py-2.5 bg-madera hover:bg-arena active:bg-arena text-arena hover:text-madera active:text-madera font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0">
+                                <i data-lucide="image-up" class="w-4 h-4"></i> Elegir imagen
+                                <input type="file" id="cfg-favicon-file" accept="image/*" onchange="handleIconUpload(this, 'favicon')" class="hidden">
+                            </label>
+                            <button type="button" onclick="clearIcon('favicon')" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer shrink-0 flex items-center gap-1"><i data-lucide="x" class="w-3.5 h-3.5"></i> Quitar</button>
                         </div>
+                        <p id="cfg-favicon-filesize" class="text-[11px] text-slate-400"></p>
                         <p class="text-[11px] text-slate-400">Idealmente cuadrada y chica (menos de 200 KB). Si no subís ninguna, se usa el ícono genérico del navegador.</p>
                     </div>
                 </div>
@@ -430,13 +431,14 @@
                     <h2 class="text-lg font-bold text-slate-900 mb-2">Ícono de Téreapp (pantalla de inicio)</h2>
                     <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
                         <div class="flex items-center gap-3">
-                            <img id="cfg-tereapp-icon-preview" class="w-12 h-12 rounded-lg border border-gray-200 object-cover hidden">
-                            <div class="flex-1">
-                                <input type="file" id="cfg-tereapp-icon-file" accept="image/*" onchange="handleIconUpload(this, 'tereapp')" class="w-full text-xs">
-                                <p id="cfg-tereapp-icon-filesize" class="text-[11px] text-slate-400 mt-1"></p>
-                            </div>
-                            <button type="button" onclick="clearIcon('tereapp')" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer shrink-0">Quitar</button>
+                            <img id="cfg-tereapp-icon-preview" style="width:48px;height:48px;object-fit:cover;border-radius:.5rem;border:1px solid #e5e7eb" class="hidden">
+                            <label class="px-4 py-2.5 bg-madera hover:bg-arena active:bg-arena text-arena hover:text-madera active:text-madera font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer shrink-0">
+                                <i data-lucide="image-up" class="w-4 h-4"></i> Elegir imagen
+                                <input type="file" id="cfg-tereapp-icon-file" accept="image/*" onchange="handleIconUpload(this, 'tereapp')" class="hidden">
+                            </label>
+                            <button type="button" onclick="clearIcon('tereapp')" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer shrink-0 flex items-center gap-1"><i data-lucide="x" class="w-3.5 h-3.5"></i> Quitar</button>
                         </div>
+                        <p id="cfg-tereapp-icon-filesize" class="text-[11px] text-slate-400"></p>
                         <p class="text-[11px] text-slate-400">El que se usa cuando alguien agrega Téreapp a la pantalla de inicio del celular. Cuadrada, idealmente 512x512 y menos de 200 KB. Si lo cambiás, hay que borrar el ícono viejo del celular y agregarlo de nuevo para que tome el cambio.</p>
                     </div>
                 </div>
