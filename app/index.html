@@ -1605,9 +1605,9 @@ window.renderNotifPanel = function(){
           <div class="notif-item-actions">
             ${isActive ? `
               <button onclick="deleteNotif('${n.id}')" title="Borrar" class="notif-action-btn danger"><span class="msi" style="font-size:17px">delete</span></button>
-              <button onclick="collapseNotifActions()" title="Cerrar" class="notif-action-btn"><span class="msi" style="font-size:17px">chevron_right</span></button>
+              <button onclick="collapseNotifActions(event)" title="Cerrar" class="notif-action-btn"><span class="msi" style="font-size:17px">chevron_right</span></button>
             ` : `
-              <button onclick="toggleNotifActions('${n.id}')" title="Opciones" class="notif-action-btn"><span class="msi" style="font-size:17px">drag_indicator</span></button>
+              <button onclick="toggleNotifActions('${n.id}', event)" title="Opciones" class="notif-action-btn"><span class="msi" style="font-size:17px">drag_indicator</span></button>
             `}
           </div>
         </div>
@@ -1615,12 +1615,14 @@ window.renderNotifPanel = function(){
   document.querySelectorAll('.notif-list').forEach(el => el.innerHTML = html);
 };
 
-function toggleNotifActions(id){
+function toggleNotifActions(id, event){
+  if(event) event.stopPropagation();
   activeNotifId = id;
   window.renderNotifPanel();
 }
 
-function collapseNotifActions(){
+function collapseNotifActions(event){
+  if(event) event.stopPropagation();
   activeNotifId = null;
   window.renderNotifPanel();
 }
