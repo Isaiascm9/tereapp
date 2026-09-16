@@ -100,6 +100,7 @@
             panelApp.classList.remove('hidden');
             accountBanner.classList.remove('hidden');
             document.getElementById('account-email').textContent = user.email || user.uid;
+            showDataLoadingOverlay();
             if (typeof window.onTereaLogin === 'function') window.onTereaLogin();
         });
     </script>
@@ -145,6 +146,14 @@
             <button onclick="logout()" class="mt-6 text-madera font-semibold text-sm hover:underline cursor-pointer">
                 Salir e intentar con otra cuenta
             </button>
+        </div>
+    </div>
+
+    <div id="data-loading-overlay" class="hidden fixed inset-0 z-[100] items-center justify-center" style="background:#FBF6EF">
+        <div id="dl-dots" style="display:flex;gap:10px;position:relative;z-index:2">
+            <div class="dl-dot" id="dl-d1"></div>
+            <div class="dl-dot dl-dot-mid" id="dl-d2"></div>
+            <div class="dl-dot" id="dl-d3"></div>
         </div>
     </div>
 
@@ -1105,6 +1114,16 @@
 
     <style>
         .tab-btn { background: white; color: #7A4A28; border: 1px solid #E5E7EB; }
+        .dl-dot{width:13px;height:13px;border-radius:50%;background:#7A4A28;animation:dl-bounce 1s ease-in-out infinite}
+        #dl-d2{animation-delay:.15s}
+        #dl-d3{animation-delay:.3s}
+        @keyframes dl-bounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-10px);opacity:1}}
+        .dl-at-rest{animation:none !important;transform:translateY(0);opacity:1}
+        #dl-dots.dl-converge #dl-d1{transform:translateX(46px) scale(.1);opacity:0;transition:transform .18s cubic-bezier(.55,0,.85,0),opacity .18s cubic-bezier(.55,0,.85,0)}
+        #dl-dots.dl-converge #dl-d3{transform:translateX(-46px) scale(.1);opacity:0;transition:transform .18s cubic-bezier(.55,0,.85,0),opacity .18s cubic-bezier(.55,0,.85,0)}
+        .dl-dot-mid{transition:transform .5s cubic-bezier(.4,0,.2,1),border-radius .5s cubic-bezier(.4,0,.2,1)}
+        #dl-dots.dl-grow .dl-dot-mid{transform:scale(60);border-radius:8px}
+        #data-loading-overlay.dl-fadeout{transition:opacity .4s ease;opacity:0}
         .tab-btn.active { background: #7A4A28; color: #F3E9D4; border-color: #7A4A28; }
         .booster-type-opt:has(input:checked) { border-color: #7A4A28; background: #FBF6EF; }
     </style>
@@ -1304,16 +1323,58 @@
             });
         }
 
+        function showDataLoadingOverlay(){
+            const ov = document.getElementById('data-loading-overlay');
+            if (ov) { ov.classList.remove('hidden', 'dl-fadeout'); ov.classList.add('flex'); }
+        }
+
+        function playDataLoadingCover(){
+            return new Promise((resolve) => {
+                const dots = document.getElementById('dl-dots');
+                const d1 = document.getElementById('dl-d1'), d2 = document.getElementById('dl-d2'), d3 = document.getElementById('dl-d3');
+                if (!dots) { resolve(); return; }
+                [d1, d2, d3].forEach(el => el.classList.add('dl-at-rest'));
+                void dots.offsetWidth;
+                requestAnimationFrame(() => {
+                    dots.classList.add('dl-converge');
+                    setTimeout(() => dots.classList.add('dl-grow'), 200);
+                    setTimeout(resolve, 700);
+                });
+            });
+        }
+
+        function finishDataLoadingReveal(){
+            return new Promise((resolve) => {
+                const ov = document.getElementById('data-loading-overlay');
+                const dots = document.getElementById('dl-dots');
+                if (!ov) { resolve(); return; }
+                setTimeout(() => {
+                    ov.classList.add('dl-fadeout');
+                    setTimeout(() => {
+                        ov.classList.add('hidden');
+                        ov.classList.remove('flex');
+                        if (dots) dots.classList.remove('dl-converge', 'dl-grow');
+                        resolve();
+                    }, 450);
+                }, 120);
+            });
+        }
+
         window.onTereaLogin = async function () {
             switchTab('productos');
             document.getElementById('products-list').innerHTML = `<div class="text-center py-12 text-slate-400 text-sm">Cargando datos...</div>`;
-            try {
-                await loadStateFromFirestore();
+            let loadError = null;
+            await Promise.all([
+                playDataLoadingCover(),
+                loadStateFromFirestore().catch(e => { loadError = e; })
+            ]);
+            if (loadError) {
+                console.error('Error cargando datos:', loadError);
+                document.getElementById('products-list').innerHTML = `<div class="text-center py-12 text-rose-600 text-sm bg-white rounded-2xl border border-rose-200">No se pudieron cargar los datos: ${loadError.code || loadError.message}. Revisa tu conexión y recarga la página.</div>`;
+            } else {
                 renderAll();
-            } catch (e) {
-                console.error('Error cargando datos:', e);
-                document.getElementById('products-list').innerHTML = `<div class="text-center py-12 text-rose-600 text-sm bg-white rounded-2xl border border-rose-200">No se pudieron cargar los datos: ${e.code || e.message}. Revisa tu conexión y recarga la página.</div>`;
             }
+            await finishDataLoadingReveal();
         };
 
         // ============ TABS ============
