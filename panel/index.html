@@ -75,6 +75,7 @@
             const panelApp = document.getElementById('panel-app');
             const deniedScreen = document.getElementById('denied-screen');
             const accountBanner = document.getElementById('account-banner');
+            const dataOverlay = document.getElementById('data-loading-overlay');
 
             loginScreen.classList.add('hidden');
             panelApp.classList.add('hidden');
@@ -82,6 +83,8 @@
             accountBanner.classList.add('hidden');
 
             if (!user) {
+                dataOverlay.classList.add('hidden');
+                dataOverlay.classList.remove('flex');
                 loginScreen.classList.remove('hidden');
                 window.__terea_currentUser = null;
                 return;
@@ -91,6 +94,8 @@
             const admin = await isUserAdmin(user);
 
             if (!admin) {
+                dataOverlay.classList.add('hidden');
+                dataOverlay.classList.remove('flex');
                 deniedScreen.classList.remove('hidden');
                 document.getElementById('denied-email').textContent = user.email || user.uid;
                 document.getElementById('denied-uid').textContent = user.uid;
@@ -112,7 +117,7 @@
          con Téreapp (mismo dominio, mismo proyecto de Firebase). Si esta
          pantalla se ve, es porque todavía no iniciaste sesión en ninguna
          de las dos apps — se hace una sola vez, desde Téreapp. -->
-    <div id="login-screen" class="min-h-screen flex items-center justify-center p-4">
+    <div id="login-screen" class="hidden min-h-screen flex items-center justify-center p-4">
         <div class="w-full max-w-sm text-center">
             <div class="mb-6">
                 <h1 class="text-3xl font-bold text-madera">térea</h1>
@@ -149,7 +154,7 @@
         </div>
     </div>
 
-    <div id="data-loading-overlay" class="hidden fixed inset-0 z-[100] items-center justify-center" style="background:#FBF6EF">
+    <div id="data-loading-overlay" class="fixed inset-0 z-[100] flex items-center justify-center" style="background:#FBF6EF">
         <div id="dl-bar-track" style="width:90px;height:6px;border-radius:100px;background:#E8D6B4;overflow:hidden;position:relative">
             <div id="dl-bar-fill" style="position:absolute;top:0;left:-40px;height:100%;width:36px;border-radius:100px;background:#7A4A28;animation:dl-slide 1.3s ease-in-out infinite"></div>
         </div>
