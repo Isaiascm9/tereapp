@@ -412,10 +412,32 @@
                 <!-- Favicon -->
                 <div>
                     <h2 class="text-lg font-bold text-slate-900 mb-2">Ícono de la pestaña (favicon)</h2>
-                    <div class="bg-white rounded-2xl border border-gray-200 p-4">
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Link de la imagen</label>
-                        <input type="text" id="cfg-favicon-url" placeholder="https://..." class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
-                        <p class="text-[11px] text-slate-400 mt-1">Idealmente cuadrada. Déjalo vacío para usar el ícono genérico del navegador.</p>
+                    <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+                        <div class="flex items-center gap-3">
+                            <img id="cfg-favicon-preview" class="w-12 h-12 rounded-lg border border-gray-200 object-cover hidden">
+                            <div class="flex-1">
+                                <input type="file" id="cfg-favicon-file" accept="image/*" onchange="handleIconUpload(this, 'favicon')" class="w-full text-xs">
+                                <p id="cfg-favicon-filesize" class="text-[11px] text-slate-400 mt-1"></p>
+                            </div>
+                            <button type="button" onclick="clearIcon('favicon')" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer shrink-0">Quitar</button>
+                        </div>
+                        <p class="text-[11px] text-slate-400">Idealmente cuadrada y chica (menos de 200 KB). Si no subís ninguna, se usa el ícono genérico del navegador.</p>
+                    </div>
+                </div>
+
+                <!-- Ícono de Téreapp -->
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 mb-2">Ícono de Téreapp (pantalla de inicio)</h2>
+                    <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-2">
+                        <div class="flex items-center gap-3">
+                            <img id="cfg-tereapp-icon-preview" class="w-12 h-12 rounded-lg border border-gray-200 object-cover hidden">
+                            <div class="flex-1">
+                                <input type="file" id="cfg-tereapp-icon-file" accept="image/*" onchange="handleIconUpload(this, 'tereapp')" class="w-full text-xs">
+                                <p id="cfg-tereapp-icon-filesize" class="text-[11px] text-slate-400 mt-1"></p>
+                            </div>
+                            <button type="button" onclick="clearIcon('tereapp')" class="text-xs font-bold text-rose-600 hover:underline cursor-pointer shrink-0">Quitar</button>
+                        </div>
+                        <p class="text-[11px] text-slate-400">El que se usa cuando alguien agrega Téreapp a la pantalla de inicio del celular. Cuadrada, idealmente 512x512 y menos de 200 KB. Si lo cambiás, hay que borrar el ícono viejo del celular y agregarlo de nuevo para que tome el cambio.</p>
                     </div>
                 </div>
 
@@ -2686,12 +2708,65 @@
         }
 
         // ============ CONFIGURACIÓN: BANNERS, ENVÍO, PAGO, WHATSAPP/FOOTER ============
+        // ============ ÍCONOS (favicon y de Téreapp) — se guardan codificados ============
+        // Nada de Firebase Storage ni links externos: la imagen se convierte a
+        // texto (base64) y se guarda directo adentro del mismo documento de
+        // configuración. Por eso el límite de tamaño — el documento entero
+        // (con todo lo demás: banners, métodos de pago, etc.) tiene que
+        // entrar en el tope de 1 MB que permite Firestore.
+        const ICON_MAX_BYTES = 200 * 1024; // 200 KB por imagen, antes de codificar
+
+        function renderIconPreview(kind, dataUrl) {
+            const img = document.getElementById(`cfg-${kind}-icon-preview`) || document.getElementById(`cfg-${kind}-preview`);
+            const sizeLabel = document.getElementById(kind === 'favicon' ? 'cfg-favicon-filesize' : 'cfg-tereapp-icon-filesize');
+            if (dataUrl) {
+                img.src = dataUrl;
+                img.classList.remove('hidden');
+                if (sizeLabel) sizeLabel.textContent = 'Imagen guardada.';
+            } else {
+                img.classList.add('hidden');
+                img.src = '';
+                if (sizeLabel) sizeLabel.textContent = '';
+            }
+        }
+
+        function handleIconUpload(inputEl, kind) {
+            const file = inputEl.files[0];
+            if (!file) return;
+            const sizeLabel = document.getElementById(kind === 'favicon' ? 'cfg-favicon-filesize' : 'cfg-tereapp-icon-filesize');
+            if (file.size > ICON_MAX_BYTES) {
+                sizeLabel.textContent = `Muy pesada (${Math.round(file.size / 1024)} KB) — subí una de menos de 200 KB.`;
+                inputEl.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result;
+                if (kind === 'favicon') state.storeConfig.faviconUrl = dataUrl;
+                else state.storeConfig.tereappIconUrl = dataUrl;
+                renderIconPreview(kind, dataUrl);
+                saveData();
+                showToast('Ícono actualizado');
+                inputEl.value = '';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearIcon(kind) {
+            if (kind === 'favicon') state.storeConfig.faviconUrl = '';
+            else state.storeConfig.tereappIconUrl = '';
+            renderIconPreview(kind, '');
+            saveData();
+            showToast('Ícono quitado');
+        }
+
         function renderConfig() {
             const cfg = state.storeConfig;
             document.getElementById('cfg-whatsapp').value = cfg.whatsappNumber || '';
             document.getElementById('cfg-footer').value = cfg.footerMessage || '';
             document.getElementById('cfg-wishlist-enabled').checked = !!cfg.wishlistEnabled;
-            document.getElementById('cfg-favicon-url').value = cfg.faviconUrl || '';
+            renderIconPreview('favicon', cfg.faviconUrl);
+            renderIconPreview('tereapp', cfg.tereappIconUrl);
             document.getElementById('cfg-floating-whatsapp-enabled').checked = !!cfg.floatingWhatsappEnabled;
             renderLoadingPhrases();
             document.getElementById('cfg-low-stock-threshold').value = (typeof cfg.lowStockThreshold === 'number') ? cfg.lowStockThreshold : 3;
@@ -3072,7 +3147,6 @@
             state.storeConfig.whatsappNumber = document.getElementById('cfg-whatsapp').value.trim();
             state.storeConfig.footerMessage = document.getElementById('cfg-footer').value.trim();
             state.storeConfig.wishlistEnabled = document.getElementById('cfg-wishlist-enabled').checked;
-            state.storeConfig.faviconUrl = document.getElementById('cfg-favicon-url').value.trim();
             state.storeConfig.floatingWhatsappEnabled = document.getElementById('cfg-floating-whatsapp-enabled').checked;
             state.storeConfig.loadingPhrases = (state.storeConfig.loadingPhrases || []).map(p => p.trim()).filter(Boolean);
             state.storeConfig.lowStockThreshold = parseInt(document.getElementById('cfg-low-stock-threshold').value) || 0;
