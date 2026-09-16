@@ -175,6 +175,8 @@ html.dark .card{box-shadow:0 1px 2px rgba(0,0,0,.4), 0 2px 4px rgba(0,0,0,.3);}
 .notif-item-title{ font-size:13px; font-weight:500; color:var(--text-primary); }
 .notif-item-body{ font-size:12.5px; color:var(--text-secondary); margin-top:1px; }
 .notif-item-time{ font-size:11px; color:var(--text-muted); margin-top:3px; }
+.notif-item-delete{ flex-shrink:0; align-self:flex-start; color:var(--text-muted); opacity:.5; padding:2px; border-radius:6px; }
+.notif-item-delete:hover{ opacity:1; color:var(--danger, #C0392B); background:var(--surface-2, rgba(0,0,0,.05)); }
 .notif-empty{ padding:24px 14px; text-align:center; font-size:12.5px; color:var(--text-muted); }
 
 /* Layout de escritorio: reglas propias (no depende de que Tailwind combine
@@ -271,7 +273,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         <div class="notif-panel hidden">
           <div class="notif-panel-header">
             <span class="text-sm font-medium">Notificaciones</span>
-            <button onclick="markAllNotifsRead()" class="text-xs" style="color:var(--accent)">Marcar todo como leído</button>
+            <div class="flex items-center gap-3 shrink-0">
+              <button onclick="markAllNotifsRead()" class="text-xs" style="color:var(--accent)">Marcar leídas</button>
+              <button onclick="clearAllNotifs()" class="notif-clear-all hidden text-xs" style="color:var(--danger)">Borrar todas</button>
+            </div>
           </div>
           <div class="notif-list"></div>
         </div>
@@ -328,7 +333,10 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         <div class="notif-panel hidden">
           <div class="notif-panel-header">
             <span class="text-sm font-medium">Notificaciones</span>
-            <button onclick="markAllNotifsRead()" class="text-xs" style="color:var(--accent)">Marcar todo como leído</button>
+            <div class="flex items-center gap-3 shrink-0">
+              <button onclick="markAllNotifsRead()" class="text-xs" style="color:var(--accent)">Marcar leídas</button>
+              <button onclick="clearAllNotifs()" class="notif-clear-all hidden text-xs" style="color:var(--danger)">Borrar todas</button>
+            </div>
           </div>
           <div class="notif-list"></div>
         </div>
@@ -1574,16 +1582,18 @@ window.renderNotifPanel = function(){
     b.textContent = unreadIds.length > 9 ? '9+' : unreadIds.length;
     b.classList.toggle('hidden', unreadIds.length === 0);
   });
+  document.querySelectorAll('.notif-clear-all').forEach(b => b.classList.toggle('hidden', notifs.length === 0));
   const html = notifs.length === 0
     ? '<div class="notif-empty">Todavía no hay ninguna notificación.</div>'
     : `<div class="notif-list-inner">${notifs.map(n => `
         <div class="notif-item ${n.read ? '' : 'unread'}">
           <span class="msi filled">${n.read ? 'notifications' : 'notifications_active'}</span>
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <div class="notif-item-title">${escapeHtmlWeb(n.title || '')}</div>
             <div class="notif-item-body">${escapeHtmlWeb(n.body || '')}</div>
             <div class="notif-item-time">${n.createdAt ? timeAgo(n.createdAt) : ''}</div>
           </div>
+          <button onclick="deleteNotif('${n.id}')" title="Borrar" class="notif-item-delete"><span class="msi" style="font-size:16px">close</span></button>
         </div>
       `).join('')}</div>`;
   document.querySelectorAll('.notif-list').forEach(el => el.innerHTML = html);
@@ -1593,6 +1603,17 @@ async function markAllNotifsRead(){
   const unreadIds = (window.__notifications || []).filter(n => !n.read).map(n => n.id);
   if(!unreadIds.length) return;
   await window.dbMarkAllNotifsRead(unreadIds);
+}
+
+async function deleteNotif(id){
+  await window.dbDeleteNotif(id);
+}
+
+async function clearAllNotifs(){
+  const ids = (window.__notifications || []).map(n => n.id);
+  if(!ids.length) return;
+  if(!confirm('¿Borrar todas las notificaciones? No se puede deshacer.')) return;
+  await window.dbClearAllNotifs(ids);
 }
 
 function toggleRail(){
@@ -3921,6 +3942,15 @@ setReportPeriod('monthly');
     if(!ids.length) return;
     const batch = writeBatch(db);
     ids.forEach(id => batch.update(doc(db,'notificaciones_log', id), { read: true }));
+    await batch.commit();
+  };
+  window.dbDeleteNotif = async function(id){
+    await deleteDoc(doc(db, 'notificaciones_log', id));
+  };
+  window.dbClearAllNotifs = async function(ids){
+    if(!ids.length) return;
+    const batch = writeBatch(db);
+    ids.forEach(id => batch.delete(doc(db,'notificaciones_log', id)));
     await batch.commit();
   };
   // Mismo criterio que dbSave: si la conexión está lenta, no dejamos la
