@@ -3425,16 +3425,13 @@
             showToast('Recordatorio eliminado');
         }
 
+        const NOTIFY_WORKER_URL = 'https://tereapp-notificaciones.isaiascontreras60.workers.dev';
+
         async function testRemindersCron() {
             const resultEl = document.getElementById('cron-test-result');
-            const workerUrl = localStorage.getItem('tereapp-worker-url');
-            if (!workerUrl) {
-                resultEl.textContent = 'No encontré la URL del Worker — activá notificaciones una vez desde Téreapp primero (ahí queda guardada).';
-                return;
-            }
             resultEl.textContent = 'Probando…';
             try {
-                const res = await fetch(workerUrl.replace(/\/$/, '') + '/test-cron', { method: 'POST' });
+                const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/test-cron', { method: 'POST' });
                 const data = await res.json();
                 resultEl.textContent = `Hora Venezuela: ${data.horaVenezuelaAhora} (día ${data.diaVenezuelaAhora}) — ${data.coincidieron} de ${data.totalRecordatorios} recordatorio(s) coinciden con este momento.`;
             } catch (e) {
