@@ -678,17 +678,9 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <button onclick="activatePushNotifications()" id="push-activate-btn" class="btn-primary text-sm px-4 py-2 flex items-center gap-2 w-fit"><span class="msi" style="font-size:18px">notifications_active</span>Activar notificaciones en este dispositivo</button>
       <p id="push-activate-error" class="text-xs" style="color:var(--danger, #C0392B)"></p>
     </div>
-    <div id="push-active" class="hidden py-2 border-b b">
+    <div id="push-active" class="hidden py-2">
       <p class="text-sm font-medium flex items-center gap-1.5"><span class="msi" style="font-size:16px; color:var(--accent)">check_circle</span>Notificaciones activadas en este dispositivo</p>
       <button onclick="deactivatePushNotifications()" class="text-xs mt-1" style="color:var(--danger, #C0392B)">Desactivar en este dispositivo</button>
-    </div>
-    <div class="py-2 border-t b space-y-2">
-      <p class="text-xs t-muted">Solo para pruebas mientras armamos el Worker de Cloudflare — se borra cuando esté todo funcionando.</p>
-      <input type="text" id="push-worker-url" placeholder="https://tu-worker.workers.dev" class="input w-full text-xs" onchange="localStorage.setItem('tereapp-worker-url', this.value)">
-      <button onclick="sendTestPush()" class="btn-secondary text-xs px-3 py-2">Enviar notificación de prueba</button>
-      <p id="push-test-result" class="text-xs t-muted"></p>
-      <button onclick="sendTestPushAll()" class="btn-secondary text-xs px-3 py-2">Probar leyendo desde Firestore (todas las suscripciones)</button>
-      <p id="push-test-all-result" class="text-xs t-muted"></p>
     </div>
   </div>
   <div class="card p-6 space-y-4">
@@ -1125,8 +1117,6 @@ async function updatePushUI(){
   const sub = reg ? await reg.pushManager.getSubscription().catch(()=>null) : null;
   document.getElementById('push-inactive').classList.toggle('hidden', !!sub);
   document.getElementById('push-active').classList.toggle('hidden', !sub);
-  const savedUrl = localStorage.getItem('tereapp-worker-url');
-  if(savedUrl) document.getElementById('push-worker-url').value = savedUrl;
 }
 
 async function activatePushNotifications(){
@@ -1176,41 +1166,6 @@ async function deactivatePushNotifications(){
     showAlert('Notificaciones desactivadas en este dispositivo', 'error');
   }catch(e){
     console.error('Error desactivando notificaciones push:', e);
-  }
-}
-
-async function sendTestPush(){
-  const workerUrl = localStorage.getItem('tereapp-worker-url');
-  const resultEl = document.getElementById('push-test-result');
-  if(!workerUrl){ resultEl.textContent = 'Primero pegá la URL del Worker arriba.'; return; }
-  const reg = await navigator.serviceWorker.getRegistration();
-  const sub = reg ? await reg.pushManager.getSubscription() : null;
-  if(!sub){ resultEl.textContent = 'Primero activá las notificaciones arriba.'; return; }
-  resultEl.textContent = 'Enviando…';
-  try{
-    const res = await fetch(workerUrl.replace(/\/$/,'') + '/test', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ subscription: sub.toJSON() })
-    });
-    const text = await res.text();
-    resultEl.textContent = res.ok ? 'Enviado — fijate si te llegó la notificación.' : ('Error: ' + text);
-  }catch(e){
-    resultEl.textContent = 'No se pudo conectar con el Worker — revisá la URL.';
-  }
-}
-
-async function sendTestPushAll(){
-  const workerUrl = localStorage.getItem('tereapp-worker-url');
-  const resultEl = document.getElementById('push-test-all-result');
-  if(!workerUrl){ resultEl.textContent = 'Primero pegá la URL del Worker arriba.'; return; }
-  resultEl.textContent = 'Leyendo Firestore y enviando…';
-  try{
-    const res = await fetch(workerUrl.replace(/\/$/,'') + '/test-all', { method: 'POST' });
-    const text = await res.text();
-    resultEl.textContent = res.ok ? text : ('Error: ' + text);
-  }catch(e){
-    resultEl.textContent = 'No se pudo conectar con el Worker — revisá la URL.';
   }
 }
 
