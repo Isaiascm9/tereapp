@@ -41,6 +41,16 @@ html.dark{
 }
 *{font-family:'Roboto',Arial,sans-serif; touch-action:manipulation;}
 :root{ --topbar-bg:#472B17; }
+.dl-dot{width:13px;height:13px;border-radius:50%;background:var(--accent);animation:dl-bounce 1s ease-in-out infinite}
+#dl-d2{animation-delay:.15s}
+#dl-d3{animation-delay:.3s}
+@keyframes dl-bounce{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-10px);opacity:1}}
+.dl-at-rest{animation:none !important;transform:translateY(0);opacity:1}
+#dl-dots.dl-converge #dl-d1{transform:translateX(46px) scale(.1);opacity:0;transition:transform .18s cubic-bezier(.55,0,.85,0),opacity .18s cubic-bezier(.55,0,.85,0)}
+#dl-dots.dl-converge #dl-d3{transform:translateX(-46px) scale(.1);opacity:0;transition:transform .18s cubic-bezier(.55,0,.85,0),opacity .18s cubic-bezier(.55,0,.85,0)}
+.dl-dot-mid{transition:transform .5s cubic-bezier(.4,0,.2,1),border-radius .5s cubic-bezier(.4,0,.2,1)}
+#dl-dots.dl-grow .dl-dot-mid{transform:scale(60);border-radius:8px}
+#data-loading-overlay.dl-fadeout{transition:opacity .4s ease;opacity:0}
 html,body{margin:0; padding:0;}
 body{background:var(--bg); color:var(--text-primary); transition:background .25s ease, color .25s ease;}
 /* M3 motion tokens: valores oficiales de m3.material.io */
@@ -211,6 +221,14 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <span class="msi" style="font-size:18px">login</span>Iniciar sesión con Google
     </button>
     <p id="login-error" class="text-xs" style="color:var(--danger)"></p>
+  </div>
+</div>
+
+<div id="data-loading-overlay" class="hidden fixed inset-0 z-[100] items-center justify-center" style="background:var(--bg)">
+  <div id="dl-dots" style="display:flex;gap:10px;position:relative;z-index:2">
+    <div class="dl-dot" id="dl-d1"></div>
+    <div class="dl-dot dl-dot-mid" id="dl-d2"></div>
+    <div class="dl-dot" id="dl-d3"></div>
   </div>
 </div>
 
@@ -4175,6 +4193,50 @@ setReportPeriod('monthly');
     const ov = document.getElementById('login-overlay');
     if(ov){ ov.classList.remove('hidden'); ov.classList.add('flex'); }
   }
+  function showDataLoadingOverlay(){
+    const ov = document.getElementById('data-loading-overlay');
+    if(ov){ ov.classList.remove('hidden', 'dl-fadeout'); ov.classList.add('flex'); }
+  }
+
+  // Anima los puntos hasta que el marrón cubre toda la pantalla, y ahí se
+  // queda quieto (nunca se desvanece solo con un tiempo fijo) — se resuelve
+  // recién cuando la pantalla ya está completamente cubierta, lista para
+  // esperar los datos reales si hace falta.
+  function playDataLoadingCover(){
+    return new Promise((resolve) => {
+      const dots = document.getElementById('dl-dots');
+      const d1 = document.getElementById('dl-d1'), d2 = document.getElementById('dl-d2'), d3 = document.getElementById('dl-d3');
+      if(!dots){ resolve(); return; }
+      const all = [d1, d2, d3];
+      all.forEach(el => el.classList.add('dl-at-rest'));
+      void dots.offsetWidth;
+      requestAnimationFrame(() => {
+        dots.classList.add('dl-converge');
+        setTimeout(() => dots.classList.add('dl-grow'), 200);
+        setTimeout(resolve, 700); // el crecimiento (.5s) ya terminó para acá
+      });
+    });
+  }
+
+  // Recién esto desvanece el overlay — se llama SOLO cuando los datos reales
+  // ya están listos (initStorage terminado), nunca antes.
+  function finishDataLoadingReveal(){
+    return new Promise((resolve) => {
+      const ov = document.getElementById('data-loading-overlay');
+      const dots = document.getElementById('dl-dots');
+      if(!ov){ resolve(); return; }
+      setTimeout(() => {
+        ov.classList.add('dl-fadeout');
+        setTimeout(() => {
+          ov.classList.add('hidden');
+          ov.classList.remove('flex');
+          if(dots) dots.classList.remove('dl-converge', 'dl-grow');
+          resolve();
+        }, 450);
+      }, 120);
+    });
+  }
+
   function hideLoginScreen(){
     const ov = document.getElementById('login-overlay');
     if(ov){ ov.classList.add('hidden'); ov.classList.remove('flex'); }
@@ -4215,7 +4277,16 @@ setReportPeriod('monthly');
       window.currentUserFirstName = rawName ? rawName.trim().split(' ')[0] : '';
       window.currentUserPhoto = user.photoURL || null;
       hideLoginScreen();
-      if(window.initStorage) await window.initStorage();
+      showDataLoadingOverlay();
+      // Espera a las dos cosas: que la animación llegue a cubrir toda la
+      // pantalla Y que los datos reales terminen de cargar — lo que tarde
+      // más. Así nunca se revela la app a medio cargar, ni aunque la
+      // conexión esté lenta.
+      await Promise.all([
+        playDataLoadingCover(),
+        window.initStorage ? window.initStorage() : Promise.resolve()
+      ]);
+      await finishDataLoadingReveal();
       attachRealtimeListeners();
     } else {
       authReady = false;
