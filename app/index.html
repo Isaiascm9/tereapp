@@ -204,7 +204,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 </head>
 <body class="min-h-screen pb-24 sm:pb-16">
 
-<div id="login-overlay" class="fixed inset-0 bg-app z-[100] flex items-center justify-center p-4">
+<div id="login-overlay" class="hidden fixed inset-0 bg-app z-[100] flex items-center justify-center p-4">
   <div class="card p-8 w-full max-w-xs text-center space-y-4">
     <span class="msi accent" style="font-size:40px">workspace_premium</span>
     <h2 class="font-medium text-lg t-primary">Téreapp</h2>
@@ -216,7 +216,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
 </div>
 
-<div id="data-loading-overlay" class="hidden fixed inset-0 z-[100] items-center justify-center" style="background:var(--bg)">
+<div id="data-loading-overlay" class="fixed inset-0 flex items-center justify-center" style="background:var(--bg);z-index:100">
   <div id="dl-bar-track" style="width:90px;height:6px;border-radius:100px;background:var(--accent-bg);overflow:hidden;position:relative">
     <div id="dl-bar-fill" style="position:absolute;top:0;left:-40px;height:100%;width:36px;border-radius:100px;background:var(--accent);animation:dl-slide 1.3s ease-in-out infinite"></div>
   </div>
@@ -4267,6 +4267,8 @@ setReportPeriod('monthly');
       attachRealtimeListeners();
     } else {
       authReady = false;
+      const dataOverlay = document.getElementById('data-loading-overlay');
+      if(dataOverlay){ dataOverlay.classList.add('hidden'); dataOverlay.classList.remove('flex'); }
       showLoginScreen();
     }
   });
