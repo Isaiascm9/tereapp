@@ -1009,7 +1009,9 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Descuento ($)</label>
         <input type="number" step="0.01" id="edit-sale-discount" class="input" oninput="calculateEditSaleTotal()"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Estado</label>
-        <select id="edit-sale-status" class="input"><option>Pagado</option><option>Pendiente</option></select></div>
+        <select id="edit-sale-status" class="input" onchange="toggleEditSaleDueDateField()"><option>Pagado</option><option>Pendiente</option></select></div>
+      <div id="edit-due-date-wrapper" class="hidden sm:col-span-2"><label class="block text-xs font-medium t-muted uppercase mb-1">¿Cuándo promete pagar? (opcional)</label>
+        <input type="date" id="edit-sale-due-date" class="input"></div>
       <div class="sm:col-span-2"><label class="block text-xs font-medium t-muted uppercase mb-1">Cobrar en</label>
         <select id="edit-sale-currency" class="input" onchange="calculateEditSaleTotal()"></select></div>
       <div class="sm:col-span-2"><label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
@@ -1795,7 +1797,10 @@ function expensesInMonth(key){
 
 function renderUpcomingPayments(){
   const banner = document.getElementById('upcoming-payments-banner');
-  const upcoming = appData.orders
+  const upcoming = [
+      ...appData.sales.map(s => Object.assign({}, s, { __kind: 'sale' })),
+      ...appData.orders.map(o => Object.assign({}, o, { __kind: 'order' }))
+    ]
     .filter(o => o.status==='Pendiente' && o.dueDate)
     .sort((a,b) => a.dueDate.localeCompare(b.dueDate));
 
@@ -1811,14 +1816,26 @@ function renderUpcomingPayments(){
     else if(daysDiff === 0){ label = `Vence hoy`; color='color:var(--danger)'; }
     else if(daysDiff <= 3){ label = `Vence en ${daysDiff} día${daysDiff!==1?'s':''} (${displayDate(o.dueDate)})`; color='color:var(--warning)'; }
     else { label = `Vence el ${displayDate(o.dueDate)}`; color=''; }
+    const markPaidCall = o.__kind === 'sale' ? `markSaleAsPaidFromBanner('${o.id}')` : `confirmOrderAsSale('${o.id}')`;
     return `<div class="flex justify-between items-center py-2 border-b b">
-      <div class="cursor-pointer flex-1" onclick="switchTab('orders')">
+      <div class="cursor-pointer flex-1" onclick="switchTab('sales')">
         <p class="text-sm font-medium">${client ? client.name : 'Sin cliente'} — ${fmt(o.total)}</p>
         <p class="text-xs" style="${color}">${label}</p>
       </div>
-      <button onclick="event.stopPropagation(); confirmOrderAsSale('${o.id}')" class="btn-secondary text-xs px-2.5 py-1.5">Marcar pagado</button>
+      <button onclick="event.stopPropagation(); ${markPaidCall}" class="btn-secondary text-xs px-2.5 py-1.5">Marcar pagado</button>
     </div>`;
   }).join('');
+}
+
+async function markSaleAsPaidFromBanner(id){
+  const sale = appData.sales.find(s=>s.id===id);
+  if(!sale) return;
+  const oldStatus = sale.status, oldDueDate = sale.dueDate;
+  sale.status = 'Pagado';
+  sale.dueDate = null;
+  pushHistorial(sale, `Editado — Estado: ${oldStatus} → Pagado; Fecha de pago: ${oldDueDate ? displayDate(oldDueDate) : 'sin fecha'} → sin fecha`);
+  await window.dbSaveSale(sale);
+  renderAll();
 }
 
 function renderGreeting(){
@@ -2121,6 +2138,7 @@ async function handleMultiSaleSubmit(){
     status: document.getElementById('sale-status').value,
     clientId: document.getElementById('sale-client').value || null,
     notes: document.getElementById('sale-notes').value,
+    dueDate: document.getElementById('sale-status').value==='Pendiente' ? (document.getElementById('sale-due-date').value || null) : null,
     rateType: rate ? rate.type : null,
     rateValue: rate ? rate.value : null,
     totalVES: rate ? finalTotal*rate.value : null,
@@ -2165,6 +2183,8 @@ function openSaleEditModal(id){
   document.getElementById('edit-sale-payment').value = sale.payment;
   document.getElementById('edit-sale-discount').value = sale.discount || 0;
   document.getElementById('edit-sale-status').value = sale.status;
+  document.getElementById('edit-sale-due-date').value = sale.dueDate || '';
+  toggleEditSaleDueDateField();
   document.getElementById('edit-sale-notes').value = sale.notes || '';
   updateEditSaleCurrencyOptions();
   document.getElementById('edit-sale-currency').value = sale.rateType || 'USD';
@@ -2307,6 +2327,7 @@ async function saveEditedSale(){
   sale.payment = document.getElementById('edit-sale-payment').value;
   sale.discount = discount;
   sale.status = document.getElementById('edit-sale-status').value;
+  sale.dueDate = sale.status==='Pendiente' ? (document.getElementById('edit-sale-due-date').value || null) : null;
   sale.clientId = document.getElementById('edit-sale-client').value || null;
   sale.notes = document.getElementById('edit-sale-notes').value;
   sale.rateType = rateType;
@@ -2319,6 +2340,7 @@ async function saveEditedSale(){
   if(oldSaleSnapshot.payment !== sale.payment) changes.push(`Pago: ${oldSaleSnapshot.payment} → ${sale.payment}`);
   if(oldSaleSnapshot.discount !== sale.discount) changes.push(`Descuento: ${fmt(oldSaleSnapshot.discount)} → ${fmt(sale.discount)}`);
   if(oldSaleSnapshot.status !== sale.status) changes.push(`Estado: ${oldSaleSnapshot.status} → ${sale.status}`);
+  if((oldSaleSnapshot.dueDate||null) !== (sale.dueDate||null)) changes.push(`Fecha de pago: ${oldSaleSnapshot.dueDate ? displayDate(oldSaleSnapshot.dueDate) : 'sin fecha'} → ${sale.dueDate ? displayDate(sale.dueDate) : 'sin fecha'}`);
   if(oldSaleSnapshot.clientId !== sale.clientId) changes.push('Cliente cambiado');
   if(changes.length) pushHistorial(sale, `Editado — ${changes.join('; ')}`);
 
@@ -2369,6 +2391,13 @@ function toggleDueDateField(){
   const wrapper = document.getElementById('due-date-wrapper');
   if(status==='Pendiente'){ wrapper.classList.remove('hidden'); }
   else { wrapper.classList.add('hidden'); document.getElementById('sale-due-date').value=''; }
+}
+
+function toggleEditSaleDueDateField(){
+  const status = document.getElementById('edit-sale-status').value;
+  const wrapper = document.getElementById('edit-due-date-wrapper');
+  if(status==='Pendiente'){ wrapper.classList.remove('hidden'); }
+  else { wrapper.classList.add('hidden'); document.getElementById('edit-sale-due-date').value=''; }
 }
 
 async function handleGenerateOrder(){
