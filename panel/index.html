@@ -606,6 +606,25 @@
                     </button>
                 </div>
 
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
+                    <label class="flex items-center justify-between p-3 rounded-xl border border-gray-200 cursor-pointer">
+                        <div>
+                            <span class="text-xs font-semibold text-slate-700 block">Avisar de pagos pendientes</span>
+                            <span class="text-[11px] text-slate-400">Un resumen diario de ventas y pedidos "Pendiente" con fecha de pago vencida o por vencer en los próximos 3 días.</span>
+                        </div>
+                        <input type="checkbox" id="notif-paymentsdue-enabled" onchange="saveNotificationSettings()" class="accent-madera w-5 h-5 shrink-0 ml-2">
+                    </label>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Hora del aviso (en punto)</label>
+                        <select id="notif-paymentsdue-hour" onchange="saveNotificationSettings()" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera"></select>
+                    </div>
+                    <p class="text-[11px] text-slate-400">Se revisa una vez por hora — si no hay ningún pago pendiente o por vencer ese día, no manda nada.</p>
+                    <button onclick="testPaymentsDueNow()" class="text-xs font-bold text-madera hover:underline cursor-pointer flex items-center gap-1">
+                        <i data-lucide="play" class="w-3.5 h-3.5"></i> Probar ahora (sin esperar a la hora)
+                    </button>
+                    <p id="paymentsdue-test-result" class="text-[11px] text-slate-400"></p>
+                </div>
+
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <h3 class="text-sm font-bold text-slate-900">Recordatorios programados</h3>
@@ -3410,6 +3429,12 @@
             document.getElementById('notif-neworder-enabled').checked = cfg.newOrderEnabled !== false;
             document.getElementById('notif-neworder-title').value = cfg.newOrderTitle || '';
             document.getElementById('notif-neworder-body').value = cfg.newOrderBody || '';
+            const hourSelect = document.getElementById('notif-paymentsdue-hour');
+            if (!hourSelect.options.length) {
+                hourSelect.innerHTML = Array.from({ length: 24 }, (_, h) => `<option value="${h}">${String(h).padStart(2, '0')}:00</option>`).join('');
+            }
+            document.getElementById('notif-paymentsdue-enabled').checked = cfg.paymentsDueEnabled === true;
+            hourSelect.value = cfg.paymentsDueHour != null ? cfg.paymentsDueHour : 9;
             renderReminders();
         }
 
@@ -3418,6 +3443,8 @@
                 newOrderEnabled: document.getElementById('notif-neworder-enabled').checked,
                 newOrderTitle: document.getElementById('notif-neworder-title').value.trim(),
                 newOrderBody: document.getElementById('notif-neworder-body').value.trim(),
+                paymentsDueEnabled: document.getElementById('notif-paymentsdue-enabled').checked,
+                paymentsDueHour: parseInt(document.getElementById('notif-paymentsdue-hour').value),
             };
             saveData();
             showToast('Notificaciones actualizadas');
@@ -3551,6 +3578,22 @@
                 const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/test-cron', { method: 'POST' });
                 const data = await res.json();
                 resultEl.textContent = `Hora Venezuela: ${data.horaVenezuelaAhora} (día ${data.diaVenezuelaAhora}) — ${data.coincidieron} de ${data.totalRecordatorios} recordatorio(s) coinciden con este momento.`;
+            } catch (e) {
+                resultEl.textContent = 'No se pudo conectar con el Worker.';
+            }
+        }
+
+        async function testPaymentsDueNow() {
+            const resultEl = document.getElementById('paymentsdue-test-result');
+            resultEl.textContent = 'Revisando ventas y pedidos pendientes…';
+            try {
+                const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/test-payments-due', { method: 'POST' });
+                const data = await res.json();
+                if (!data.hayPagosPendientes) {
+                    resultEl.textContent = 'No hay ningún pago pendiente o por vencer en los próximos 3 días — no se mandó nada.';
+                } else {
+                    resultEl.textContent = `Mandado — "${data.titulo}": ${data.texto}`;
+                }
             } catch (e) {
                 resultEl.textContent = 'No se pudo conectar con el Worker.';
             }
