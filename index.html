@@ -2167,6 +2167,7 @@
         }
 
         let reservedOrderNumber = null;
+        let orderNumberReservationPromise = null;
 
         async function reserveOrderNumber() {
             try {
@@ -2204,7 +2205,7 @@
             document.getElementById('cart-drawer').classList.add('hidden');
             document.getElementById('checkout-drawer').classList.remove('hidden');
             reservedOrderNumber = null;
-            reserveOrderNumber();
+            orderNumberReservationPromise = reserveOrderNumber();
             const cartTotal = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
             trackPixelEvent('InitiateCheckout', { value: cartTotal, currency: 'USD', num_items: cart.reduce((sum, i) => sum + i.qty, 0) });
         }
@@ -2402,7 +2403,22 @@
             document.body.removeChild(link);
         }
 
-        function executeWhatsAppOrder() {
+        async function executeWhatsAppOrder() {
+            // Si la reserva del número de pedido (que arrancó apenas se abrió
+            // el formulario) ya terminó, esto no espera nada. Si por una
+            // conexión lenta todavía sigue en curso, le da hasta 1.5s más
+            // antes de seguir — así el número de pedido y el link de
+            // seguimiento tienen una oportunidad real de estar listos, sin
+            // demorar demasiado el abrir WhatsApp (que necesita pasar cerca
+            // del toque real del cliente para que el celular lo reconozca
+            // como un link, no como una ventana emergente).
+            if (!reservedOrderNumber && orderNumberReservationPromise) {
+                await Promise.race([
+                    orderNumberReservationPromise,
+                    new Promise(resolve => setTimeout(resolve, 1500))
+                ]);
+            }
+
             const name = document.getElementById('client-name').value.trim();
             const phone = document.getElementById('client-phone').value.trim();
             const address = document.getElementById('client-address').value.trim();
