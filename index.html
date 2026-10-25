@@ -321,6 +321,7 @@
         </div>
 
         <div class="max-w-2xl mx-auto w-full border-t border-gray-100 p-4 bg-white">
+            <div id="turnstile-box" style="display:flex;justify-content:center;"></div>
             <button onclick="handleWhatsAppClick()" class="w-full py-3.5 px-4 rounded-xl bg-madera hover:bg-arena active:bg-arena active:scale-[0.98] text-arena hover:text-madera active:text-madera font-bold text-sm shadow-md flex items-center justify-between transition-all cursor-pointer">
                 <span id="final-item-count" class="bg-satin-900 text-arena px-2.5 py-1 rounded-lg text-xs">0</span>
                 <span>Hacer pedido por WhatsApp</span>
@@ -1900,37 +1901,69 @@
             setTimeout(() => drawer.classList.add('hidden'), 300);
         }
 
-        // ============ NOTIFICACIONES (avisa al Worker cuando entra un pedido) ============
-        // De acá sale el aviso que le llega a Isaias por notificación push.
-        // Si el Worker está caído o sin internet, no debe frenar la compra
-        // en ningún caso — por eso siempre corre "en paralelo", sin esperar
-        // su respuesta ni mostrar ningún error al cliente si falla.
+        // ============ PEDIDOS (se mandan al Worker, protegidos con Turnstile) ============
+        // El pedido ya NO se escribe directo en Firestore (las reglas no lo
+        // permiten, para que nadie pueda llenar tu lista de pedidos falsos):
+        // se lo manda al Worker, que comprueba que seas una persona real
+        // (Turnstile), valida los datos, lo guarda y te manda la notificación.
+        // Si el Worker está caído o sin internet, no debe frenar la compra:
+        // el mensaje de WhatsApp sale igual, y esto corre "en paralelo".
         const NOTIFY_WORKER_URL = 'https://tereapp-notificaciones.isaiascontreras60.workers.dev';
-        function notifyNewOrder(itemsSummaryText, totalUsd, orderNumber) {
-            const cfg = (storeConfig && storeConfig.notifications) || {};
-            if (cfg.newOrderEnabled === false) return; // apagado desde el panel
 
-            const placeholders = {
-                '{total}': `$${totalUsd.toFixed(2)}`,
-                '{productos}': itemsSummaryText,
-                '{numero}': orderNumber ? `#${orderNumber}` : ''
-            };
-            function fillTemplate(tpl) {
-                return Object.entries(placeholders).reduce((s, [k, v]) => s.split(k).join(v), tpl);
-            }
+        // Clave de SITIO de Turnstile (es pública, no es secreta). Si está
+        // vacía, el catálogo no usa Turnstile.
+        const TURNSTILE_SITE_KEY = '';
+        let turnstileWidgetId = null;
+        let turnstileToken = null;
+        let turnstileTokenPromise = null;
+        let turnstileResolve = null;
+        let turnstileScriptPromise = null;
 
-            const title = cfg.newOrderTitle
-                ? fillTemplate(cfg.newOrderTitle)
-                : (orderNumber ? `Nuevo pedido #${orderNumber}` : 'Nuevo pedido web');
-            const body = cfg.newOrderBody
-                ? fillTemplate(cfg.newOrderBody)
-                : `$${totalUsd.toFixed(2)} — ${itemsSummaryText}`;
+        function loadTurnstileScript() {
+            if (turnstileScriptPromise) return turnstileScriptPromise;
+            turnstileScriptPromise = new Promise((resolve, reject) => {
+                const sc = document.createElement('script');
+                sc.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+                sc.async = true;
+                sc.defer = true;
+                sc.onload = () => resolve();
+                sc.onerror = () => reject(new Error('No cargó Turnstile'));
+                document.head.appendChild(sc);
+            });
+            return turnstileScriptPromise;
+        }
 
-            fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/notify', {
+        // Se llama al abrir el formulario de compra: así el token ya está
+        // listo cuando la persona toca "Hacer pedido por WhatsApp" (esa
+        // acción no puede esperar, el celular necesita el toque real).
+        function ensureTurnstileToken() {
+            if (!TURNSTILE_SITE_KEY) return;
+            turnstileToken = null;
+            turnstileTokenPromise = new Promise(res => { turnstileResolve = res; });
+            loadTurnstileScript().then(() => {
+                const opts = {
+                    sitekey: TURNSTILE_SITE_KEY,
+                    appearance: 'interaction-only',
+                    callback: (t) => { turnstileToken = t; if (turnstileResolve) turnstileResolve(t); },
+                    'expired-callback': () => { turnstileToken = null; try { turnstile.reset(turnstileWidgetId); } catch (e) {} },
+                    'error-callback': () => { if (turnstileResolve) turnstileResolve(null); }
+                };
+                if (turnstileWidgetId === null) turnstileWidgetId = turnstile.render('#turnstile-box', opts);
+                else turnstile.reset(turnstileWidgetId);
+            }).catch(() => { if (turnstileResolve) turnstileResolve(null); });
+        }
+
+        function sendOrderToWorker(order) {
+            const body = JSON.stringify({ ...order, turnstileToken: turnstileToken || null });
+            turnstileToken = null; // cada token sirve una sola vez
+            fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/orders', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title, body })
-            }).catch(e => console.error('No se pudo avisar la venta nueva (no afecta el pedido):', e));
+                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                body,
+                keepalive: body.length < 60000 // sigue enviándose aunque se abra WhatsApp
+            }).then(r => {
+                if (!r.ok) console.error('El Worker no aceptó el pedido (el pedido igual se envió por WhatsApp):', r.status);
+            }).catch(e => console.error('No se pudo registrar el pedido (el pedido igual se envió por WhatsApp):', e));
         }
 
         // ============ RECORDATORIO DE CARRITO ABANDONADO (solo en este navegador) ============
@@ -2206,6 +2239,7 @@
             document.getElementById('checkout-drawer').classList.remove('hidden');
             reservedOrderNumber = null;
             orderNumberReservationPromise = reserveOrderNumber();
+            ensureTurnstileToken();
             const cartTotal = cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
             trackPixelEvent('InitiateCheckout', { value: cartTotal, currency: 'USD', num_items: cart.reduce((sum, i) => sum + i.qty, 0) });
         }
@@ -2412,9 +2446,12 @@
             // demorar demasiado el abrir WhatsApp (que necesita pasar cerca
             // del toque real del cliente para que el celular lo reconozca
             // como un link, no como una ventana emergente).
-            if (!reservedOrderNumber && orderNumberReservationPromise) {
+            const pendingStartup = [];
+            if (!reservedOrderNumber && orderNumberReservationPromise) pendingStartup.push(orderNumberReservationPromise);
+            if (TURNSTILE_SITE_KEY && !turnstileToken && turnstileTokenPromise) pendingStartup.push(turnstileTokenPromise);
+            if (pendingStartup.length > 0) {
                 await Promise.race([
-                    orderNumberReservationPromise,
+                    Promise.all(pendingStartup),
                     new Promise(resolve => setTimeout(resolve, 1500))
                 ]);
             }
@@ -2535,7 +2572,7 @@
                 const orderCurrency = currencies.size === 1 ? [...currencies][0] : 'MIXED';
                 trackPixelEvent('Purchase', { value: Number(total.toFixed(2)), currency: orderCurrency === 'MIXED' ? 'USD' : orderCurrency, content_ids: structuredItems.map(i => i.productId), num_items: structuredItems.reduce((sum, i) => sum + i.qty, 0) });
 
-                fb.addDoc(fb.collection(fb.db, 'pedidos_web'), {
+                sendOrderToWorker({
                     orderNumber: reservedOrderNumber || null,
                     discountCode: appliedDiscountCode ? appliedDiscountCode.code : null,
                     paymentReference: paymentReference || null,
@@ -2551,11 +2588,7 @@
                     items: structuredItems,
                     currency: orderCurrency,
                     total: Number(total.toFixed(2)),
-                    status: 'preliminar',
-                    createdAt: fb.serverTimestamp(),
-                }).catch(e => console.error('No se pudo registrar el pedido en la base de datos:', e));
-
-                notifyNewOrder(itemsSummary.join(', '), total, reservedOrderNumber);
+                });
 
                 if (trackingCode) {
                     const vesIsAccurate = allHaveVES && totalVES > 0 && discountAmount === 0 && boosterDiscountAmountFinal === 0;
