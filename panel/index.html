@@ -199,6 +199,7 @@
                 <button onclick="switchTab('pedidos')" id="tab-pedidos" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap">Pedidos web</button>
                 <button onclick="switchTab('informes')" id="tab-informes" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap">Informes</button>
                 <button onclick="switchTab('notificaciones')" id="tab-notificaciones" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap">Notificaciones</button>
+                <button onclick="switchTab('integraciones')" id="tab-integraciones" class="tab-btn px-4 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap">Integraciones</button>
             </div>
         </div>
 
@@ -578,6 +579,79 @@
             </div>
 
             <!-- ---- TAB: NOTIFICACIONES ---- -->
+            <div id="view-integraciones" class="hidden space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 mb-1">Integraciones</h2>
+                    <p class="text-xs text-slate-500 mb-4">Conectá otras apps (como tu bot de respuestas) para que reciban un aviso firmado cada vez que se paga o se cancela un pedido. Las claves se muestran una sola vez al crearlas.</p>
+                </div>
+
+                <div id="int-credentials" class="hidden bg-white rounded-2xl p-4 space-y-3" style="border:2px solid #85411a;margin-bottom:20px;">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-slate-900" id="int-credentials-title">Credenciales</h3>
+                        <button onclick="hideCredentials()" class="text-xs font-bold text-slate-400 hover:text-slate-700 cursor-pointer">Cerrar</button>
+                    </div>
+                    <p class="text-[11px] text-slate-500">Copialas ahora y pegalas en la otra app. Por seguridad no se pueden volver a ver (si las perdés, generá unas nuevas).</p>
+                    <div id="int-credentials-rows" class="space-y-2"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3" style="margin-bottom:20px;">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Conectar una app (como en Shopify)</h3>
+                        <p class="text-[11px] text-slate-400">Creás la conexión, le pasás a la otra app la URL de la tienda, la clave de acceso y el secreto de firma, y ella misma registra sus webhooks.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="int-name" maxlength="60" placeholder="Nombre (ej. Autorespuestas)" class="flex-1 px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                        <button onclick="createIntegration()" class="px-4 py-2.5 bg-madera hover:bg-arena active:bg-arena text-arena hover:text-madera active:text-madera font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer">Crear conexión</button>
+                    </div>
+                    <div id="int-list" class="space-y-2"></div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3" style="margin-bottom:20px;">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900" id="wh-form-title">Webhook manual</h3>
+                        <p class="text-[11px] text-slate-400">Si la otra app te dio una URL y un secreto, pegalos acá. Si dejás el secreto vacío, generamos uno y te lo mostramos una vez.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">URL de destino</label>
+                        <input type="url" id="wh-url" placeholder="https://..." autocomplete="off" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Secreto de firma <span class="font-normal text-slate-400" id="wh-secret-hint">(opcional)</span></label>
+                        <input type="password" id="wh-secret" placeholder="whsec_..." autocomplete="off" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-madera">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-slate-700">Eventos</label>
+                        <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" id="wh-ev-paid" checked class="accent-madera w-4 h-4"> Pedido pagado <span class="text-slate-400">(order.paid)</span></label>
+                        <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" id="wh-ev-payment" checked class="accent-madera w-4 h-4"> Pago registrado <span class="text-slate-400">(payment.created)</span></label>
+                        <label class="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"><input type="checkbox" id="wh-ev-cancel" checked class="accent-madera w-4 h-4"> Pedido cancelado <span class="text-slate-400">(order.cancelled)</span></label>
+                    </div>
+                    <label class="flex items-center justify-between p-3 rounded-xl border border-gray-200 cursor-pointer">
+                        <span class="text-xs font-semibold text-slate-700">Activo</span>
+                        <input type="checkbox" id="wh-active" checked class="accent-madera w-5 h-5 shrink-0 ml-2">
+                    </label>
+                    <div class="flex gap-2">
+                        <button onclick="saveManualWebhook()" class="flex-1 py-3 bg-madera hover:bg-arena active:bg-arena text-arena hover:text-madera active:text-madera font-bold rounded-xl text-sm shadow-md transition-all cursor-pointer">Guardar webhook</button>
+                        <button id="wh-cancel-edit" onclick="resetWebhookForm()" class="hidden px-4 py-3 border border-gray-200 text-slate-600 font-bold rounded-xl text-sm cursor-pointer">Cancelar</button>
+                    </div>
+                    <p id="wh-form-result" class="text-[11px] text-slate-400"></p>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3" style="margin-bottom:20px;">
+                    <h3 class="text-sm font-bold text-slate-900">Destinos activos</h3>
+                    <div id="wh-list" class="space-y-2"></div>
+                    <p id="wh-test-result" class="text-[11px] text-slate-400"></p>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-200 p-4 space-y-3" style="margin-bottom:20px;">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-slate-900">Últimas invocaciones</h3>
+                        <button onclick="loadDeliveries()" class="text-xs font-bold text-madera hover:underline cursor-pointer flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Actualizar</button>
+                    </div>
+                    <div id="int-deliveries" class="space-y-2"></div>
+                    <p class="text-[11px] text-slate-400">Si un aviso falla, se reintenta a 1, 5 y 30 minutos. Los registros se conservan 30 días.</p>
+                </div>
+            </div>
+
             <div id="view-notificaciones" class="hidden space-y-6">
                 <div>
                     <h2 class="text-lg font-bold text-slate-900 mb-1">Notificaciones</h2>
@@ -1392,6 +1466,7 @@
             document.getElementById('view-pedidos').classList.toggle('hidden', tab !== 'pedidos');
             document.getElementById('view-informes').classList.toggle('hidden', tab !== 'informes');
             document.getElementById('view-notificaciones').classList.toggle('hidden', tab !== 'notificaciones');
+            document.getElementById('view-integraciones').classList.toggle('hidden', tab !== 'integraciones');
             document.getElementById('tab-productos').classList.toggle('active', tab === 'productos');
             document.getElementById('tab-categorias').classList.toggle('active', tab === 'categorias');
             document.getElementById('tab-impulsadores').classList.toggle('active', tab === 'impulsadores');
@@ -1400,11 +1475,13 @@
             document.getElementById('tab-pedidos').classList.toggle('active', tab === 'pedidos');
             document.getElementById('tab-informes').classList.toggle('active', tab === 'informes');
             document.getElementById('tab-notificaciones').classList.toggle('active', tab === 'notificaciones');
+            document.getElementById('tab-integraciones').classList.toggle('active', tab === 'integraciones');
             if (tab === 'config') renderConfig();
             if (tab === 'pedidos') renderOrders();
             if (tab === 'informes') renderReports();
             if (tab === 'mensajes') renderMessagesTab();
             if (tab === 'notificaciones') renderNotificationSettings();
+            if (tab === 'integraciones') renderIntegrations();
         }
 
         // ============ RENDER: PRODUCTOS (agrupados por categoría) ============
@@ -3581,17 +3658,25 @@
 
         // Las pruebas del Worker ahora piden tu sesión de administrador:
         // se manda el token de Google de la sesión abierta en el panel.
-        async function callWorkerAdmin(path) {
+        // Llama a una ruta de administrador del Worker. Con "body" manda JSON.
+        // callWorkerAdminRaw devuelve { ok, status, data } sin lanzar por errores de validación.
+        async function callWorkerAdminRaw(path, body) {
             const user = window.__terea_currentUser;
             if (!user) throw new Error('SIN_SESION');
             const idToken = await user.getIdToken();
-            const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + path, {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + idToken }
-            });
+            const headers = { 'Authorization': 'Bearer ' + idToken };
+            const opts = { method: 'POST', headers };
+            if (body !== undefined) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+            const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + path, opts);
             if (res.status === 401) throw new Error('NO_AUTORIZADO');
-            if (!res.ok) throw new Error('HTTP_' + res.status);
-            return res.json();
+            let data = null;
+            try { data = await res.json(); } catch (e) {}
+            return { ok: res.ok, status: res.status, data };
+        }
+        async function callWorkerAdmin(path, body) {
+            const r = await callWorkerAdminRaw(path, body);
+            if (!r.ok) throw new Error('HTTP_' + r.status);
+            return r.data;
         }
         function workerErrorText(e) {
             if (e && e.message === 'SIN_SESION') return 'Iniciá sesión de nuevo en Téreapp para hacer la prueba.';
@@ -3623,6 +3708,258 @@
             } catch (e) {
                 resultEl.textContent = workerErrorText(e);
             }
+        }
+
+        // ============ INTEGRACIONES Y WEBHOOKS ============
+        const WEBHOOK_EVENT_LABELS = { 'order.paid': 'Pedido pagado', 'payment.created': 'Pago registrado', 'order.cancelled': 'Pedido cancelado', 'webhook.test': 'Prueba' };
+        let integrationsState = { integrations: [], webhooks: [] };
+        let editingWebhookId = null;
+
+        function intToMs(v) {
+            if (!v) return 0;
+            if (typeof v.toMillis === 'function') return v.toMillis();
+            const t = Date.parse(v);
+            return isNaN(t) ? 0 : t;
+        }
+        function intFmtDate(v) {
+            const ms = intToMs(v);
+            return ms ? new Date(ms).toLocaleString('es-VE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+        }
+        function intHost(url) {
+            try { return new URL(url).host; } catch (e) { return url || ''; }
+        }
+
+        async function renderIntegrations() {
+            const fb = window.__terea_fb;
+            try {
+                const [a, b] = await Promise.all([
+                    fb.getDocs(fb.collection(fb.db, 'integraciones')),
+                    fb.getDocs(fb.collection(fb.db, 'integraciones_webhooks'))
+                ]);
+                integrationsState.integrations = a.docs.map(d => ({ id: d.id, ...d.data() }));
+                integrationsState.webhooks = b.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (e) {
+                document.getElementById('int-list').innerHTML = '<p class="text-[11px] text-slate-400">No se pudieron cargar las conexiones. Revisá que hayas publicado las reglas nuevas de Firestore.</p>';
+                return;
+            }
+            renderIntegrationsList();
+            renderWebhooksList();
+            loadDeliveries();
+        }
+
+        function renderIntegrationsList() {
+            const el = document.getElementById('int-list');
+            const list = integrationsState.integrations;
+            if (!list.length) { el.innerHTML = '<p class="text-[11px] text-slate-400">Todavía no hay apps conectadas.</p>'; return; }
+            el.innerHTML = list.map(i => {
+                const count = integrationsState.webhooks.filter(w => w.integrationId === i.id).length;
+                return `
+                <div class="p-3 rounded-xl border border-gray-200 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <div style="min-width:0;">
+                            <span class="text-xs font-bold text-slate-800 block">${escapeHtml(i.name || 'Sin nombre')}</span>
+                            <span class="text-[11px] text-slate-400 block">Clave ${escapeHtml(i.keyPrefix || '')}… · último uso: ${intFmtDate(i.lastUsedAt)} · ${count} webhook(s)</span>
+                        </div>
+                        <label class="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer shrink-0"><input type="checkbox" ${i.active !== false ? 'checked' : ''} onchange="toggleIntegration('${i.id}', this.checked)" class="accent-madera w-4 h-4"> Activa</label>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="regenerateIntegration('${i.id}')" class="text-[11px] font-bold text-madera hover:underline cursor-pointer">Regenerar claves</button>
+                        <button onclick="deleteIntegration('${i.id}')" class="text-[11px] font-bold hover:underline cursor-pointer" style="color:#b91c1c;">Eliminar</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderWebhooksList() {
+            const el = document.getElementById('wh-list');
+            const list = integrationsState.webhooks;
+            if (!list.length) { el.innerHTML = '<p class="text-[11px] text-slate-400">Todavía no hay destinos. Cuando una app conectada registre uno, o cuando agregues uno manual, aparece acá.</p>'; return; }
+            el.innerHTML = list.map(w => {
+                const origin = w.source === 'manual' ? 'Manual' : ((integrationsState.integrations.find(i => i.id === w.integrationId) || {}).name || 'App conectada');
+                const evs = (w.events || []).map(e => WEBHOOK_EVENT_LABELS[e] || e).join(', ');
+                return `
+                <div class="p-3 rounded-xl border border-gray-200 space-y-2 ${w.active === false ? 'opacity-60' : ''}">
+                    <div class="flex items-center justify-between gap-2">
+                        <div style="min-width:0;">
+                            <span class="text-xs font-bold text-slate-800 block" style="overflow-wrap:anywhere;">${escapeHtml(intHost(w.url))}</span>
+                            <span class="text-[11px] text-slate-400 block">${escapeHtml(origin)} · ${escapeHtml(evs)}</span>
+                        </div>
+                        <label class="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer shrink-0"><input type="checkbox" ${w.active !== false ? 'checked' : ''} onchange="toggleWebhook('${w.id}', this.checked)" class="accent-madera w-4 h-4"> Activo</label>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="testWebhook('${w.id}')" class="text-[11px] font-bold text-madera hover:underline cursor-pointer">Probar</button>
+                        ${w.source === 'manual' ? `<button onclick="editManualWebhook('${w.id}')" class="text-[11px] font-bold text-madera hover:underline cursor-pointer">Editar</button>` : ''}
+                        <button onclick="deleteWebhook('${w.id}')" class="text-[11px] font-bold hover:underline cursor-pointer" style="color:#b91c1c;">Eliminar</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function loadDeliveries() {
+            const el = document.getElementById('int-deliveries');
+            try {
+                const data = await callWorkerAdmin('/admin/webhooks/deliveries', {});
+                const rows = data.deliveries || [];
+                if (!rows.length) { el.innerHTML = '<p class="text-[11px] text-slate-400">Todavía no se envió ningún aviso.</p>'; return; }
+                const STATUS = { ok: ['Entregado', '#15803d'], pending: ['Reintentando', '#b45309'], failed: ['Falló', '#b91c1c'], cancelled: ['Cancelado', '#64748b'] };
+                el.innerHTML = rows.map(d => {
+                    const st = STATUS[d.status] || [d.status, '#64748b'];
+                    const code = d.lastCode ? 'HTTP ' + d.lastCode : '—';
+                    return `
+                    <div class="p-2.5 rounded-xl border border-gray-200">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-xs font-bold text-slate-800">${escapeHtml(WEBHOOK_EVENT_LABELS[d.eventType] || d.eventType || '')} <span class="font-normal text-slate-400">${d.orderNumber && d.orderNumber !== '—' ? '· #' + escapeHtml(String(d.orderNumber)) : ''}</span></span>
+                            <span class="text-[11px] font-bold shrink-0" style="color:${st[1]};">${st[0]} · ${code}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-400" style="overflow-wrap:anywhere;">${intFmtDate(d.createdAt)} · ${escapeHtml(intHost(d.url))} · ${d.attempts || 0} intento(s)${d.status === 'pending' && d.nextAttemptAt ? ' · próximo ' + intFmtDate(d.nextAttemptAt) : ''}</div>
+                        ${d.lastError && d.status !== 'ok' ? `<div class="text-[11px]" style="color:#b91c1c;overflow-wrap:anywhere;">${escapeHtml(d.lastError)}</div>` : ''}
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                el.innerHTML = `<p class="text-[11px] text-slate-400">${escapeHtml(workerErrorText(e))}</p>`;
+            }
+        }
+
+        function showCredentials(title, rows) {
+            document.getElementById('int-credentials-title').textContent = title;
+            document.getElementById('int-credentials-rows').innerHTML = rows.map((r, i) => `
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">${escapeHtml(r.label)}</label>
+                    <div class="flex gap-2">
+                        <input type="text" readonly id="int-cred-${i}" value="${escapeHtml(r.value)}" class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs" style="font-family:monospace;min-width:0;" onclick="this.select()">
+                        <button onclick="copyCredential(${i})" class="px-3 py-2 border border-gray-200 text-xs font-bold text-madera rounded-xl cursor-pointer">Copiar</button>
+                    </div>
+                </div>`).join('');
+            const box = document.getElementById('int-credentials');
+            box.classList.remove('hidden');
+            box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        function hideCredentials() {
+            document.getElementById('int-credentials').classList.add('hidden');
+            document.getElementById('int-credentials-rows').innerHTML = '';
+        }
+        function copyCredential(i) {
+            const input = document.getElementById('int-cred-' + i);
+            if (!input) return;
+            const done = () => showToast('Copiado');
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(input.value).then(done).catch(() => { input.select(); document.execCommand('copy'); done(); });
+            else { input.select(); document.execCommand('copy'); done(); }
+        }
+
+        async function createIntegration() {
+            const input = document.getElementById('int-name');
+            const name = input.value.trim();
+            if (!name) { showToast('Ponele un nombre a la conexión'); return; }
+            try {
+                const r = await callWorkerAdmin('/admin/integrations/create', { name });
+                input.value = '';
+                showCredentials('Conexión creada: ' + r.name, [
+                    { label: 'URL de la tienda', value: NOTIFY_WORKER_URL },
+                    { label: 'Clave de acceso (API key)', value: r.apiKey },
+                    { label: 'Secreto de firma', value: r.signingSecret }
+                ]);
+                renderIntegrations();
+            } catch (e) { showToast(workerErrorText(e)); }
+        }
+        async function regenerateIntegration(id) {
+            if (!confirm('Se generan claves nuevas y las anteriores dejan de funcionar al instante. La otra app tendrá que actualizarlas. ¿Seguir?')) return;
+            try {
+                const r = await callWorkerAdmin('/admin/integrations/regenerate', { id });
+                showCredentials('Claves nuevas: ' + r.name, [
+                    { label: 'URL de la tienda', value: NOTIFY_WORKER_URL },
+                    { label: 'Clave de acceso (API key)', value: r.apiKey },
+                    { label: 'Secreto de firma', value: r.signingSecret }
+                ]);
+                renderIntegrations();
+            } catch (e) { showToast(workerErrorText(e)); }
+        }
+        async function deleteIntegration(id) {
+            if (!confirm('Se elimina la conexión y todos sus webhooks. La otra app deja de recibir avisos. ¿Seguir?')) return;
+            try { await callWorkerAdmin('/admin/integrations/delete', { id }); showToast('Conexión eliminada'); renderIntegrations(); }
+            catch (e) { showToast(workerErrorText(e)); }
+        }
+        async function toggleIntegration(id, active) {
+            const fb = window.__terea_fb;
+            try { await fb.setDoc(fb.doc(fb.db, 'integraciones', id), { active }, { merge: true }); showToast(active ? 'Conexión activada' : 'Conexión pausada'); }
+            catch (e) { showToast('No se pudo guardar el cambio'); }
+            renderIntegrations();
+        }
+        async function toggleWebhook(id, active) {
+            const fb = window.__terea_fb;
+            try { await fb.setDoc(fb.doc(fb.db, 'integraciones_webhooks', id), { active }, { merge: true }); showToast(active ? 'Webhook activado' : 'Webhook pausado'); }
+            catch (e) { showToast('No se pudo guardar el cambio'); }
+            renderIntegrations();
+        }
+        async function deleteWebhook(id) {
+            if (!confirm('¿Eliminar este destino? Dejará de recibir avisos.')) return;
+            try { await callWorkerAdmin('/admin/webhooks/delete', { id }); showToast('Destino eliminado'); if (editingWebhookId === id) resetWebhookForm(); renderIntegrations(); }
+            catch (e) { showToast(workerErrorText(e)); }
+        }
+
+        function webhookFormEvents() {
+            const ev = [];
+            if (document.getElementById('wh-ev-paid').checked) ev.push('order.paid');
+            if (document.getElementById('wh-ev-payment').checked) ev.push('payment.created');
+            if (document.getElementById('wh-ev-cancel').checked) ev.push('order.cancelled');
+            return ev;
+        }
+        function resetWebhookForm() {
+            editingWebhookId = null;
+            document.getElementById('wh-url').value = '';
+            document.getElementById('wh-secret').value = '';
+            document.getElementById('wh-secret-hint').textContent = '(opcional)';
+            ['wh-ev-paid', 'wh-ev-payment', 'wh-ev-cancel', 'wh-active'].forEach(id => { document.getElementById(id).checked = true; });
+            document.getElementById('wh-form-title').textContent = 'Webhook manual';
+            document.getElementById('wh-cancel-edit').classList.add('hidden');
+            document.getElementById('wh-form-result').textContent = '';
+        }
+        function editManualWebhook(id) {
+            const w = integrationsState.webhooks.find(x => x.id === id);
+            if (!w) return;
+            editingWebhookId = id;
+            document.getElementById('wh-url').value = w.url || '';
+            document.getElementById('wh-secret').value = '';
+            document.getElementById('wh-secret-hint').textContent = '(dejalo vacío para conservar el actual)';
+            document.getElementById('wh-ev-paid').checked = (w.events || []).includes('order.paid');
+            document.getElementById('wh-ev-payment').checked = (w.events || []).includes('payment.created');
+            document.getElementById('wh-ev-cancel').checked = (w.events || []).includes('order.cancelled');
+            document.getElementById('wh-active').checked = w.active !== false;
+            document.getElementById('wh-form-title').textContent = 'Editar webhook manual';
+            document.getElementById('wh-cancel-edit').classList.remove('hidden');
+            document.getElementById('wh-url').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        async function saveManualWebhook() {
+            const resultEl = document.getElementById('wh-form-result');
+            const url = document.getElementById('wh-url').value.trim();
+            const secret = document.getElementById('wh-secret').value;
+            const events = webhookFormEvents();
+            if (!url) { resultEl.textContent = 'Poné la URL de destino.'; return; }
+            if (!events.length) { resultEl.textContent = 'Elegí al menos un evento.'; return; }
+            resultEl.textContent = 'Guardando…';
+            try {
+                const body = { url, events, active: document.getElementById('wh-active').checked };
+                if (secret) body.secret = secret;
+                if (editingWebhookId) body.id = editingWebhookId;
+                const r = await callWorkerAdminRaw('/admin/webhooks/save', body);
+                if (!r.ok) {
+                    resultEl.textContent = r.data && r.data.message ? r.data.message : 'No se pudo guardar (revisá la URL y el secreto).';
+                    return;
+                }
+                if (r.data.signingSecret) showCredentials('Webhook guardado', [{ label: 'Secreto de firma (pegalo en la otra app)', value: r.data.signingSecret }]);
+                showToast('Webhook guardado');
+                resetWebhookForm();
+                renderIntegrations();
+            } catch (e) { resultEl.textContent = workerErrorText(e); }
+        }
+
+        async function testWebhook(id) {
+            const el = document.getElementById('wh-test-result');
+            el.textContent = 'Enviando aviso de prueba…';
+            try {
+                const r = await callWorkerAdmin('/admin/webhooks/test', { webhookId: id });
+                el.textContent = r.ok ? `Prueba entregada (HTTP ${r.code}).` : `La prueba falló${r.code ? ' (HTTP ' + r.code + ')' : ''}: ${r.error || 'sin detalle'}`;
+            } catch (e) { el.textContent = workerErrorText(e); }
+            loadDeliveries();
         }
 
         function showToast(msg) {
