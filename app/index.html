@@ -2909,7 +2909,7 @@ async function cancelWebOrder(webOrderId){
       id: webOrderToCancel.id, orderNumber: webOrderToCancel.orderNumber || null, total: webOrderToCancel.total,
       payment: webOrderToCancel.payment || '', webRef: webOrderToCancel.ref || null,
       items: (webOrderToCancel.items||[]).map(i=>({ name:i.name, qty:i.qty, price:i.price }))
-    }, 'cancelled', { name: webOrderToCancel.clientName || null, phone: webOrderToCancel.clientPhone || null, instagram: webOrderToCancel.clientInstagram || null, email: null });
+    }, 'cancelled', { name: webOrderToCancel.clientName || null, phone: webOrderToCancel.clientPhone || null, instagram: webOrderToCancel.clientInstagram || null, email: webOrderToCancel.clientEmail || null });
   }
   showAlert('Pedido web cancelado');
 }
@@ -2986,10 +2986,11 @@ async function importWebOrder(webOrderId){
   const phone = (order.clientPhone || '').trim();
   let client = phone ? appData.clients.find(c => (c.phone||'').trim() === phone) : null;
   if(!client){
-    client = { id: uid(), name: order.clientName || 'Cliente web', phone, notes: '', source: 'web', instagram: order.clientInstagram || '' };
+    client = { id: uid(), name: order.clientName || 'Cliente web', phone, notes: '', source: 'web', instagram: order.clientInstagram || '', email: order.clientEmail || '' };
     appData.clients.push(client);
-  } else if(order.clientInstagram && !client.instagram){
-    client.instagram = order.clientInstagram;
+  } else {
+    if(order.clientInstagram && !client.instagram) client.instagram = order.clientInstagram;
+    if(order.clientEmail && !client.email) client.email = order.clientEmail;
   }
 
   const newOrder = {
