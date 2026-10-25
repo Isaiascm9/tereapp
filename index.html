@@ -303,8 +303,8 @@
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Celular <span class="text-rose-500">*</span></label>
                         <input type="tel" id="client-phone" placeholder="Número de celular" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-satin-600">
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Correo <span class="text-rose-500">*</span></label>
+                    <div id="client-email-wrap">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1"><span id="client-email-label">Correo</span> <span id="client-email-star" class="text-rose-500">*</span></label>
                         <input type="email" id="client-email" placeholder="tucorreo@ejemplo.com" autocomplete="email" autocapitalize="none" autocorrect="off" maxlength="120" class="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-satin-600">
                     </div>
                     <div>
@@ -2266,6 +2266,7 @@
         }
 
         function goToCheckoutForm() {
+            applyEmailFieldConfig();
             document.getElementById('cart-drawer').classList.add('hidden');
             document.getElementById('checkout-drawer').classList.remove('hidden');
             reservedOrderNumber = null;
@@ -2327,17 +2328,34 @@
             return { totalVES, rateLabel };
         }
 
+        // Campo Correo: se puede ocultar, volver opcional o cambiar su texto desde el panel (Configuración).
+        function getEmailFieldConfig() {
+            const c = (storeConfig && storeConfig.emailField) || {};
+            const enabled = c.enabled !== false;
+            return { enabled, required: enabled && c.required !== false, label: c.label || 'Correo', placeholder: c.placeholder || 'tucorreo@ejemplo.com' };
+        }
+        function applyEmailFieldConfig() {
+            const c = getEmailFieldConfig();
+            const wrap = document.getElementById('client-email-wrap');
+            if (!wrap) return;
+            wrap.style.display = c.enabled ? '' : 'none';
+            document.getElementById('client-email-label').textContent = c.label;
+            document.getElementById('client-email-star').style.display = c.required ? '' : 'none';
+            document.getElementById('client-email').placeholder = c.placeholder;
+        }
+
         function handleWhatsAppClick() {
             const name = document.getElementById('client-name').value.trim();
             const phone = document.getElementById('client-phone').value.trim();
             const address = document.getElementById('client-address').value.trim();
             const email = (document.getElementById('client-email')?.value || '').trim();
 
-            if(!name || !phone || !address || !email) {
-                showToast("Por favor completa Nombre, Celular, Correo y Dirección");
+            const emailCfg = getEmailFieldConfig();
+            if(!name || !phone || !address || (emailCfg.required && !email)) {
+                showToast(emailCfg.required ? `Por favor completa Nombre, Celular, ${emailCfg.label} y Dirección` : "Por favor completa Nombre, Celular y Dirección");
                 return;
             }
-            if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+            if(emailCfg.enabled && email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
                 showToast("Revisa tu correo: parece que no está bien escrito");
                 return;
             }
@@ -2496,7 +2514,7 @@
             const phone = document.getElementById('client-phone').value.trim();
             const address = document.getElementById('client-address').value.trim();
             const notes = document.getElementById('client-notes').value.trim();
-            const email = (document.getElementById('client-email')?.value || '').trim();
+            const email = getEmailFieldConfig().enabled ? (document.getElementById('client-email')?.value || '').trim() : '';
 
             const msgSettings = (storeConfig.messageSettings && storeConfig.messageSettings.web) || {};
             const showOrderNumberInMsg = msgSettings.showOrderNumber !== false;
