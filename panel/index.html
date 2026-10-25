@@ -3726,7 +3726,7 @@
             return ms ? new Date(ms).toLocaleString('es-VE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
         }
         function intHost(url) {
-            try { return new URL(url).host; } catch (e) { return url || ''; }
+            try { const u = new URL(url); const path = (u.pathname + u.search).replace(/\/$/, ''); return u.host + (path.length > 40 ? path.slice(0, 40) + '…' : path); } catch (e) { return url || ''; }
         }
 
         async function renderIntegrations() {
@@ -3942,7 +3942,7 @@
                 if (editingWebhookId) body.id = editingWebhookId;
                 const r = await callWorkerAdminRaw('/admin/webhooks/save', body);
                 if (!r.ok) {
-                    resultEl.textContent = r.data && r.data.message ? r.data.message : 'No se pudo guardar (revisá la URL y el secreto).';
+                    resultEl.textContent = r.data && r.data.error === 'invalid_url' ? 'URL no válida: tiene que ser https, pública y sin # (si es de webhook.site, usá la que NO lleva #!/view).' : (r.data && r.data.message ? r.data.message : 'No se pudo guardar (revisá la URL y el secreto).');
                     return;
                 }
                 if (r.data.signingSecret) showCredentials('Webhook guardado', [{ label: 'Secreto de firma (pegalo en la otra app)', value: r.data.signingSecret }]);
