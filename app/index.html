@@ -895,6 +895,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         <input type="text" id="client-name" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Teléfono</label>
         <input type="text" id="client-phone" placeholder="0412 1234567" class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Correo</label>
+        <input type="email" id="client-email" placeholder="correo@ejemplo.com" class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
         <input type="text" id="client-notes" class="input"></div>
       <div class="pt-2 flex space-x-3">
@@ -917,6 +919,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         <input type="text" id="weborder-edit-name" required class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Teléfono</label>
         <input type="text" id="weborder-edit-phone" class="input"></div>
+      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Correo</label>
+        <input type="email" id="weborder-edit-email" class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Dirección</label>
         <input type="text" id="weborder-edit-address" class="input"></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Método de envío</label>
@@ -2846,6 +2850,7 @@ function renderWebOrdersList(orders){
           <div>
             <p class="text-sm font-medium">${escapeHtmlWeb(o.clientName || 'Cliente web')} <span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span></p>
             <p class="text-xs t-muted">${escapeHtmlWeb(o.clientPhone || '')}${o.clientAddress ? ' · '+escapeHtmlWeb(o.clientAddress) : ''}</p>
+            ${o.clientEmail ? `<p class="text-xs t-muted">${escapeHtmlWeb(o.clientEmail)}</p>` : ''}
           </div>
           <p class="font-medium" style="color:var(--success)">${symbol}${Number(o.total||0).toFixed(2)}</p>
         </div>
@@ -2866,6 +2871,7 @@ function renderWebOrdersList(orders){
         <div>
           <p class="text-sm font-medium">${o.orderNumber ? `<span class="t-muted">#${o.orderNumber}</span> ` : ''}${escapeHtmlWeb(o.clientName || 'Cliente web')} <span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span></p>
           <p class="text-xs t-muted">${escapeHtmlWeb(o.clientPhone || '')}${o.clientAddress ? ' · '+escapeHtmlWeb(o.clientAddress) : ''}</p>
+          ${o.clientEmail ? `<p class="text-xs t-muted">${escapeHtmlWeb(o.clientEmail)}</p>` : ''}
         </div>
         <p class="font-medium" style="color:var(--success)">${symbol}${Number(o.total||0).toFixed(2)}</p>
       </div>
@@ -2920,6 +2926,7 @@ function openWebOrderEditModal(webOrderId){
   document.getElementById('weborder-edit-id').value = webOrderId;
   document.getElementById('weborder-edit-name').value = order.clientName || '';
   document.getElementById('weborder-edit-phone').value = order.clientPhone || '';
+  document.getElementById('weborder-edit-email').value = order.clientEmail || '';
   document.getElementById('weborder-edit-address').value = order.clientAddress || '';
   document.getElementById('weborder-edit-shipping').value = order.shipping || '';
   document.getElementById('weborder-edit-payment').value = order.payment || '';
@@ -2934,6 +2941,7 @@ async function handleWebOrderEditSubmit(e){
   const patch = {
     clientName: document.getElementById('weborder-edit-name').value.trim(),
     clientPhone: document.getElementById('weborder-edit-phone').value.trim(),
+    clientEmail: document.getElementById('weborder-edit-email').value.trim() || null,
     clientAddress: document.getElementById('weborder-edit-address').value.trim(),
     shipping: document.getElementById('weborder-edit-shipping').value.trim(),
     payment: document.getElementById('weborder-edit-payment').value.trim(),
@@ -3507,7 +3515,7 @@ function renderClientsGrid(){
     const pending = clientSales.filter(s=>s.status==='Pendiente').reduce((a,s)=>a+s.total,0);
     return `<div class="surface-alt p-4 rounded-2xl space-y-2 anim-item">
       <div class="flex justify-between items-start">
-        <div><h4 class="font-medium text-sm">${c.name} ${c.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}</h4><p class="text-xs t-muted">${c.phone||'Sin teléfono'}</p></div>
+        <div><h4 class="font-medium text-sm">${c.name} ${c.source==='web' ? '<span class="bg-accent-soft text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide align-middle">Web</span>' : ''}</h4><p class="text-xs t-muted">${c.phone||'Sin teléfono'}</p>${c.email?`<p class="text-xs t-muted">${escapeHtmlWeb(c.email)}</p>`:''}</div>
         <div class="space-x-1">
           <button onclick="openClientModal('${c.id}')" class="btn-secondary p-2 text-xs"><span class="msi" style="font-size:15px">edit</span></button>
           <button onclick="deleteClient('${c.id}')" class="btn-secondary p-2 text-xs" style="color:var(--danger)"><span class="msi" style="font-size:15px">delete</span></button>
@@ -3532,6 +3540,7 @@ function openClientModal(id=null, forSale=false){
     document.getElementById('client-index').value=id;
     document.getElementById('client-name').value=c.name;
     document.getElementById('client-phone').value=c.phone||'';
+    document.getElementById('client-email').value=c.email||'';
     document.getElementById('client-notes').value=c.notes||'';
   } else {
     document.getElementById('client-modal-title').innerText='Nuevo cliente';
@@ -3543,7 +3552,9 @@ async function handleClientSubmit(e){
   e.preventDefault();
   if(isDoubleSubmit()) return;
   const id = document.getElementById('client-index').value;
-  const client = { id: id||uid(), name:document.getElementById('client-name').value, phone:document.getElementById('client-phone').value, notes:document.getElementById('client-notes').value };
+  const prevClient = id ? appData.clients.find(x=>x.id===id) : null;
+  const client = { id: id||uid(), name:document.getElementById('client-name').value, phone:document.getElementById('client-phone').value, email:document.getElementById('client-email').value.trim(), notes:document.getElementById('client-notes').value };
+  if(prevClient && prevClient.instagram) client.instagram = prevClient.instagram; // no se pierde al editar
   if(id){ const idx=appData.clients.findIndex(x=>x.id===id); appData.clients[idx]=client; showAlert('Cliente actualizado'); }
   else { appData.clients.push(client); showAlert('Cliente agregado'); }
   await saveData();
