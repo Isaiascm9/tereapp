@@ -3579,15 +3579,34 @@
 
         const NOTIFY_WORKER_URL = 'https://tereapp-notificaciones.isaiascontreras60.workers.dev';
 
+        // Las pruebas del Worker ahora piden tu sesión de administrador:
+        // se manda el token de Google de la sesión abierta en el panel.
+        async function callWorkerAdmin(path) {
+            const user = window.__terea_currentUser;
+            if (!user) throw new Error('SIN_SESION');
+            const idToken = await user.getIdToken();
+            const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + path, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + idToken }
+            });
+            if (res.status === 401) throw new Error('NO_AUTORIZADO');
+            if (!res.ok) throw new Error('HTTP_' + res.status);
+            return res.json();
+        }
+        function workerErrorText(e) {
+            if (e && e.message === 'SIN_SESION') return 'Iniciá sesión de nuevo en Téreapp para hacer la prueba.';
+            if (e && e.message === 'NO_AUTORIZADO') return 'El Worker no reconoció tu sesión como administrador (revisá que la cuenta esté en "admins").';
+            return 'No se pudo conectar con el Worker.';
+        }
+
         async function testRemindersCron() {
             const resultEl = document.getElementById('cron-test-result');
             resultEl.textContent = 'Probando…';
             try {
-                const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/test-cron', { method: 'POST' });
-                const data = await res.json();
+                const data = await callWorkerAdmin('/test-cron');
                 resultEl.textContent = `Hora Venezuela: ${data.horaVenezuelaAhora} (día ${data.diaVenezuelaAhora}) — ${data.coincidieron} de ${data.totalRecordatorios} recordatorio(s) coinciden con este momento.`;
             } catch (e) {
-                resultEl.textContent = 'No se pudo conectar con el Worker.';
+                resultEl.textContent = workerErrorText(e);
             }
         }
 
@@ -3595,15 +3614,14 @@
             const resultEl = document.getElementById('paymentsdue-test-result');
             resultEl.textContent = 'Revisando ventas y pedidos pendientes…';
             try {
-                const res = await fetch(NOTIFY_WORKER_URL.replace(/\/$/, '') + '/test-payments-due', { method: 'POST' });
-                const data = await res.json();
+                const data = await callWorkerAdmin('/test-payments-due');
                 if (!data.hayPagosPendientes) {
                     resultEl.textContent = 'No hay ningún pago pendiente o por vencer en los próximos 3 días — no se mandó nada.';
                 } else {
                     resultEl.textContent = `Mandado — "${data.titulo}": ${data.texto}`;
                 }
             } catch (e) {
-                resultEl.textContent = 'No se pudo conectar con el Worker.';
+                resultEl.textContent = workerErrorText(e);
             }
         }
 
