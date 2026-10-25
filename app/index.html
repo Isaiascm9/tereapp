@@ -1827,14 +1827,62 @@ function renderUpcomingPayments(){
   }).join('');
 }
 
+// ============ AVISOS A OTRAS APPS (webhooks) ============
+// Cuando un pedido se paga o se cancela, Téreapp deja un "evento" en la nube
+// (colección webhook_events). El Worker lo toma y lo manda firmado a las apps
+// conectadas desde el panel (Integraciones). El ID del evento es fijo
+// (pedido + tipo), así el mismo cambio nunca se manda dos veces.
+// Todo esto es "de mejor esfuerzo": si algo falla, la venta se guarda igual.
+function webhookCustomerFor(rec, override){
+  if(override) return override;
+  const c = appData.clients.find(x=>x.id===rec.clientId);
+  return { name: c ? (c.name||null) : null, phone: c ? (c.phone||null) : null, instagram: c ? (c.instagram||null) : null, email: c ? (c.email||null) : null };
+}
+function emitWebhookEvent(type, rec, orderStatus, customerOverride){
+  try{
+    if(!window.dbWriteWebhookEvent) return;
+    const orderKey = String(rec.orderNumber || rec.id);
+    const safeKey = orderKey.replace(/[^A-Za-z0-9_-]/g, '-');
+    const data = {
+      type, status: 'pending', createdAt: new Date(),
+      ref: rec.webRef || null,
+      order: {
+        id: orderKey,
+        total: Number(rec.total) || 0,
+        currency: 'USD',
+        status: orderStatus,
+        payment_method: rec.payment || '',
+        items: (rec.items||[]).map(i=>({ name: i.name || '', qty: Number(i.qty)||0, price: Number(i.unitPrice !== undefined ? i.unitPrice : i.price) || 0 }))
+      },
+      customer: webhookCustomerFor(rec, customerOverride)
+    };
+    window.dbWriteWebhookEvent(`${safeKey}_${type}`, data)
+      .then(()=>{ if(window.dispatchWebhooksNow) window.dispatchWebhooksNow(); })
+      .catch(e=>console.warn('No se pudo registrar el aviso para otras apps (la venta igual se guardó):', e));
+  }catch(e){ console.warn('No se pudo preparar el aviso para otras apps:', e); }
+}
+// ¿Esta venta/pedido acaba de pasar a "Pagado" y todavía no se avisó?
+// Marca la bandera ANTES de guardar para que quede guardada junto con el registro.
+function needsPaidWebhook(rec, prevStatus){
+  if(rec.status !== 'Pagado' || prevStatus === 'Pagado' || rec.webhookPaid) return false;
+  rec.webhookPaid = true;
+  return true;
+}
+function emitPaidEvents(rec){
+  emitWebhookEvent('order.paid', rec, 'paid');
+  emitWebhookEvent('payment.created', rec, 'paid');
+}
+
 async function markSaleAsPaidFromBanner(id){
   const sale = appData.sales.find(s=>s.id===id);
   if(!sale) return;
   const oldStatus = sale.status, oldDueDate = sale.dueDate;
   sale.status = 'Pagado';
   sale.dueDate = null;
+  const emitPaid = needsPaidWebhook(sale, oldStatus);
   pushHistorial(sale, `Editado — Estado: ${oldStatus} → Pagado; Fecha de pago: ${oldDueDate ? displayDate(oldDueDate) : 'sin fecha'} → sin fecha`);
   await window.dbSaveSale(sale);
+  if(emitPaid) emitPaidEvents(sale);
   renderAll();
 }
 
@@ -2145,8 +2193,10 @@ async function handleMultiSaleSubmit(){
     historial: []
   };
   pushHistorial(sale, 'Creado como venta directa');
+  const emitPaid = needsPaidWebhook(sale, null);
   await window.dbSaveSale(sale);
   await saveData();
+  if(emitPaid) emitPaidEvents(sale);
 
   currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
   document.getElementById('sale-discount').value=0;
@@ -2334,6 +2384,7 @@ async function saveEditedSale(){
   sale.rateValue = rateValue;
   sale.totalVES = rateType ? finalTotal*rateValue : null;
 
+  const emitPaid = needsPaidWebhook(sale, oldSaleSnapshot.status);
   const itemChanges = describeItemsDiff(oldQtyMap, newQtyMap);
   const changes = itemChanges.length ? [`Productos: ${itemChanges.join(', ')}`] : [];
   if(oldSaleSnapshot.total !== sale.total) changes.push(`Total: ${fmt(oldSaleSnapshot.total)} → ${fmt(sale.total)}`);
@@ -2346,6 +2397,7 @@ async function saveEditedSale(){
 
   await window.dbSaveSale(sale);
   await saveData();
+  if(emitPaid) emitPaidEvents(sale);
   closeModal('edit-sale-modal');
   renderAll();
   showAlert('Venta actualizada');
@@ -2367,6 +2419,7 @@ async function deleteSale(id){
   });
   await window.dbDeleteSale(id);
   await saveData();
+  emitWebhookEvent('order.cancelled', sale, 'cancelled');
   renderAll();
   showAlert('Venta eliminada y stock devuelto','error');
   return true;
@@ -2465,6 +2518,8 @@ async function handleGenerateOrder(){
     webAddress: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-address').value.trim() : (oldOrder ? (oldOrder.webAddress || null) : null),
     webShipping: (oldOrder && oldOrder.source==='web') ? document.getElementById('sale-web-shipping').value.trim() : (oldOrder ? (oldOrder.webShipping || null) : null),
     sentFlag: oldOrder ? (oldOrder.sentFlag || false) : false,
+    webRef: oldOrder ? (oldOrder.webRef || null) : null,
+    webhookPaid: oldOrder ? !!oldOrder.webhookPaid : false,
     historial: oldOrder ? (Array.isArray(oldOrder.historial) ? oldOrder.historial.slice() : []) : []
   };
 
@@ -2482,8 +2537,10 @@ async function handleGenerateOrder(){
 
   const wasEditing = !!editingOrderId;
   editingOrderId = null;
+  const emitPaid = needsPaidWebhook(order, oldOrderSnapshot ? oldOrderSnapshot.status : null);
   await window.dbSaveOrder(order);
   await saveData();
+  if(emitPaid) emitPaidEvents(order);
 
   // El estado de pago (Pendiente/Pagado) que se acaba de guardar arriba
   // puede haber cambiado la etapa que ve el cliente — la sincronizamos
@@ -2832,6 +2889,7 @@ function escapeHtmlWeb(str){
 
 async function cancelWebOrder(webOrderId){
   if(!confirm('¿Cancelar este pedido web? Queda marcado como cancelado y ya no vas a poder importarlo.')) return;
+  const webOrderToCancel = (window.__pendingWebOrders||[]).find(o=>o.id===webOrderId);
   try{
     await window.dbCancelWebOrder(webOrderId);
   }catch(e){
@@ -2845,6 +2903,13 @@ async function cancelWebOrder(webOrderId){
   if(badge){
     if(window.__pendingWebOrders.length>0){ badge.textContent = window.__pendingWebOrders.length; badge.classList.remove('hidden'); }
     else { badge.classList.add('hidden'); }
+  }
+  if(webOrderToCancel){
+    emitWebhookEvent('order.cancelled', {
+      id: webOrderToCancel.id, orderNumber: webOrderToCancel.orderNumber || null, total: webOrderToCancel.total,
+      payment: webOrderToCancel.payment || '', webRef: webOrderToCancel.ref || null,
+      items: (webOrderToCancel.items||[]).map(i=>({ name:i.name, qty:i.qty, price:i.price }))
+    }, 'cancelled', { name: webOrderToCancel.clientName || null, phone: webOrderToCancel.clientPhone || null, instagram: webOrderToCancel.clientInstagram || null, email: null });
   }
   showAlert('Pedido web cancelado');
 }
@@ -2921,8 +2986,10 @@ async function importWebOrder(webOrderId){
   const phone = (order.clientPhone || '').trim();
   let client = phone ? appData.clients.find(c => (c.phone||'').trim() === phone) : null;
   if(!client){
-    client = { id: uid(), name: order.clientName || 'Cliente web', phone, notes: '', source: 'web' };
+    client = { id: uid(), name: order.clientName || 'Cliente web', phone, notes: '', source: 'web', instagram: order.clientInstagram || '' };
     appData.clients.push(client);
+  } else if(order.clientInstagram && !client.instagram){
+    client.instagram = order.clientInstagram;
   }
 
   const newOrder = {
@@ -2945,6 +3012,8 @@ async function importWebOrder(webOrderId){
     webCurrency: order.currency || 'USD',
     webAddress: order.clientAddress || '',
     webShipping: order.shipping || '',
+    webRef: order.ref || null,
+    webhookPaid: false,
     historial: []
   };
   pushHistorial(newOrder, 'Creado desde un pedido web importado');
@@ -3058,10 +3127,14 @@ async function confirmOrderAsSale(id){
     webAddress: order.webAddress || null,
     webShipping: order.webShipping || null,
     sentFlag: order.sentFlag || false,
+    webRef: order.webRef || null,
+    webhookPaid: !!order.webhookPaid,
     historial: Array.isArray(order.historial) ? order.historial.slice() : []
   };
   pushHistorial(sale, 'Confirmado como venta');
+  const emitPaid = needsPaidWebhook(sale, null);
   await window.dbConfirmOrderAsSale(id, sale);
+  if(emitPaid) emitPaidEvents(sale);
   renderAll();
   syncSeguimientoStage(sale);
   showAlert('Pedido confirmado como venta');
@@ -3160,6 +3233,7 @@ async function deleteOrder(id){
   }
   await window.dbDeleteOrder(id);
   await saveData();
+  if(order) emitWebhookEvent('order.cancelled', order, 'cancelled');
   renderAll();
   showAlert('Pedido eliminado y stock devuelto','error');
 }
@@ -4051,6 +4125,23 @@ setReportPeriod('monthly');
     const batch = writeBatch(db);
     ids.forEach(id => batch.delete(doc(db,'ventas', id)));
     await writeWithTimeout(batch.commit(), 6000);
+  };
+  // Avisos para otras apps. La colección webhook_events solo permite CREAR
+  // (las reglas no dejan editar ni borrar), así que si el evento ya existía
+  // simplemente falla y se ignora — nunca se duplica un aviso.
+  const WEBHOOK_WORKER_URL = 'https://tereapp-notificaciones.isaiascontreras60.workers.dev';
+  window.dbWriteWebhookEvent = async function(id, data){
+    await writeWithTimeout(setDoc(doc(db,'webhook_events', id), data), 4000);
+  };
+  // Le pide al Worker que envíe los avisos pendientes ya mismo (si no, igual
+  // salen en menos de un minuto con el Cron). Si falla, no pasa nada.
+  window.dispatchWebhooksNow = async function(){
+    try{
+      const user = auth.currentUser;
+      if(!user) return;
+      const idToken = await user.getIdToken();
+      await fetch(WEBHOOK_WORKER_URL + '/admin/webhooks/dispatch', { method:'POST', headers:{ 'Authorization': 'Bearer ' + idToken } });
+    }catch(e){ /* sin conexión o Worker caído: el Cron lo recoge después */ }
   };
   window.dbSaveOrder = async function(order){ await writeWithTimeout(setDoc(doc(db,'pedidos_preliminares', order.id), order)); };
   // Suscripciones push: una por dispositivo, en su propia colección desde
