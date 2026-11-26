@@ -238,6 +238,30 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   .cash-rate-button time {font-size:.62rem}
   #cash-summary > div,#cash-balances > div {min-width:0}
 }
+/* Venta rápida */
+.quick-sale-grid {display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:1rem;align-items:start}
+.sale-product-info {display:flex;align-items:center;gap:.6rem;min-width:0;overflow-wrap:anywhere}
+.sale-product-photo {width:42px;height:42px;object-fit:cover;border-radius:.45rem;flex:none}
+.sale-product-controls {display:flex;align-items:center;flex-wrap:wrap;gap:.4rem}
+.sale-icon-button {min-width:34px;min-height:34px;display:inline-flex;align-items:center;justify-content:center}
+.sale-icon-button .msi {font-size:18px}
+.input.sale-quantity {width:3.1rem;padding:.35rem;text-align:center}
+.sale-payment-grid {display:grid;gap:.45rem}
+.sale-payment-option {display:flex;align-items:center;gap:.5rem;padding:.65rem;text-align:left;border:1px solid var(--border);min-width:0}
+.sale-payment-option[aria-pressed="true"] {background:var(--accent-soft);border-color:var(--accent)}
+.sale-confirm-strip {display:flex;flex-direction:column;gap:.65rem}
+#sale-extra-details summary span {margin-inline-start:.45rem}
+#tab-sales button:disabled {opacity:.5}
+@media(max-width:767px){.quick-sale-grid {grid-template-columns:minmax(0,1fr)}}
+@media(max-width:639px){
+ #tab-sales {padding-bottom:7rem}
+ #tab-sales .card {padding:.8rem}
+ .sale-payment-grid {grid-template-columns:repeat(3,minmax(0,1fr))}
+ .sale-payment-option {flex-direction:column;justify-content:center;text-align:center;font-size:.74rem;padding:.4rem;min-height:60px}
+ .sale-icon-button {min-height:40px;min-width:36px}
+ .sale-confirm-strip {position:fixed;inset-inline:.5rem;bottom:calc(57px + env(safe-area-inset-bottom));z-index:40;background:var(--surface);border:1px solid var(--border);box-shadow:0 3px 15px #0004;flex-direction:row;align-items:center;justify-content:space-between}
+ body:has(#tab-sales:not(.hidden)) .fab {display:none}
+}
 </style>
 </head>
 <body class="min-h-screen pb-24 sm:pb-16">
@@ -502,45 +526,42 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
   <div class="card p-6 space-y-5">
     <h2 id="sales-form-title" class="text-base font-medium t-primary flex items-center gap-2"><span class="msi accent">point_of_sale</span>Registrar venta</h2>
-    <div class="space-y-2">
-      <label class="block text-xs font-medium t-muted uppercase">Artículos</label>
-      <div id="sale-items-container" class="space-y-2"></div>
-      <button type="button" onclick="addSaleItemRow()" class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"><span class="msi" style="font-size:16px">add</span>Agregar producto</button>
-    </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="quick-sale-grid">
+      <div class="card p-4 space-y-3">
+        <h3 class="font-medium">Productos</h3>
+        <label for="sale-search" class="sr-only">Buscar producto</label>
+        <div class="flex items-center gap-2">
+          <input id="sale-search" type="search" class="input min-w-0" placeholder="Buscar producto" autocomplete="off" oninput="renderSaleSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();cashEl('sale-search-results').querySelector('button:not(:disabled)')?.click()}">
+          <button type="button" class="btn-secondary sale-icon-button" aria-label="Limpiar búsqueda" onclick="cashEl('sale-search').value='';renderSaleSearch();cashEl('sale-search').focus()"><span class="msi" aria-hidden="true">close</span></button>
+        </div>
+        <div id="sale-search-results" class="space-y-2" aria-live="polite"></div>
+        <h4 class="text-sm font-medium">Productos seleccionados (<span id="sale-item-count">0</span>)</h4>
+        <div id="sale-items-container" class="space-y-2"></div>
+        <details id="sale-extra-details" class="surface-alt p-3 rounded-xl">
+          <summary class="cursor-pointer text-sm"><strong>Más detalles</strong> <span id="sale-details-summary" class="t-muted"></span></summary>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
       <div>
         <label class="block text-xs font-medium t-muted uppercase mb-1">Fecha de la venta</label>
-        <input type="date" id="sale-date" class="input">
+        <input type="date" id="sale-date" onchange="calculateGrandTotal()" class="input">
       </div>
       <div>
         <label class="block text-xs font-medium t-muted uppercase mb-1">Cliente</label>
         <div class="flex gap-1.5">
-          <select id="sale-client" class="input flex-1"></select>
+          <select id="sale-client" onchange="calculateGrandTotal()" class="input flex-1"></select>
           <button type="button" onclick="openClientModal(null, true)" title="Nuevo cliente" class="btn-secondary px-2.5"><span class="msi" style="font-size:18px">person_add</span></button>
         </div>
       </div>
       <div>
-        <label class="block text-xs font-medium t-muted uppercase mb-1">Método de pago</label>
-        <select id="sale-payment" class="input">
-          <option>Efectivo</option><option>Transferencia</option><option>Pago Móvil</option><option>Otro</option>
-        </select>
-      </div>
-      <div>
         <label class="block text-xs font-medium t-muted uppercase mb-1">Descuento ($)</label>
-        <input type="number" step="0.01" id="sale-discount" value="0" class="input" onchange="calculateGrandTotal()">
+        <input type="number" step="0.01" id="sale-discount" min="0" value="0" class="input" onchange="calculateGrandTotal()">
       </div>
       <div>
         <label class="block text-xs font-medium t-muted uppercase mb-1">Estado</label>
-        <select id="sale-status" class="input" onchange="toggleDueDateField()"><option>Pagado</option><option>Pendiente</option></select>
+        <select id="sale-status" class="input" onchange="toggleDueDateField();calculateGrandTotal()"><option>Pagado</option><option>Pendiente</option></select>
       </div>
       <div id="due-date-wrapper" class="hidden sm:col-span-2">
         <label class="block text-xs font-medium t-muted uppercase mb-1">¿Cuándo promete pagar? (opcional)</label>
         <input type="date" id="sale-due-date" class="input">
-      </div>
-      <div class="sm:col-span-2">
-        <label class="block text-xs font-medium t-muted uppercase mb-1">Cobrar en</label>
-        <select id="sale-currency" class="input" onchange="calculateGrandTotal()"></select>
-        <p id="order-edit-web-currency-note" class="hidden text-xs mt-1" style="color:var(--accent)"></p>
       </div>
       <div id="web-order-fields" class="hidden sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 rounded-xl" style="background:var(--accent-soft, rgba(0,0,0,.03))">
         <div class="sm:col-span-2 flex items-center gap-1.5 text-xs font-medium" style="color:var(--accent)"><span class="msi" style="font-size:16px">shopping_cart</span>Datos del pedido web</div>
@@ -557,16 +578,45 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         <label class="block text-xs font-medium t-muted uppercase mb-1">Notas</label>
         <input type="text" id="sale-notes" placeholder="Ej. entregar el viernes" class="input">
       </div>
-    </div>
-    <div class="bg-accent-soft rounded-xl p-4 flex justify-between items-center flex-wrap gap-2">
-      <div>
-        <p class="text-xs font-medium uppercase">Total a cobrar</p>
-        <h3 id="sale-grand-total" class="text-2xl font-medium">$0.00</h3>
-        <p id="sale-grand-total-ves" class="text-xs t-secondary hidden"></p>
+          </div>
+        </details>
       </div>
-      <div class="flex gap-2">
-        <button id="order-submit-btn" onclick="handleGenerateOrder()" class="btn-secondary py-3 px-4 text-sm flex items-center gap-1.5"><span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar</button>
-        <button id="confirm-sale-btn" onclick="handleMultiSaleSubmit()" class="btn-primary py-3 px-6 text-sm">Confirmar venta</button>
+      <div class="card p-4 space-y-3">
+        <h3 class="font-medium">Cobro</h3>
+        <div class="sale-payment-grid" role="group" aria-label="Cobro rápido">
+          <button type="button" class="btn-secondary sale-payment-option" data-quick-payment="cash" onclick="setQuickPayment('cash')"><span class="msi" aria-hidden="true">payments</span>Efectivo USD</button>
+          <button type="button" class="btn-secondary sale-payment-option" data-quick-payment="mobile" onclick="setQuickPayment('mobile')"><span class="msi" aria-hidden="true">qr_code</span>Pago móvil en Bs</button>
+          <button type="button" class="btn-secondary sale-payment-option" data-quick-payment="transfer" onclick="setQuickPayment('transfer')"><span class="msi" aria-hidden="true">swap_horiz</span>Transferencia en Bs</button>
+        </div>
+      <div class="sm:col-span-2">
+        <label class="block text-xs font-medium t-muted uppercase mb-1">Cobrar en</label>
+        <select id="sale-currency" class="input" onchange="calculateGrandTotal()"></select>
+        <p id="order-edit-web-currency-note" class="hidden text-xs mt-1" style="color:var(--accent)"></p>
+      </div>
+        <div id="sale-cash-fields">
+          <label for="sale-cash-account" class="block text-xs font-medium t-muted uppercase mb-1">Cuenta de Caja</label>
+          <select class="input" id="sale-cash-account" onchange="selectedSaleAccount=this.value"></select>
+          <p class="text-xs t-muted mt-1" id="sale-cash-hint"></p>
+        </div>
+        <details class="text-sm"><summary class="cursor-pointer t-muted mb-2">Otro método de pago</summary>
+      <div>
+        <label class="block text-xs font-medium t-muted uppercase mb-1">Método de pago</label>
+        <select id="sale-payment" onchange="calculateGrandTotal()" class="input">
+          <option>Efectivo</option><option>Transferencia</option><option>Pago Móvil</option><option>Otro</option>
+        </select>
+      </div>
+        </details>
+        <div class="sale-confirm-strip bg-accent-soft rounded-xl p-3">
+          <div><p class="text-xs uppercase">Total a cobrar</p>
+            <h3 id="sale-grand-total" class="text-xl font-semibold">$0.00</h3>
+            <p id="sale-grand-total-ves" class="text-xs t-secondary hidden"></p>
+          </div>
+          <button type="button" id="confirm-sale-btn" onclick="runSaleAction('sale')" class="btn-primary px-4 py-3 text-sm">Confirmar venta</button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" id="sale-pending-btn" onclick="runSaleAction('pending')" class="btn-secondary px-3 py-2 text-xs">Guardar pendiente</button>
+          <button type="button" id="order-submit-btn" onclick="runSaleAction('order')" class="btn-secondary px-3 py-2 text-xs flex items-center gap-1"><span class="msi" style="font-size:16px">pending_actions</span>Pedido preliminar</button>
+        </div>
       </div>
     </div>
     <div id="order-historial-card" class="hidden surface-alt rounded-xl p-4">
@@ -1891,7 +1941,7 @@ function cashSaleAmount(record){
     amount: cashMinor(convertsToVES ? record.totalVES : record.total)
   };
 }
-function chooseNewSaleCashAccount(record,date){
+function chooseNewSaleCashAccount(record,date,preferredAccount){
   if(!cashCanWrite()) return Promise.resolve(null);
   const {currency,amount} = cashSaleAmount(record);
   if(!cashDateValid(date) || !Number.isSafeInteger(amount) || amount <= 0){
@@ -1899,6 +1949,8 @@ function chooseNewSaleCashAccount(record,date){
     return Promise.resolve(null);
   }
   const accounts = cashState.accounts.filter(account => account.currency === currency && account.opened <= date);
+  const preferred=accounts.find(account=>account.id===preferredAccount);
+  if(preferred) return Promise.resolve({account:preferred.id,date,amount,rev:0});
   if(accounts.length === 1) return Promise.resolve({account:accounts[0].id,date,amount,rev:0});
   if(!accounts.length){
     showAlert('Crea una cuenta en ' + currency + ' en Caja con una fecha de apertura igual o anterior al cobro.','error');
@@ -2643,11 +2695,14 @@ function goToSalesPage(page){
   renderRecentSales();
 }
 
-let currentSaleItems = [{ productId:null, qty:1 }];
+let currentSaleItems = [];
 
 function renderSaleClientOptions(){
   const sel = document.getElementById('sale-client');
-  sel.innerHTML = '<option value="">Sin cliente</option>' + appData.clients.map(c=>`<option value="${c.id}">${c.name}${c.phone ? ' — '+c.phone : ''}${c.source==='web' ? ' (Web)' : ''}</option>`).join('');
+  const previous=sel.value;
+  sel.replaceChildren(new Option('Sin cliente',''));
+  for(const client of appData.clients) sel.add(new Option(client.name+(client.phone ? ' — '+client.phone : '')+(client.source==='web' ? ' (Web)' : ''),client.id));
+  if(appData.clients.some(client=>client.id===previous)) sel.value=previous;
 }
 
 // El precio "real" de una línea del pedido: si esa línea trae su propio
@@ -2657,43 +2712,200 @@ function getRowUnitPrice(item, prod){
   return (item.unitPrice !== undefined && item.unitPrice !== null) ? item.unitPrice : prod.price;
 }
 
-function renderSalesItemRows(){
-  const container = document.getElementById('sale-items-container');
-  container.innerHTML='';
-  if(appData.products.length===0){ container.innerHTML = '<p class="text-xs" style="color:var(--danger)">Primero agregá productos en Catálogo.</p>'; return; }
-  currentSaleItems.forEach((item,idx)=>{
-    if(!item.productId) item.productId = appData.products[0].id;
-    const prod = appData.products.find(p=>p.id===item.productId) || appData.products[0];
-    const options = appData.products.map(p=>`<option value="${p.id}" ${p.id===item.productId?'selected':''}>${p.name} (Stock: ${p.stock}) - ${fmt(p.price)}</option>`).join('');
-    const unitPrice = getRowUnitPrice(item, prod);
-    const hasDiscount = item.unitPrice !== undefined && item.unitPrice !== null && Math.abs(item.unitPrice - prod.price) > 0.001;
-    const row = document.createElement('div');
-    row.className = 'flex flex-col sm:flex-row items-stretch sm:items-center gap-2 surface-alt p-3 rounded-xl';
-    row.innerHTML = `
-      <div class="flex-1">
-        <select onchange="updateSaleRowProduct(${idx}, this.value)" class="input py-2 text-xs">${options}</select>
-        ${hasDiscount ? `<span class="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style="background:var(--accent-soft); color:var(--accent)">Descuento</span>` : ''}
-      </div>
-      <div class="flex items-center gap-2">
-        <input type="number" min="1" value="${item.qty}" onchange="updateSaleRowQty(${idx}, this.value)" class="input py-2 text-xs text-center w-20 sm:w-16">
-        <div class="flex-1 sm:w-20 text-right font-medium text-xs">${fmt(unitPrice*item.qty)}</div>
-        <button type="button" onclick="removeSaleRow(${idx})" class="t-muted hover:opacity-70"><span class="msi" style="font-size:18px">delete</span></button>
-      </div>`;
-    container.appendChild(row);
-  });
-  calculateGrandTotal();
+const quickPayments = {
+  cash:{method:'Efectivo',rate:'USD'},
+  mobile:{method:'Pago Móvil',rate:'BCV_USD'},
+  transfer:{method:'Transferencia',rate:'BCV_USD'}
+};
+let selectedSaleAccount = '';
+let quickSaleBusy = false;
+
+function saleSearchKey(text){
+  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
-function addSaleItemRow(){ if(appData.products.length===0) return; currentSaleItems.push({productId:appData.products[0].id, qty:1}); renderSalesItemRows(); }
-function removeSaleRow(idx){ if(currentSaleItems.length===1){ showAlert('Debe quedar al menos un artículo', 'error'); return; } currentSaleItems.splice(idx,1); renderSalesItemRows(); }
-function updateSaleRowProduct(idx,id){
-  currentSaleItems[idx].productId=id;
-  // Si el admin elige otro producto a mano para esta línea, ya no es "la
-  // línea original del impulsador" — se le quita el precio protegido y
-  // pasa a usar el precio normal del producto que acaba de elegir.
-  delete currentSaleItems[idx].unitPrice;
+function saleActionButton(label,icon,handler){
+  const button = document.createElement('button');
+  button.type='button';
+  button.className='btn-secondary sale-icon-button';
+  button.setAttribute('aria-label',label);
+  button.title=label;
+  const glyph=cashText(icon);
+  glyph.className='msi';
+  glyph.setAttribute('aria-hidden','true');
+  button.append(glyph);
+  button.onclick=handler;
+  return button;
+}
+function appendSalePhoto(container,product){
+  if(!product?.photo) return;
+  const photo=document.createElement('img');
+  photo.className='sale-product-photo';
+  photo.src=product.photo;
+  photo.alt='';
+  photo.loading='lazy';
+  photo.onerror=()=>photo.remove();
+  container.append(photo);
+}
+function renderSaleSearch(){
+  const results=cashEl('sale-search-results');
+  const terms=saleSearchKey(cashEl('sale-search').value).trim().split(/\s+/).filter(Boolean);
+  results.replaceChildren();
+  if(!terms.length) return;
+  const products=appData.products.filter(p=>terms.every(term=>saleSearchKey(p.name).includes(term))).slice(0,8);
+  if(!products.length){ results.append(cashText('No se encontraron productos.')); return; }
+  for(const product of products){
+    const row=cashRow(results);
+    const info=document.createElement('div');
+    info.className='sale-product-info';
+    appendSalePhoto(info,product);
+    const description=document.createElement('div');
+    description.append(cashText(product.name));
+    const stock=cashText(product.stock+' en stock · '+fmt(product.price));
+    stock.className='block text-xs t-muted';
+    description.append(stock);
+    info.append(description);
+    const add=saleActionButton('Agregar '+product.name,'add',()=>addSaleProduct(product.id));
+    add.disabled=availableSaleQuantity(product.id) <= 0;
+    row.append(info,add);
+  }
+}
+function saleReservedQuantity(id){
+  if(!editingOrderId) return 0;
+  return (appData.orders.find(order=>order.id===editingOrderId)?.items || [])
+    .filter(item=>item.productId===id).reduce((sum,item)=>sum+item.qty,0);
+}
+function availableSaleQuantity(id){
+  const product=appData.products.find(item=>item.id===id);
+  const selected=currentSaleItems.filter(item=>item.productId===id).reduce((sum,item)=>sum+item.qty,0);
+  return product ? product.stock+saleReservedQuantity(id)-selected : 0;
+}
+function addSaleProduct(id){
+  if(availableSaleQuantity(id)<=0) return;
+  const row=currentSaleItems.find(item=>item.productId===id && item.unitPrice==null);
+  if(row) row.qty++;
+  else currentSaleItems.push({productId:id,qty:1});
   renderSalesItemRows();
 }
-function updateSaleRowQty(idx,qty){ currentSaleItems[idx].qty = parseInt(qty)||1; renderSalesItemRows(); }
+function renderSalesItemRows(){
+  const container=cashEl('sale-items-container');
+  container.replaceChildren();
+  cashEl('sale-item-count').textContent=String(currentSaleItems.reduce((sum,item)=>sum+item.qty,0));
+  if(!currentSaleItems.length){
+    const empty=cashText(appData.products.length ? 'Busca un producto para empezar.' : 'Agrega productos desde Catálogo.');
+    empty.className='text-sm t-muted';
+    container.append(empty);
+  }
+  currentSaleItems.forEach((item,index)=>{
+    const product=appData.products.find(p=>p.id===item.productId);
+    const row=cashRow(container);
+    const info=document.createElement('div');
+    info.className='sale-product-info';
+    appendSalePhoto(info,product);
+    info.append(cashText(product?.name || 'Producto fuera del catálogo'));
+    const controls=document.createElement('div');
+    controls.className='sale-product-controls';
+    const minus=saleActionButton('Restar una unidad','remove',()=>updateSaleRowQty(index,item.qty-1));
+    minus.disabled=item.qty<=1;
+    const quantity=document.createElement('input');
+    quantity.className='input sale-quantity';
+    quantity.type='number';
+    quantity.inputMode='numeric';
+    quantity.min='1';
+    quantity.value=item.qty;
+    quantity.setAttribute('aria-label','Cantidad de '+(product?.name || 'producto'));
+    quantity.onchange=()=>updateSaleRowQty(index,quantity.value);
+    const plus=saleActionButton('Sumar una unidad','add',()=>updateSaleRowQty(index,item.qty+1));
+    plus.disabled=availableSaleQuantity(item.productId)<=0;
+    const price=cashText(product ? fmt(getRowUnitPrice(item,product)*item.qty) : '—');
+    price.className='font-medium';
+    controls.append(minus,quantity,plus,price,saleActionButton('Quitar producto','delete',()=>{
+      currentSaleItems.splice(index,1);
+      renderSalesItemRows();
+    }));
+    row.append(info,controls);
+  });
+  renderSaleSearch();
+  calculateGrandTotal();
+}
+function updateSaleRowQty(index,value){
+  const item=currentSaleItems[index];
+  const quantity=Math.max(1,parseInt(value,10)||1);
+  if(quantity<=item.qty+availableSaleQuantity(item.productId) || quantity<=item.qty) item.qty=quantity;
+  else showAlert('La cantidad supera el stock disponible.','error');
+  renderSalesItemRows();
+}
+function setQuickPayment(key){
+  const option=quickPayments[key];
+  const rate=cashEl('sale-currency');
+  if(option.rate!=='USD' && ![...rate.options].some(x=>x.value===option.rate)){
+    showAlert('Actualiza la tasa Dólar BCV o elige otra tasa disponible en Cobrar en.','error');
+    return;
+  }
+  cashEl('sale-payment').value=option.method;
+  if(option.rate==='USD' || rate.value==='USD') rate.value=option.rate;
+  calculateGrandTotal();
+}
+function renderSaleAccount(){
+  const select=cashEl('sale-cash-account');
+  const hint=cashEl('sale-cash-hint');
+  const pending=cashEl('sale-status').value==='Pendiente';
+  const currency=getSelectedRate() ? 'VES' : 'USD';
+  const date=cashEl('sale-date').value || todayIso();
+  const accounts=cashState.accounts.filter(account=>account.currency===currency && account.opened<=date);
+  cashEl('sale-cash-fields').hidden=!!editingOrderId || pending;
+  select.replaceChildren(new Option(accounts.length ? 'Elige una cuenta' : 'Sin cuenta disponible',''));
+  for(const account of accounts) select.add(new Option(account.name,account.id));
+  if(accounts.length===1) selectedSaleAccount=accounts[0].id;
+  else if(!accounts.some(account=>account.id===selectedSaleAccount)) selectedSaleAccount='';
+  select.value=selectedSaleAccount;
+  select.disabled=accounts.length<=1;
+  hint.textContent=!cashState.ready ? 'Cargando Caja…' : accounts.length ? '' : 'Crea una cuenta en '+currency+' para registrar el cobro.';
+}
+function updateQuickSaleSummary(){
+  const payment=cashEl('sale-payment').value;
+  const rate=getSelectedRate();
+  for(const button of document.querySelectorAll('[data-quick-payment]')){
+    const option=quickPayments[button.dataset.quickPayment];
+    button.setAttribute('aria-pressed',String(option.method===payment && (option.rate==='USD' ? !rate : !!rate)));
+  }
+  const date=cashEl('sale-date').value || todayIso();
+  const client=appData.clients.find(item=>item.id===cashEl('sale-client').value);
+  cashEl('sale-details-summary').textContent=(date===todayIso() ? 'Hoy' : displayDate(date))+' · '+(client?.name || 'Sin cliente');
+  cashEl('sale-pending-btn').classList.toggle('hidden',!!editingOrderId || cashEl('sale-status').value==='Pendiente');
+  cashEl('confirm-sale-btn').textContent=cashEl('sale-status').value==='Pendiente' ? 'Guardar venta pendiente' : 'Confirmar venta';
+  renderSaleAccount();
+}
+async function runSaleAction(action){
+  if(quickSaleBusy) return;
+  if(!currentSaleItems.length){ showAlert('Agrega al menos un producto.','error'); return; }
+  quickSaleBusy=true;
+  const buttons=['confirm-sale-btn','sale-pending-btn','order-submit-btn'].map(cashEl);
+  buttons.forEach(button=>button.disabled=true);
+  try{
+    if(action==='pending'){
+      cashEl('sale-status').value='Pendiente';
+      cashEl('sale-extra-details').open=true;
+      toggleDueDateField();
+      calculateGrandTotal();
+      cashEl('sale-due-date').focus();
+      return;
+    }
+    if(action==='order') await handleGenerateOrder();
+    else await handleMultiSaleSubmit();
+  }catch(error){ cashSaveError(error); }
+  finally{
+    quickSaleBusy=false;
+    buttons.forEach(button=>button.disabled=false);
+  }
+}
+function resetQuickSale(){
+  currentSaleItems=[];
+  selectedSaleAccount='';
+  cashEl('sale-search').value='';
+  cashEl('sale-payment').value='Efectivo';
+  cashEl('sale-status').value='Pagado';
+  cashEl('sale-extra-details').open=false;
+}
 
 function calculateGrandTotal(){
   let total=0;
@@ -2702,16 +2914,14 @@ function calculateGrandTotal(){
   const finalUsd = Math.max(0,total-discount);
   const editingOrder = editingOrderId ? appData.orders.find(o=>o.id===editingOrderId) : null;
   const totalSymbol = (editingOrder && editingOrder.webCurrency === 'EUR') ? '€' : '$';
-  document.getElementById('sale-grand-total').innerText = totalSymbol+finalUsd.toFixed(2);
-
-  const vesEl = document.getElementById('sale-grand-total-ves');
-  const rate = getSelectedRate();
-  if(rate){
-    vesEl.innerText = 'Bs ' + (finalUsd*rate.value).toLocaleString('es-VE',{minimumFractionDigits:2, maximumFractionDigits:2});
-    vesEl.classList.remove('hidden');
-  } else {
-    vesEl.classList.add('hidden');
-  }
+  const base = totalSymbol+finalUsd.toFixed(2);
+  const primary=cashEl('sale-grand-total');
+  const secondary=cashEl('sale-grand-total-ves');
+  const rate=getSelectedRate();
+  primary.textContent=rate ? cashMoney(cashMinor(finalUsd*rate.value),'VES') : base;
+  secondary.textContent=rate ? 'Precio base: '+base : '';
+  secondary.classList.toggle('hidden',!rate);
+  updateQuickSaleSummary();
 }
 
 let lastSubmitTime = 0;
@@ -2723,7 +2933,7 @@ function isDoubleSubmit(){
 }
 
 async function handleMultiSaleSubmit(){
-  if(isDoubleSubmit()) return;
+  if(!currentSaleItems.length) return;
   for(const item of currentSaleItems){
     const p = appData.products.find(x=>x.id===item.productId);
     if(!p || p.stock < item.qty){ showAlert(`No hay suficiente stock de "${p?p.name:''}"`, 'error'); return; }
@@ -2760,7 +2970,7 @@ async function handleMultiSaleSubmit(){
     historial: []
   };
   const paid = sale.status === 'Pagado' && sale.total > 0;
-  const selection = paid ? await chooseCashLink('sale',sale,sale.dateIso,null) : null;
+  const selection = paid ? await chooseNewSaleCashAccount(sale,sale.dateIso,selectedSaleAccount) : null;
   if(paid && !selection) return;
   if(!dataLoadSafe) return;
   for(const item of itemsSummary){
@@ -2788,7 +2998,7 @@ async function handleMultiSaleSubmit(){
   if(!selection) await saveData();
   if(emitPaid) emitPaidEvents(sale);
 
-  currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
+  resetQuickSale();
   document.getElementById('sale-discount').value=0;
   document.getElementById('sale-date').value=todayIso();
   document.getElementById('sale-currency').value='USD';
@@ -3055,7 +3265,7 @@ function toggleEditSaleDueDateField(){
 }
 
 async function handleGenerateOrder(){
-  if(isDoubleSubmit()) return;
+  if(!currentSaleItems.length) return;
   const oldOrder = editingOrderId ? appData.orders.find(o=>o.id===editingOrderId) : null;
   const oldOrderSnapshot = oldOrder ? { total: oldOrder.total, payment: oldOrder.payment, discount: oldOrder.discount||0, status: oldOrder.status, clientId: oldOrder.clientId||null } : null;
   const oldQtyMap = {};
@@ -3156,7 +3366,7 @@ async function handleGenerateOrder(){
     }
   }
 
-  currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
+  resetQuickSale();
   document.getElementById('sale-discount').value=0;
   document.getElementById('sale-date').value=todayIso();
   document.getElementById('sale-currency').value='USD';
@@ -3757,6 +3967,9 @@ function openOrderForEdit(id){
   const order = appData.orders.find(o=>o.id===id);
   if(!order) return;
   editingOrderId = id;
+  selectedSaleAccount='';
+  cashEl('sale-search').value='';
+  cashEl('sale-extra-details').open=true;
   currentSaleItems = order.items.map(it=>({ productId: it.productId, qty: it.qty, unitPrice: (it.unitPrice !== undefined ? it.unitPrice : null) }));
 
   // Primero cambiamos de pestaña (esto internamente refresca listas y
@@ -3802,13 +4015,14 @@ function openOrderForEdit(id){
 
 function cancelOrderEdit(){
   editingOrderId = null;
-  currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
+  resetQuickSale();
   document.getElementById('sale-discount').value=0;
   document.getElementById('sale-date').value=todayIso();
   document.getElementById('sale-currency').value='USD';
   document.getElementById('sale-notes').value='';
   document.getElementById('sale-due-date').value='';
   document.getElementById('due-date-wrapper').classList.add('hidden');
+  document.getElementById('sale-client').value='';
   document.getElementById('web-order-fields').classList.add('hidden');
   document.getElementById('sale-web-address').value = '';
   document.getElementById('sale-web-shipping').value = '';
@@ -4164,6 +4378,7 @@ async function handleClientSubmit(e){
   renderAll();
   if(selectForSaleAfterSave){
     document.getElementById('sale-client').value = client.id;
+    updateQuickSaleSummary();
     selectForSaleAfterSave = false;
   }
 }
@@ -5067,6 +5282,7 @@ setReportPeriod('monthly');
       if(!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) confirmed.add(name);
       cashState.ready = confirmed.size === 2 && !cashState.error;
       renderCash();
+      renderSaleAccount();
     },() => {
       cashState.ready = false;
       cashState.error = 'No se pudo leer Caja. Revisa la conexión y las reglas de Firestore.';
