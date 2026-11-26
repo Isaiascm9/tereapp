@@ -721,7 +721,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   <div id="report-kpis" class="grid grid-cols-2 lg:grid-cols-3 gap-3"></div>
   <p class="text-xs t-muted">Cobrado y Por cobrar se calculan según el estado actual de las ventas del período.</p>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-    <div class="card p-5"><h3 class="text-sm font-medium mb-3">Facturación en el tiempo</h3><div id="report-revenue-chart"></div></div>
+    <div class="card p-5"><h3 class="text-sm font-medium mb-3">Gráfico de ventas</h3><div id="report-revenue-chart"></div></div>
     <div class="card p-5"><h3 class="text-sm font-medium mb-3">Promedio por venta en el tiempo</h3><div id="report-average-chart"></div></div>
     <div class="card p-5"><h3 class="text-sm font-medium mb-3">Más vendidos por unidades</h3><div id="report-best-products"></div></div>
     <div class="card p-5"><h3 class="text-sm font-medium mb-1">Menor rotación</h3><p class="text-xs t-muted mb-3">Productos con stock actual, ordenados por las unidades vendidas en el período.</p><div id="report-slow-products"></div></div>
@@ -2140,6 +2140,7 @@ function applyDarkMode(){
   document.querySelectorAll('.dark-icon').forEach(el=>{ el.innerText = appData.settings.darkMode ? 'light_mode' : 'dark_mode'; });
   document.getElementById('settings-dark').checked = appData.settings.darkMode;
   renderCharts();
+  if(!document.getElementById('tab-reports').classList.contains('hidden')) renderReports();
 }
 
 function updateLowStockDefault(){
@@ -2474,7 +2475,7 @@ function renderCharts(){
   const labelsA = daysA.map(d=>displayDate(d).slice(0,5));
   const dataA = salesTotalByDay(daysA);
   const ctx1 = document.getElementById('chart-week');
-  if(ctx1){
+  if(ctx1 && window.Chart){
     if(weekChart) weekChart.destroy();
     weekChart = new Chart(ctx1, { type:'bar', data:{ labels:labelsA, datasets:[{ data:dataA, backgroundColor:c.accent, borderRadius:4 }]},
       options:{ plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:c.text}, grid:{display:false} }, y:{ ticks:{color:c.text}, grid:{color:c.grid} } } } });
@@ -4475,7 +4476,37 @@ function reportBars(rows,empty){
   }
   return block;
 }
+let reportSalesCharts = [];
+function appendReportSalesChart(container,rows,currency){
+  const frame = document.createElement('div');
+  frame.style.cssText = 'position:relative;height:240px';
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('role','img');
+  canvas.setAttribute('aria-label','Facturación por fecha en '+currency);
+  canvas.textContent = rows.map(row=>row.label+': '+row.detail).join(' · ');
+  frame.append(canvas);
+  container.append(frame);
+  const colors = chartColors();
+  const chart = new window.Chart(canvas,{
+    type:'line',
+    data:{labels:rows.map(row=>row.label),datasets:[{
+      label:'Facturación',data:rows.map(row=>row.value),borderColor:colors.accent,
+      backgroundColor:colors.accent,tension:.25,pointRadius:3
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:point=>reportMoney(point.parsed.y,currency)}}},
+      scales:{
+        x:{ticks:{color:colors.text,maxTicksLimit:7},grid:{display:false}},
+        y:{beginAtZero:true,ticks:{color:colors.text,callback:value=>reportMoney(value,currency)},grid:{color:colors.grid}}
+      }
+    }
+  });
+  reportSalesCharts.push(chart);
+}
 function renderReportTimeline(data){
+  for(const chart of reportSalesCharts) chart.destroy();
+  reportSalesCharts = [];
   const timeline = reportTimeline(data.sales,data.from,data.to);
   for(const [id,average] of [['report-revenue-chart',false],['report-average-chart',true]]){
     const container = document.getElementById(id);
@@ -4491,7 +4522,9 @@ function renderReportTimeline(data){
         const date = group.start === group.end ? displayDate(group.start) : displayDate(group.start)+' al '+displayDate(group.end);
         return {label:date,value:amount,detail:average && !value ? 'Sin ventas' : reportMoney(amount,currency)};
       });
-      container.append(label,reportBars(rows,'Sin ventas.'));
+      container.append(label);
+      if(!average && window.Chart) appendReportSalesChart(container,rows,currency);
+      else container.append(reportBars(rows,'Sin ventas.'));
     }
   }
 }
