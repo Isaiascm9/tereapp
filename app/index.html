@@ -627,7 +627,14 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       </select>
       <input id="cash-day" class="input hidden" type="date" aria-label="Fecha de Caja" onchange="renderCash()">
     </div>
-    <p id="cash-range-label" class="text-sm t-muted"></p>
+    <div class="flex flex-wrap items-center gap-3">
+      <p id="cash-range-label" class="text-sm t-muted"></p>
+      <label class="flex items-center gap-2 text-sm">Moneda
+        <select id="cash-currency" class="input" onchange="renderCash()">
+          <option value="all">Todas</option><option>USD</option><option>VES</option><option>EUR</option><option>USDT</option>
+        </select>
+      </label>
+    </div>
   </div>
   <div class="card p-4">
     <div class="flex justify-between items-center mb-3">
@@ -638,6 +645,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
   <p id="cash-status" class="text-sm t-muted" role="status"></p>
   <div id="cash-balances" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+  <p id="cash-equivalent" class="text-sm t-muted" hidden></p>
   <div class="card p-4">
     <h3 class="font-medium mb-3">Resumen del período</h3>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="cash-summary"></div>
@@ -1562,33 +1570,49 @@ function renderCash(){
   if(!cashEl('cash-day')) return;
   const {from,to} = cashRange();
   const rates = cashVESRates();
+  const filter = cashEl('cash-currency').value;
+  const showAll = filter === 'all';
   const balances = new Map();
-  const consolidated = {available:0,reserved:0,total:0,initial:0,incoming:0,outgoing:0};
+  const accountsInRange = cashState.accounts.filter(account => account.opened <= to);
+  const currencies = showAll ? [...new Set(['USD','VES',...accountsInRange.map(account => account.currency)])] : [filter];
+  const totalsByCurrency = new Map();
   const missing = [];
-  let approximate = false;
-  for(const currency of new Set(cashState.accounts.filter(a => a.opened <= to).map(a => a.currency))){
+  let totalEquivalent = 0;
+  let converted = false;
+  for(const currency of currencies){
     const amounts = cashTotals(cashState.accounts,cashState.movements,to,currency,from);
+    totalsByCurrency.set(currency,amounts);
     for(const [id,value] of amounts.balances) balances.set(id,value);
-    const contributes = Object.keys(consolidated).some(key => amounts[key] !== 0) ||
-      [...amounts.balances.values()].some(a => a.balance || a.reserved);
-    if(!contributes) continue;
-    if(cashEquivalent(1,currency,rates) === null){ missing.push(currency); continue; }
-    approximate ||= currency !== 'VES';
-    for(const key of Object.keys(consolidated)) consolidated[key] += cashEquivalent(amounts[key],currency,rates);
+    if(!showAll || currency === 'VES'){
+      totalEquivalent += amounts.total;
+      continue;
+    }
+    if(![...amounts.balances.values()].some(account => account.balance !== 0)) continue;
+    const equivalent = cashEquivalent(amounts.total,currency,rates);
+    if(equivalent === null) missing.push(currency);
+    else{
+      converted = true;
+      totalEquivalent += equivalent;
+    }
   }
   cashEl('cash-range-label').textContent = from === to ? displayDate(to) : displayDate(from) + ' al ' + displayDate(to);
-  const status = cashState.error || (!cashState.ready ? 'Cargando datos de Caja…' :
-    missing.length ? 'Totales parciales en VES. Sin tasa para ' + missing.join(', ') + '. Sus cuentas y movimientos se muestran abajo.' : '');
-  cashEl('cash-status').textContent = status;
-  const tile = (label,value,css) => {
-    const display = cashState.ready ? (approximate ? '≈ ' : '') + cashMoney(Math.round(value),'VES') : '—';
-    return '<div class="' + css + '"><p class="text-xs t-muted">' + label +
-      '</p><p class="text-xl font-semibold">' + display + '</p></div>';
+  cashEl('cash-status').textContent = cashState.error || (cashState.ready ? '' : 'Cargando datos de Caja…');
+  const equivalent = cashEl('cash-equivalent');
+  equivalent.hidden = !cashState.ready || !showAll || (!converted && !missing.length);
+  equivalent.textContent = 'Equivalente del saldo total en VES: ' +
+    (missing.length ? 'no disponible. Falta la tasa para ' + missing.join(', ') + '.' :
+      '≈ ' + cashMoney(Math.round(totalEquivalent),'VES') + ' con las tasas mostradas arriba.');
+  const tile = (label,key,css) => {
+    const values = cashState.ready ? currencies.map(currency =>
+      '<div class="flex items-baseline gap-2 flex-wrap"><span class="text-xs t-muted">' + currency +
+      '</span><span class="text-lg font-semibold">' + cashMoney(totalsByCurrency.get(currency)[key],currency) +
+      '</span></div>').join('') : '<p class="text-lg">—</p>';
+    return '<div class="' + css + '"><p class="text-xs t-muted mb-1">' + label + '</p>' + values + '</div>';
   };
-  cashEl('cash-balances').innerHTML = [['Disponible',consolidated.available],['Apartado',consolidated.reserved],['Saldo total',consolidated.total]]
-    .map(([label,value]) => tile(label,value,'card p-4')).join('');
-  cashEl('cash-summary').innerHTML = [['Saldo inicial',consolidated.initial],['Entradas',consolidated.incoming],
-    ['Salidas',consolidated.outgoing],['Saldo final',consolidated.total]].map(([label,value]) => tile(label,value,'')).join('');
+  cashEl('cash-balances').innerHTML = [['Disponible','available'],['Apartado','reserved'],['Saldo total','total']]
+    .map(([label,key]) => tile(label,key,'card p-4')).join('');
+  cashEl('cash-summary').innerHTML = [['Saldo inicial','initial'],['Entradas','incoming'],
+    ['Salidas','outgoing'],['Saldo final','total']].map(([label,key]) => tile(label,key,'')).join('');
   renderCashRates();
   const accounts = cashEl('cash-accounts');
   const rows = cashEl('cash-movements');
@@ -1605,7 +1629,8 @@ function renderCash(){
   }
   if(!accounts.children.length) accounts.append(cashText('No hay cuentas abiertas para este período.'));
   const accountMap = new Map(cashState.accounts.map(account => [account.id,account]));
-  const movements = cashState.movements.filter(row => row.date >= from && row.date <= to)
+  const movements = cashState.movements.filter(row => row.date >= from && row.date <= to &&
+    row.legs.some(leg => balances.has(leg.account)))
     .sort((a,b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt);
   for(const entry of movements){
     const row = cashRow(rows);
@@ -1697,7 +1722,7 @@ function openCashAccount(account){
     cashMinor(values.amount), account?.rev || 0, opening?.rev || 0
   ));
   cashField('name','Nombre',account?.name,null,{required:true,maxLength:70});
-  const currency = cashField('currency','Moneda',account?.currency || 'VES',
+  const currency = cashField('currency','Moneda',account?.currency || (cashEl('cash-currency').value === 'all' ? 'VES' : cashEl('cash-currency').value),
     ['USD','VES','EUR','USDT'].map(code => [code,code]));
   currency.disabled = !!account;
   const date = cashField('date','Fecha del saldo inicial',account?.opened || todayIso(),null,
