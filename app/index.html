@@ -699,7 +699,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 
 <section id="tab-reports" class="hidden space-y-6">
   <div class="card p-5 space-y-4">
-    <h3 class="text-sm font-medium t-secondary flex items-center gap-1.5"><span class="msi accent" style="font-size:18px">description</span>Generar reporte para descargar</h3>
+    <h3 class="text-sm font-medium t-secondary flex items-center gap-1.5"><span class="msi accent" style="font-size:18px">description</span>Período del reporte</h3>
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
       <button onclick="setReportPeriod('daily')" id="period-daily" class="btn-secondary py-2 text-xs">Diario</button>
       <button onclick="setReportPeriod('weekly')" id="period-weekly" class="btn-secondary py-2 text-xs">Semanal</button>
@@ -718,27 +718,24 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </div>
   </div>
 
-  <div class="card p-5">
-    <div class="flex justify-between items-center mb-3">
-      <h3 id="chart-reports-title" class="text-sm font-medium t-secondary">Ventas de los últimos 14 días</h3>
-      <select id="chart-reports-range" onchange="setReportsChartDays(this.value)" class="input py-1 text-xs w-auto">
-        <option value="7">7 días</option>
-        <option value="14" selected>14 días</option>
-        <option value="30">30 días</option>
-      </select>
-    </div>
-    <div style="height:240px"><canvas id="chart-reports"></canvas></div>
+  <div id="report-kpis" class="grid grid-cols-2 lg:grid-cols-3 gap-3"></div>
+  <p class="text-xs t-muted">Cobrado y Por cobrar se calculan según el estado actual de las ventas del período.</p>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5"><h3 class="text-sm font-medium mb-3">Facturación en el tiempo</h3><div id="report-revenue-chart"></div></div>
+    <div class="card p-5"><h3 class="text-sm font-medium mb-3">Promedio por venta en el tiempo</h3><div id="report-average-chart"></div></div>
+    <div class="card p-5"><h3 class="text-sm font-medium mb-3">Más vendidos por unidades</h3><div id="report-best-products"></div></div>
+    <div class="card p-5"><h3 class="text-sm font-medium mb-1">Menor rotación</h3><p class="text-xs t-muted mb-3">Productos con stock actual, ordenados por las unidades vendidas en el período.</p><div id="report-slow-products"></div></div>
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <div class="card p-5">
-      <h3 class="text-sm font-medium t-secondary mb-3">Top 5 productos por ingresos</h3>
+      <h3 class="text-sm font-medium t-secondary mb-3">Top 5 productos por ingresos, por moneda</h3><p class="text-xs t-muted mb-3">Importes por producto antes del descuento general de la venta.</p>
       <table class="w-full text-left text-sm">
         <thead><tr class="border-b b t-muted"><th class="pb-2 font-medium">Producto</th><th class="pb-2 font-medium">Unid.</th><th class="pb-2 font-medium text-right">Ingresos</th></tr></thead>
         <tbody id="top-products-table"></tbody>
       </table>
     </div>
     <div class="card p-5">
-      <h3 class="text-sm font-medium t-secondary mb-3">Ranking de margen por producto</h3>
+      <h3 class="text-sm font-medium t-secondary mb-3">Margen actual por producto</h3>
       <table class="w-full text-left text-sm">
         <thead><tr class="border-b b t-muted"><th class="pb-2 font-medium">Producto</th><th class="pb-2 font-medium text-right">Margen $</th><th class="pb-2 font-medium text-right">Margen %</th></tr></thead>
         <tbody id="margin-table"></tbody>
@@ -746,7 +743,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </div>
   </div>
   <div class="card p-5">
-    <h3 class="text-sm font-medium t-secondary mb-3">Gastos por categoría (mes actual)</h3>
+    <h3 class="text-sm font-medium t-secondary mb-3">Gastos por categoría del período</h3>
     <div id="expenses-by-category" class="space-y-2"></div>
   </div>
 </section>
@@ -2448,9 +2445,8 @@ function renderDashboard(){
   renderCharts();
 }
 
-let weekChart, reportsChart;
+let weekChart;
 let weekChartDays = 7;
-let reportsChartDays = 14;
 
 function lastNDays(n){
   const days=[];
@@ -2470,11 +2466,6 @@ function setWeekChartDays(n){
   weekChartDays = parseInt(n);
   renderCharts();
 }
-function setReportsChartDays(n){
-  reportsChartDays = parseInt(n);
-  renderCharts();
-}
-
 function renderCharts(){
   const c = chartColors();
 
@@ -2489,16 +2480,7 @@ function renderCharts(){
       options:{ plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:c.text}, grid:{display:false} }, y:{ ticks:{color:c.text}, grid:{color:c.grid} } } } });
   }
 
-  document.getElementById('chart-reports-title').innerText = `Ventas de los últimos ${reportsChartDays} días`;
-  const daysB = lastNDays(reportsChartDays);
-  const labelsB = daysB.map(d=>displayDate(d).slice(0,5));
-  const dataB = salesTotalByDay(daysB);
-  const ctx2 = document.getElementById('chart-reports');
-  if(ctx2){
-    if(reportsChart) reportsChart.destroy();
-    reportsChart = new Chart(ctx2, { type:'line', data:{ labels:labelsB, datasets:[{ data:dataB, borderColor:c.accent, backgroundColor:c.accent, tension:.3, fill:false, pointRadius:3 }]},
-      options:{ plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:c.text}, grid:{display:false} }, y:{ ticks:{color:c.text}, grid:{color:c.grid} } } } });
-  }
+
 }
 
 let salesPage = 1;
@@ -4226,13 +4208,14 @@ function getReportRange(){
   }
   const from = document.getElementById('report-from')?.value || today;
   const to = document.getElementById('report-to')?.value || today;
-  return { from, to };
+  return from <= to ? {from,to} : {from:to,to:from};
 }
 
 function updateReportRangeLabel(){
   const r = getReportRange();
   const label = document.getElementById('report-range-label');
   if(label) label.innerText = `Del ${displayDate(r.from)} al ${displayDate(r.to)}`;
+  renderReports();
 }
 
 function getReportData(from, to){
@@ -4242,14 +4225,20 @@ function getReportData(from, to){
   const totalProfit = sales.reduce((a,s)=>a+s.totalProfit,0);
   const totalExpenses = expenses.reduce((a,e)=>a+e.amount,0);
   const netProfit = totalProfit - totalExpenses;
-  const productTotals = {};
+  const productTotals = Object.create(null);
   sales.forEach(s=>s.items.forEach(it=>{
-    if(!productTotals[it.name]) productTotals[it.name] = { qty:0, revenue:0 };
-    productTotals[it.name].qty += it.qty;
-    productTotals[it.name].revenue += it.subtotal;
+    if(!productTotals[it.name]) productTotals[it.name] = {qty:0,revenue:new Map()};
+    const item = productTotals[it.name];
+    const currency = reportCurrency(s);
+    item.qty += it.qty;
+    const subtotal = item.revenue.get(currency) || {amount:0,qty:0};
+    item.revenue.set(currency,{amount:subtotal.amount+it.subtotal,qty:subtotal.qty+it.qty});
   }));
   const totalUnitsSold = Object.values(productTotals).reduce((a,d)=>a+d.qty,0);
-  return { from, to, sales, expenses, totalSales, totalProfit, totalExpenses, netProfit, productTotals, totalUnitsSold };
+  const currencies = reportCurrencyTotals(sales);
+  return {from,to,sales,expenses,totalSales,totalProfit,totalExpenses,netProfit,productTotals,totalUnitsSold,currencies,
+    activeCurrencies:reportCurrencyTotals(appData.sales),inventory:reportInventory(),rankings:reportProducts(sales),
+    hasForeignSales:[...currencies.keys()].some(currency=>currency !== 'USD')};
 }
 
 function downloadReportPDF(){
@@ -4266,10 +4255,14 @@ function downloadReportPDF(){
 
   doc.setFontSize(12); doc.text('Resumen', 14, y); y+=6;
   doc.setFontSize(10);
-  doc.text(`Ventas totales: ${fmt(data.totalSales)}`, 14, y); y+=5.5;
-  doc.text(`Ganancia bruta: ${fmt(data.totalProfit)}`, 14, y); y+=5.5;
+  for(const [label,key] of [['Facturación','total'],['Cobrado','paid'],['Por cobrar','pending'],['Promedio por venta','average']]){
+    doc.text(label+': '+(key === 'average' && !data.sales.length ? '—' : reportMoneyLines(data.currencies,key)),14,y); y+=5.5;
+  }
+  doc.text('Historial activo: '+reportMoneyLines(data.activeCurrencies,'total'),14,y); y+=5.5;
+  doc.text('Inventario actual a costo: '+reportMoney(data.inventory.value),14,y); y+=5.5;
+  if(!data.hasForeignSales){ doc.text(`Ganancia bruta: ${fmt(data.totalProfit)}`, 14, y); y+=5.5; }
   doc.text(`Gastos: ${fmt(data.totalExpenses)}`, 14, y); y+=5.5;
-  doc.text(`Ganancia neta: ${fmt(data.netProfit)}`, 14, y); y+=5.5;
+  if(!data.hasForeignSales){ doc.text(`Ganancia neta: ${fmt(data.netProfit)}`, 14, y); y+=5.5; }
   doc.text(`Total de productos vendidos: ${data.totalUnitsSold} unidades`, 14, y); y+=10;
 
   doc.setFontSize(12); doc.text('Productos vendidos', 14, y); y+=6;
@@ -4278,7 +4271,7 @@ function downloadReportPDF(){
   if(prodEntries.length===0){ doc.text('Sin ventas en este periodo.', 14, y); y+=5; }
   prodEntries.forEach(([name,d])=>{
     if(y>280){ doc.addPage(); y=18; }
-    doc.text(`${d.qty}x ${name} — ${fmt(d.revenue)}`, 14, y); y+=5;
+    doc.text(`${d.qty}x ${name} — ${[...d.revenue].map(([currency,row])=>reportMoney(row.amount,currency)).join(' / ')}`, 14, y); y+=5;
   });
   y+=6;
 
@@ -4289,7 +4282,7 @@ function downloadReportPDF(){
   data.sales.forEach(s=>{
     if(y>280){ doc.addPage(); y=18; }
     const client = appData.clients.find(c=>c.id===s.clientId);
-    doc.text(`${s.orderNumber ? '#'+s.orderNumber+' — ' : ''}${displayDate(s.dateIso)} — ${client?client.name:'Sin cliente'} — ${s.status} — ${fmt(s.total)}`, 14, y); y+=5;
+    doc.text(`${s.orderNumber ? '#'+s.orderNumber+' — ' : ''}${displayDate(s.dateIso)} — ${client?client.name:'Sin cliente'} — ${s.status} — ${reportMoney(s.total,reportCurrency(s))}`, 14, y); y+=5;
   });
 
   if(data.expenses.length>0){
@@ -4317,24 +4310,32 @@ function downloadReportExcel(){
     ['Reporte Téreapp'],
     [`Periodo: ${displayDate(data.from)} al ${displayDate(data.to)}`],
     [],
-    ['Ventas totales', data.totalSales],
-    ['Ganancia bruta', data.totalProfit],
+    ['Facturación del período',reportMoneyLines(data.currencies,'total')],
+    ['Facturación del historial activo',reportMoneyLines(data.activeCurrencies,'total')],
+    ['Cobrado',reportMoneyLines(data.currencies,'paid')],
+    ['Por cobrar',reportMoneyLines(data.currencies,'pending')],
+    ['Promedio por venta',data.sales.length ? reportMoneyLines(data.currencies,'average') : '—'],
+    ['Inventario actual a costo (USD)',data.inventory.value],
+    ['Productos en stock sin costo registrado',data.inventory.missing],
+    ...(!data.hasForeignSales ? [['Ganancia bruta',data.totalProfit]] : []),
     ['Gastos', data.totalExpenses],
-    ['Ganancia neta', data.netProfit],
+    ...(!data.hasForeignSales ? [['Ganancia neta',data.netProfit]] : []),
     ['Total de productos vendidos', data.totalUnitsSold]
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Resumen');
 
-  const salesRows = [['#Pedido','Fecha','Cliente','Productos','Estado','Pago','Total USD','Total Bs']];
+  const salesRows = [['#Pedido','Fecha','Cliente','Productos','Estado','Pago','Moneda','Total','Total Bs']];
   data.sales.forEach(s=>{
     const client = appData.clients.find(c=>c.id===s.clientId);
     const items = s.items.map(it=>`${it.qty}x ${it.name}`).join(' | ');
-    salesRows.push([s.orderNumber||'', displayDate(s.dateIso), client?client.name:'Sin cliente', items, s.status, s.payment, s.total, s.totalVES||'']);
+    salesRows.push([s.orderNumber||'', displayDate(s.dateIso), client?client.name:'Sin cliente', items, s.status, s.payment, reportCurrency(s), s.total, s.totalVES||'']);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(salesRows), 'Ventas');
 
-  const prodRows = [['Producto','Unidades vendidas','Ingresos']];
-  Object.entries(data.productTotals).forEach(([name,d])=> prodRows.push([name, d.qty, d.revenue]));
+  const prodRows = [['Producto','Moneda','Unidades vendidas','Ingresos']];
+  Object.entries(data.productTotals).forEach(([name,d])=>{
+    for(const [currency,row] of d.revenue) prodRows.push([name,currency,row.qty,row.amount]);
+  });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prodRows), 'Productos');
 
   const expRows = [['Fecha','Concepto','Categoría','Monto']];
@@ -4350,16 +4351,21 @@ function buildReportText(data){
   lines.push('*Reporte Téreapp*');
   lines.push(`Periodo: ${displayDate(data.from)} al ${displayDate(data.to)}`);
   lines.push('');
-  lines.push(`Ventas totales: ${fmt(data.totalSales)}`);
-  lines.push(`Ganancia bruta: ${fmt(data.totalProfit)}`);
+  lines.push('Facturación: '+reportMoneyLines(data.currencies,'total'));
+  lines.push('Historial activo: '+reportMoneyLines(data.activeCurrencies,'total'));
+  lines.push('Cobrado: '+reportMoneyLines(data.currencies,'paid'));
+  lines.push('Por cobrar: '+reportMoneyLines(data.currencies,'pending'));
+  lines.push('Promedio por venta: '+(data.sales.length ? reportMoneyLines(data.currencies,'average') : '—'));
+  lines.push('Inventario actual a costo: '+reportMoney(data.inventory.value));
+  if(!data.hasForeignSales) lines.push(`Ganancia bruta: ${fmt(data.totalProfit)}`);
   lines.push(`Gastos: ${fmt(data.totalExpenses)}`);
-  lines.push(`*Ganancia neta: ${fmt(data.netProfit)}*`);
+  if(!data.hasForeignSales) lines.push(`*Ganancia neta: ${fmt(data.netProfit)}*`);
   lines.push(`Total de productos vendidos: ${data.totalUnitsSold} unidades`);
   lines.push('');
   lines.push('*Productos vendidos:*');
   const prodEntries = Object.entries(data.productTotals);
   if(prodEntries.length===0) lines.push('Sin ventas en este periodo.');
-  prodEntries.forEach(([name,d])=> lines.push(`${d.qty}x ${name} - ${fmt(d.revenue)}`));
+  prodEntries.forEach(([name,d])=> lines.push(`${d.qty}x ${name} - ${[...d.revenue].map(([currency,row])=>reportMoney(row.amount,currency)).join(' / ')}`));
   return lines.join('\n');
 }
 
@@ -4380,24 +4386,186 @@ async function shareReportText(){
   }
 }
 
+function reportCurrency(sale){
+  return sale.webCurrency || 'USD';
+}
+function reportCurrencyTotals(sales){
+  const totals = new Map();
+  for(const sale of sales){
+    const currency = reportCurrency(sale);
+    if(!totals.has(currency)) totals.set(currency,{total:0,paid:0,pending:0,count:0});
+    const group = totals.get(currency);
+    group.total += sale.total;
+    group[sale.status === 'Pagado' ? 'paid' : 'pending'] += sale.total;
+    group.count++;
+  }
+  return totals;
+}
+function reportMoney(value,currency='USD'){
+  return Number.isFinite(value) ? cashMoney(Math.round(value*100),currency) : '—';
+}
+function reportMoneyLines(totals,key){
+  return [...totals].map(([currency,value]) => reportMoney(key === 'average' ? value.total/value.count : value[key],currency))
+    .join(' · ') || reportMoney(0);
+}
+function reportInventory(){
+  let value=0, missing=0, units=0;
+  for(const product of appData.products){
+    if(!(product.stock > 0)) continue;
+    units += product.stock;
+    const cost = getCost(product);
+    if(!Number.isFinite(cost) || cost <= 0) missing++;
+    else value += cost*product.stock;
+  }
+  return {value,missing,units};
+}
+function reportProducts(sales){
+  const products = new Map(appData.products.map(p=>[p.id,{name:p.name,stock:p.stock,qty:0}]));
+  const revenue = new Map();
+  for(const sale of sales){
+    const currency = reportCurrency(sale);
+    if(!revenue.has(currency)) revenue.set(currency,new Map());
+    const group = revenue.get(currency);
+    for(const item of sale.items){
+      const key = item.productId || item.name;
+      if(!products.has(key)) products.set(key,{name:item.name,stock:0,qty:0});
+      products.get(key).qty += item.qty;
+      if(!group.has(key)) group.set(key,{name:products.get(key).name,qty:0,value:0});
+      const row = group.get(key);
+      row.qty += item.qty;
+      row.value += item.subtotal;
+    }
+  }
+  const rows = [...products.values()];
+  const most = rows.filter(p=>p.qty>0).sort((a,b)=>b.qty-a.qty || a.name.localeCompare(b.name)).slice(0,5);
+  const slow = rows.filter(p=>p.stock>0).sort((a,b)=>a.qty-b.qty || b.stock-a.stock || a.name.localeCompare(b.name)).slice(0,5);
+  const top = [...revenue].map(([currency,items])=>[currency,[...items.values()].sort((a,b)=>b.value-a.value).slice(0,5)]);
+  return {most,slow,top};
+}
+function reportTimeline(sales,from,to){
+  const dayNumber = iso => Date.parse(iso)/86400000;
+  const days = dayNumber(to)-dayNumber(from)+1;
+  const size = Math.max(1,Math.ceil(days/14));
+  const groups = Array.from({length:Math.ceil(days/size)},(_,index)=>{
+    const start = offsetCalendarDay(from,index*size);
+    return {start,end:offsetCalendarDay(from,Math.min((index+1)*size,days)-1),sales:[]};
+  });
+  for(const sale of sales) groups[Math.floor((dayNumber(sale.dateIso)-dayNumber(from))/size)].sales.push(sale);
+  return groups.map(group=>({...group,totals:reportCurrencyTotals(group.sales)}));
+}
+function reportBars(rows,empty){
+  const block = document.createElement('div');
+  block.className='space-y-2';
+  if(!rows.length){ block.append(cashText(empty)); return block; }
+  const max = Math.max(1,...rows.map(row=>row.value));
+  for(const row of rows){
+    const item = document.createElement('div');
+    const label = document.createElement('div');
+    label.className='flex flex-wrap justify-between gap-2 text-sm';
+    label.append(cashText(row.label),cashText(row.detail));
+    const track = document.createElement('div');
+    track.className='surface-alt rounded-full h-2 mt-1 overflow-hidden';
+    const bar = document.createElement('div');
+    bar.className='h-2 rounded-full';
+    bar.style.background='var(--accent)';
+    bar.style.width=Math.max(0,row.value/max*100)+'%';
+    track.append(bar);
+    item.append(label,track);
+    block.append(item);
+  }
+  return block;
+}
+function renderReportTimeline(data){
+  const timeline = reportTimeline(data.sales,data.from,data.to);
+  for(const [id,average] of [['report-revenue-chart',false],['report-average-chart',true]]){
+    const container = document.getElementById(id);
+    container.replaceChildren();
+    if(!data.currencies.size){ container.append(cashText('Sin ventas en este período.')); continue; }
+    for(const currency of data.currencies.keys()){
+      const label = document.createElement('p');
+      label.className='text-xs t-muted mb-1 mt-3';
+      label.textContent=currency;
+      const rows = timeline.map(group=>{
+        const value = group.totals.get(currency);
+        const amount = average ? (value ? value.total/value.count : 0) : value?.total || 0;
+        const date = group.start === group.end ? displayDate(group.start) : displayDate(group.start)+' al '+displayDate(group.end);
+        return {label:date,value:amount,detail:average && !value ? 'Sin ventas' : reportMoney(amount,currency)};
+      });
+      container.append(label,reportBars(rows,'Sin ventas.'));
+    }
+  }
+}
 function renderReports(){
-  const revByProduct = {}, qtyByProduct = {};
-  appData.sales.forEach(s=>s.items.forEach(it=>{
-    revByProduct[it.name]=(revByProduct[it.name]||0)+it.subtotal;
-    qtyByProduct[it.name]=(qtyByProduct[it.name]||0)+it.qty;
-  }));
-  const top = Object.entries(revByProduct).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  document.getElementById('top-products-table').innerHTML = top.length ? top.map(([name,rev])=>`<tr class="border-b b"><td class="py-2 text-sm">${name}</td><td class="py-2 text-sm">${qtyByProduct[name]}</td><td class="py-2 text-sm text-right font-medium">${fmt(rev)}</td></tr>`).join('') : '<tr><td colspan="3" class="text-center py-4 t-muted">Sin datos aún.</td></tr>';
+  const {from,to} = getReportRange();
+  const data = getReportData(from,to);
+  const indicators = [
+    ['Facturación del período','receipt_long',reportMoneyLines(data.currencies,'total')],
+    ['Facturación del historial activo','history',reportMoneyLines(data.activeCurrencies,'total')],
+    ['Cobrado','payments',reportMoneyLines(data.currencies,'paid')],
+    ['Por cobrar','pending_actions',reportMoneyLines(data.currencies,'pending')],
+    ['Promedio por venta','point_of_sale',data.sales.length ? reportMoneyLines(data.currencies,'average') : '—'],
+    ['Inventario al día de hoy','inventory_2',reportMoney(data.inventory.value)]
+  ];
+  const cards = document.getElementById('report-kpis');
+  cards.replaceChildren();
+  for(const [label,icon,value] of indicators){
+    const card = document.createElement('div');
+    card.className='card p-4';
+    const title = document.createElement('p');
+    title.className='text-xs t-muted flex items-center gap-2';
+    const symbol = cashText(icon);
+    symbol.className='msi accent';
+    symbol.setAttribute('aria-hidden','true');
+    title.append(symbol,cashText(label));
+    const amount = cashText(value);
+    amount.className='block text-lg font-semibold mt-1';
+    card.append(title,amount);
+    if(icon === 'inventory_2'){
+      const detail = cashText(data.inventory.units+' unidades a costo'+(data.inventory.missing ? ' · '+data.inventory.missing+' productos sin costo registrado' : ''));
+      detail.className='block text-xs t-muted';
+      card.append(detail);
+    }
+    cards.append(card);
+  }
+  renderReportTimeline(data);
+  for(const [id,products,empty] of [
+    ['report-best-products',data.rankings.most,'Sin ventas en el período.'],
+    ['report-slow-products',data.rankings.slow,'Sin productos con stock.']
+  ]){
+    document.getElementById(id).replaceChildren(reportBars(products.map(p=>({
+      label:p.name,value:p.qty,detail:p.qty+' unid.'+(id === 'report-slow-products' ? ' vendidas · '+p.stock+' en stock' : '')
+    })),empty));
+  }
 
-  const margins = appData.products.map(p=>({ name:p.name, marginAbs:p.price-getCost(p), marginPct: p.price>0 ? ((p.price-getCost(p))/p.price*100) : 0 })).sort((a,b)=>b.marginPct-a.marginPct);
-  document.getElementById('margin-table').innerHTML = margins.length ? margins.map(m=>`<tr class="border-b b"><td class="py-2 text-sm">${m.name}</td><td class="py-2 text-sm text-right" style="color:var(--success)">${fmt(m.marginAbs)}</td><td class="py-2 text-sm text-right">${m.marginPct.toFixed(0)}%</td></tr>`).join('') : '<tr><td colspan="3" class="text-center py-4 t-muted">Sin productos.</td></tr>';
+  const top = document.getElementById('top-products-table');
+  top.replaceChildren();
+  for(const [currency,rows] of data.rankings.top){
+    for(const row of rows) appendReportRow(top,[row.name,row.qty,reportMoney(row.value,currency)]);
+  }
+  if(!top.children.length) appendReportRow(top,['Sin ventas en el período.','','']);
 
-  const currentMonth = monthKey(todayIso());
-  const byCat = {};
-  expensesInMonth(currentMonth).forEach(e=>{ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
-  const catEntries = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
-  const container = document.getElementById('expenses-by-category');
-  container.innerHTML = catEntries.length ? catEntries.map(([cat,amt])=>`<div class="flex justify-between items-center text-sm py-1.5 border-b b"><span>${cat}</span><span class="font-medium" style="color:var(--danger)">${fmt(amt)}</span></div>`).join('') : '<p class="text-sm t-muted">Sin gastos este mes.</p>';
+  const margins = appData.products.map(p=>{
+    const margin = p.price-getCost(p);
+    return {name:p.name,margin,percent:p.price>0 ? margin/p.price*100 : 0};
+  }).sort((a,b)=>b.percent-a.percent);
+  const marginTable = document.getElementById('margin-table');
+  marginTable.replaceChildren();
+  for(const item of margins) appendReportRow(marginTable,[item.name,reportMoney(item.margin),item.percent.toFixed(0)+'%']);
+  if(!marginTable.children.length) appendReportRow(marginTable,['Sin productos.','','']);
+
+  const categories = new Map();
+  for(const expense of data.expenses) categories.set(expense.category,(categories.get(expense.category)||0)+expense.amount);
+  const expenses = [...categories].sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value,detail:fmt(value)}));
+  document.getElementById('expenses-by-category').replaceChildren(reportBars(expenses,'Sin gastos en el período.'));
+}
+function appendReportRow(body,values){
+  const row = body.insertRow();
+  row.className='border-b b';
+  for(const val of values){
+    const cell = row.insertCell();
+    cell.className='py-2 text-sm';
+    cell.textContent=val;
+  }
 }
 
 function exportToExcel(){
