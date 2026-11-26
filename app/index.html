@@ -618,21 +618,20 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 
 <section id="tab-cash" class="hidden space-y-4">
   <div class="flex flex-wrap items-center justify-between gap-3">
-    <div class="flex items-center gap-2" aria-label="Fecha de Caja">
-      <button type="button" class="btn-secondary px-2 py-2" onclick="shiftCashDay(-1)" aria-label="Día anterior"><span class="msi">chevron_left</span></button>
-      <input class="input" id="cash-day" type="date" aria-label="Fecha" onchange="renderCash()">
-      <button type="button" class="btn-secondary px-2 py-2" onclick="shiftCashDay(1)" aria-label="Día siguiente"><span class="msi">chevron_right</span></button>
-      <button type="button" class="btn-secondary px-3 py-2" onclick="cashEl('cash-day').value=todayIso();renderCash()">Hoy</button>
-    </div>
-    <label class="flex items-center gap-2 text-sm">Moneda
-      <select id="cash-currency" class="input" onchange="renderCash()">
-        <option>USD</option><option>VES</option><option>EUR</option><option>USDT</option>
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="sr-only" for="cash-period">Período de Caja</label>
+      <select id="cash-period" class="input" onchange="renderCash()">
+        <option value="today">Hoy</option><option value="yesterday">Ayer</option>
+        <option value="7">Últimos 7 días</option><option value="14">Últimos 14 días</option>
+        <option value="30">Últimos 30 días</option><option value="date">Elegir fecha</option>
       </select>
-    </label>
+      <input id="cash-day" class="input hidden" type="date" aria-label="Fecha de Caja" onchange="renderCash()">
+    </div>
+    <p id="cash-range-label" class="text-sm t-muted"></p>
   </div>
   <div class="card p-4">
     <div class="flex justify-between items-center mb-3">
-      <div><h3 class="font-medium">Tasas del día</h3><p class="text-xs t-muted">Últimas tasas disponibles. Los saldos se muestran en su moneda.</p></div>
+      <div><h3 class="font-medium">Tasas del día</h3><p class="text-xs t-muted">Equivalentes referenciales al último Dólar BCV, Euro BCV o Binance P2P disponible.</p></div>
       <button type="button" class="btn-secondary px-3 py-2 text-xs" onclick="fetchRates()">Actualizar</button>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="cash-rates"></div>
@@ -640,8 +639,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   <p id="cash-status" class="text-sm t-muted" role="status"></p>
   <div id="cash-balances" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
   <div class="card p-4">
-    <h3 class="font-medium mb-3">Resumen del día</h3>
-    <div class="grid grid-cols-3 gap-3" id="cash-summary"></div>
+    <h3 class="font-medium mb-3">Resumen del período</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="cash-summary"></div>
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
     <div class="card p-4 lg:col-span-2">
@@ -653,7 +652,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </div>
     <div class="card p-4 lg:col-span-3">
       <div class="flex justify-between items-center gap-2 mb-3">
-        <h3 class="font-medium">Movimientos del día</h3>
+        <h3 class="font-medium">Movimientos del período</h3>
         <button type="button" class="btn-primary px-3 py-2 text-xs" onclick="openCashMovement()">Nuevo movimiento</button>
       </div>
       <div id="cash-movements" class="space-y-2"></div>
@@ -1023,11 +1022,25 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     </div>
     <form id="expense-form" onsubmit="handleExpenseSubmit(event)" class="space-y-3">
       <input type="hidden" id="expense-id">
-      <div><label class="block text-xs font-medium t-muted uppercase mb-1">Mes</label>
+      <div>
+        <label class="block text-xs font-medium t-muted uppercase mb-1" for="expense-period-type">Período del gasto</label>
+        <select id="expense-period-type" class="input" onchange="updateExpensePeriodFields()">
+          <option value="day">Día específico</option><option value="month">Mes</option><option value="range">Desde / Hasta</option>
+        </select>
+      </div>
+      <div id="expense-month-fields"><label class="block text-xs font-medium t-muted uppercase mb-1" for="expense-month-select">Mes</label>
         <div class="flex gap-2">
           <select id="expense-month-select" class="input flex-1"></select>
           <select id="expense-year-select" class="input w-28"></select>
         </div>
+      </div>
+      <div id="expense-date-fields" class="grid grid-cols-2 gap-2">
+        <label class="text-xs t-muted" id="expense-start-label" for="expense-start">Fecha
+          <input type="date" id="expense-start" class="input">
+        </label>
+        <label class="text-xs t-muted" id="expense-end-label" for="expense-end">Hasta
+          <input type="date" id="expense-end" class="input">
+        </label>
       </div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Concepto</label>
         <input type="text" id="expense-concept" required class="input"></div>
@@ -1463,7 +1476,7 @@ function renderRatesCard(){
   else { eurEl.innerText = '—'; eurUpd.innerText = 'Sin datos'; }
   if(r.binanceP2P){ p2pEl.innerText = 'Bs ' + r.binanceP2P.value.toFixed(2); p2pUpd.innerText = 'Actualizado: ' + formatDateTime(r.binanceP2P.updatedAt); }
   else { p2pEl.innerText = '—'; p2pUpd.innerText = 'Sin datos'; }
-  renderCashRates();
+  renderCash();
   updateSaleCurrencyOptions();
   calculateGrandTotal();
 }
@@ -1473,21 +1486,49 @@ const cashLabels = {
   opening:'Saldo inicial', income:'Entrada', expense:'Salida', transfer:'Traspaso',
   reserve:'Apartar', release:'Liberar apartado', sale:'Cobro de venta', purchase:'Gasto pagado'
 };
-const cashMoney = (minor, currency) => currency === 'USDT'
+const cashMoney = (minor, currency) => currency === 'VES'
+  ? 'Bs ' + new Intl.NumberFormat('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(minor / 100)
+  : currency === 'USDT'
   ? new Intl.NumberFormat('es-VE', {minimumFractionDigits:2}).format(minor / 100) + ' USDT'
   : new Intl.NumberFormat('es-VE', {style:'currency',currency}).format(minor / 100);
 const cashState = { accounts:[], movements:[], ready:false, error:'' };
 const cashMinor = amount => Math.round(Number(amount) * 100);
 const cashDateValid = value => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   new Date(value + 'T12:00:00Z').toJSON()?.slice(0,10) === value && value <= todayIso();
-function shiftCashDay(step){
-  const input = cashEl('cash-day');
-  const next = new Date((input.value || todayIso()) + 'T12:00:00Z');
-  next.setUTCDate(next.getUTCDate() + step);
-  input.value = next.toISOString().slice(0,10);
-  renderCash();
+function offsetCalendarDay(day, offset){
+  const date = new Date(day + 'T12:00:00Z');
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0,10);
 }
-function cashTotals(accounts, movements, day, currency){
+function cashRange(){
+  const choice = cashEl('cash-period').value;
+  const today = todayIso();
+  const date = cashEl('cash-day');
+  date.max = today;
+  date.classList.toggle('hidden',choice !== 'date');
+  if(!cashDateValid(date.value)) date.value = today;
+  if(choice === 'date') return {from:date.value,to:date.value};
+  if(choice === 'yesterday'){
+    const yesterday = offsetCalendarDay(today,-1);
+    return {from:yesterday,to:yesterday};
+  }
+  return {from:offsetCalendarDay(today,1-(Number(choice)||1)),to:today};
+}
+function cashVESRates(){
+  const rates = appData.rates || {};
+  return {VES:1, USD:Number(rates.usdBcv?.value), EUR:Number(rates.eurBcv?.value), USDT:Number(rates.binanceP2P?.value)};
+}
+function cashEquivalent(amount,currency,rates){
+  const rate = rates[currency];
+  return Number.isFinite(rate) && rate > 0 ? amount * rate : null;
+}
+function cashAmountLabel(amount,currency,rates){
+  const original = cashMoney(amount,currency);
+  if(currency === 'VES') return original;
+  const equivalent = cashEquivalent(amount,currency,rates);
+  return original + (equivalent === null ? ' · sin tasa' : ' · ≈ ' + cashMoney(Math.round(equivalent),'VES'));
+}
+function cashTotals(accounts, movements, day, currency, from=day){
   const balances = new Map(accounts.filter(a => a.currency === currency && a.opened <= day)
     .map(a => [a.id, { balance:0, reserved:0 }]));
   let initial = 0, incoming = 0, outgoing = 0;
@@ -1498,7 +1539,7 @@ function cashTotals(accounts, movements, day, currency){
       if(!account) continue;
       account.balance += leg.amount;
       account.reserved += leg.reserve;
-      if(row.date < day) initial += leg.amount;
+      if(row.date < from) initial += leg.amount;
       else if(!['opening','transfer'].includes(row.kind)){
         incoming += Math.max(0, leg.amount);
         outgoing += Math.max(0, -leg.amount);
@@ -1518,20 +1559,36 @@ function renderCashRates(){
     '</p><p class="text-xs t-muted">' + (rate ? formatDateTime(rate.updatedAt) : 'Sin datos') + '</p></div>').join('');
 }
 function renderCash(){
-  const input = cashEl('cash-day');
-  if(!input) return;
-  input.max = todayIso();
-  if(!cashDateValid(input.value)) input.value = input.max;
-  const day = input.value;
-  const currency = cashEl('cash-currency').value;
-  const totals = cashTotals(cashState.accounts,cashState.movements,day,currency);
-  const tile = (label, value, css) => '<div class="' + css + '"><p class="text-xs t-muted">' + label +
-    '</p><p class="text-xl font-semibold">' + (cashState.ready ? cashMoney(value,currency) : '—') + '</p></div>';
-  cashEl('cash-status').textContent = cashState.error || (cashState.ready ? '' : 'Cargando datos de Caja…');
-  cashEl('cash-balances').innerHTML = [['Disponible',totals.available],['Apartado',totals.reserved],['Saldo total',totals.total]]
+  if(!cashEl('cash-day')) return;
+  const {from,to} = cashRange();
+  const rates = cashVESRates();
+  const balances = new Map();
+  const consolidated = {available:0,reserved:0,total:0,initial:0,incoming:0,outgoing:0};
+  const missing = [];
+  let approximate = false;
+  for(const currency of new Set(cashState.accounts.filter(a => a.opened <= to).map(a => a.currency))){
+    const amounts = cashTotals(cashState.accounts,cashState.movements,to,currency,from);
+    for(const [id,value] of amounts.balances) balances.set(id,value);
+    const contributes = Object.keys(consolidated).some(key => amounts[key] !== 0) ||
+      [...amounts.balances.values()].some(a => a.balance || a.reserved);
+    if(!contributes) continue;
+    if(cashEquivalent(1,currency,rates) === null){ missing.push(currency); continue; }
+    approximate ||= currency !== 'VES';
+    for(const key of Object.keys(consolidated)) consolidated[key] += cashEquivalent(amounts[key],currency,rates);
+  }
+  cashEl('cash-range-label').textContent = from === to ? displayDate(to) : displayDate(from) + ' al ' + displayDate(to);
+  const status = cashState.error || (!cashState.ready ? 'Cargando datos de Caja…' :
+    missing.length ? 'Totales parciales en VES. Sin tasa para ' + missing.join(', ') + '. Sus cuentas y movimientos se muestran abajo.' : '');
+  cashEl('cash-status').textContent = status;
+  const tile = (label,value,css) => {
+    const display = cashState.ready ? (approximate ? '≈ ' : '') + cashMoney(Math.round(value),'VES') : '—';
+    return '<div class="' + css + '"><p class="text-xs t-muted">' + label +
+      '</p><p class="text-xl font-semibold">' + display + '</p></div>';
+  };
+  cashEl('cash-balances').innerHTML = [['Disponible',consolidated.available],['Apartado',consolidated.reserved],['Saldo total',consolidated.total]]
     .map(([label,value]) => tile(label,value,'card p-4')).join('');
-  cashEl('cash-summary').innerHTML = [['Saldo inicial',totals.initial],['Entradas',totals.incoming],['Salidas',totals.outgoing]]
-    .map(([label,value]) => tile(label,value,'')).join('');
+  cashEl('cash-summary').innerHTML = [['Saldo inicial',consolidated.initial],['Entradas',consolidated.incoming],
+    ['Salidas',consolidated.outgoing],['Saldo final',consolidated.total]].map(([label,value]) => tile(label,value,'')).join('');
   renderCashRates();
   const accounts = cashEl('cash-accounts');
   const rows = cashEl('cash-movements');
@@ -1539,23 +1596,24 @@ function renderCash(){
   rows.replaceChildren();
   if(!cashState.ready) return;
   for(const account of cashState.accounts){
-    const balance = totals.balances.get(account.id);
+    const balance = balances.get(account.id);
     if(!balance) continue;
     const row = cashRow(accounts);
-    row.append(cashText(account.name + ' · ' + cashMoney(balance.balance,currency) +
-      (balance.reserved ? ' · Apartado: ' + cashMoney(balance.reserved,currency) : '')));
+    row.append(cashText(account.name + ' · ' + cashAmountLabel(balance.balance,account.currency,rates) +
+      (balance.reserved ? ' · Apartado: ' + cashAmountLabel(balance.reserved,account.currency,rates) : '')));
     row.append(cashButton('Editar',() => openCashAccount(account)));
   }
-  if(!accounts.children.length) accounts.append(cashText('No hay cuentas para esta fecha y moneda.'));
-  const movements = cashState.movements.filter(row => row.date === day &&
-    row.legs.some(leg => totals.balances.has(leg.account))).sort((a,b) => b.updatedAt - a.updatedAt);
+  if(!accounts.children.length) accounts.append(cashText('No hay cuentas abiertas para este período.'));
+  const accountMap = new Map(cashState.accounts.map(account => [account.id,account]));
+  const movements = cashState.movements.filter(row => row.date >= from && row.date <= to)
+    .sort((a,b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt);
   for(const entry of movements){
     const row = cashRow(rows);
     const description = entry.legs.map(leg => {
-      const account = cashState.accounts.find(item => item.id === leg.account);
-      return account.name + ' ' + cashMoney(leg.amount || leg.reserve, account.currency);
+      const account = accountMap.get(leg.account);
+      return account ? account.name + ' ' + cashAmountLabel(leg.amount || leg.reserve,account.currency,rates) : 'Cuenta no disponible';
     }).join(' · ');
-    row.append(cashText((entry.voided ? 'Anulado · ' : '') + cashLabels[entry.kind] + ' · ' +
+    row.append(cashText(displayDate(entry.date) + ' · ' + (entry.voided ? 'Anulado · ' : '') + cashLabels[entry.kind] + ' · ' +
       description + (entry.note ? ' · ' + entry.note : '')));
     const actions = document.createElement('div');
     actions.className = 'flex flex-wrap gap-1';
@@ -1565,7 +1623,7 @@ function renderCash(){
     }
     row.append(actions);
   }
-  if(!rows.children.length) rows.append(cashText('No hay movimientos para este día.'));
+  if(!rows.children.length) rows.append(cashText('No hay movimientos en este período.'));
 }
 function cashText(text){
   const span = document.createElement('span');
@@ -1639,10 +1697,10 @@ function openCashAccount(account){
     cashMinor(values.amount), account?.rev || 0, opening?.rev || 0
   ));
   cashField('name','Nombre',account?.name,null,{required:true,maxLength:70});
-  const currency = cashField('currency','Moneda',account?.currency || cashEl('cash-currency').value,
+  const currency = cashField('currency','Moneda',account?.currency || 'VES',
     ['USD','VES','EUR','USDT'].map(code => [code,code]));
   currency.disabled = !!account;
-  const date = cashField('date','Fecha del saldo inicial',account?.opened || cashEl('cash-day').value,null,
+  const date = cashField('date','Fecha del saldo inicial',account?.opened || todayIso(),null,
     {type:'date',required:true,max:todayIso()});
   date.disabled = !!account;
   cashField('amount','Saldo inicial',(opening?.legs[0].amount || 0) / 100,null,
@@ -1656,7 +1714,7 @@ function openCashMovement(entry){
   cashDialog(entry ? 'Corregir movimiento' : 'Nuevo movimiento', values => window.dbCashManual(id,values,entry?.rev || 0));
   const kinds = ['income','expense','transfer','reserve','release'];
   const kind = cashField('kind','Tipo',entry?.kind || 'income',kinds.map(key => [key,cashLabels[key]]));
-  cashField('date','Fecha',entry?.date || cashEl('cash-day').value,null,{type:'date',required:true,max:todayIso()});
+  cashField('date','Fecha',entry?.date || todayIso(),null,{type:'date',required:true,max:todayIso()});
   cashField('account','Cuenta',entry?.legs[0].account || options[0][0],options,{required:true});
   const destination = cashField('destination','Cuenta de destino',entry?.legs[1]?.account || options[0][0],options);
   const update = () => { destination.parentElement.hidden = kind.value !== 'transfer'; };
@@ -2144,8 +2202,40 @@ function lowStockProducts(){
 function salesInMonth(key){
   return appData.sales.filter(s => monthKey(s.dateIso) === key);
 }
+function expenseMonthRange(month){
+  const start = month + '-01';
+  const next = new Date(start + 'T12:00:00Z');
+  next.setUTCMonth(next.getUTCMonth()+1);
+  next.setUTCDate(0);
+  return {from:start,to:next.toISOString().slice(0,10)};
+}
+function expenseDateRange(expense){
+  if(expense.periodStart && expense.periodEnd) return {from:expense.periodStart,to:expense.periodEnd};
+  return expenseMonthRange(monthKey(expense.dateIso));
+}
+function expenseDateLabel(expense){
+  const {from,to} = expenseDateRange(expense);
+  return from === to ? displayDate(from) : displayDate(from) + ' al ' + displayDate(to);
+}
+function expensesOverlapping(from,to){
+  const daysBetween = (start,end) => (Date.parse(end)-Date.parse(start))/86400000;
+  return appData.expenses.flatMap(expense => {
+    const range = expenseDateRange(expense);
+    const overlapStart = from > range.from ? from : range.from;
+    const overlapEnd = to < range.to ? to : range.to;
+    if(overlapStart > overlapEnd) return [];
+    const duration = daysBetween(range.from,range.to)+1;
+    const startOffset = daysBetween(range.from,overlapStart);
+    const endOffset = daysBetween(range.from,overlapEnd)+1;
+    const cents = Math.round(expense.amount * 100);
+    // Las diferencias acumuladas distribuyen los centavos sin duplicar ni perder importe.
+    const amount = (Math.round(cents*endOffset/duration)-Math.round(cents*startOffset/duration))/100;
+    return [{...expense,amount,reportFrom:overlapStart,reportTo:overlapEnd}];
+  });
+}
 function expensesInMonth(key){
-  return appData.expenses.filter(e => monthKey(e.dateIso) === key);
+  const {from,to} = expenseMonthRange(key);
+  return expensesOverlapping(from,to);
 }
 
 function renderUpcomingPayments(){
@@ -3985,7 +4075,7 @@ function renderExpensesList(){
   const tbody = document.getElementById('expenses-list');
   if(appData.expenses.length===0){ tbody.innerHTML='<tr><td colspan="5" class="text-center py-4 t-muted">Sin gastos registrados.</td></tr>'; return; }
   tbody.innerHTML = appData.expenses.slice(0,15).map(e=>`<tr class="border-b b cursor-pointer hover:opacity-80" onclick="openExpenseModal('${e.id}')">
-    <td class="py-2 text-xs t-muted whitespace-nowrap">${displayDate(e.dateIso)}</td>
+    <td class="py-2 text-xs t-muted whitespace-nowrap">${expenseDateLabel(e)}</td>
     <td class="py-2 text-sm">${e.concept}</td>
     <td class="py-2 text-xs"><span class="bg-accent-soft px-2 py-0.5 rounded-full">${e.category}</span></td>
     <td class="py-2 text-sm font-medium" style="color:var(--danger)">${fmt(e.amount)}</td>
@@ -3993,15 +4083,30 @@ function renderExpensesList(){
   </tr>`).join('');
 }
 
+function updateExpensePeriodFields(){
+  const mode = cashEl('expense-period-type').value;
+  cashEl('expense-month-fields').classList.toggle('hidden',mode === 'day' || mode === 'range');
+  cashEl('expense-date-fields').classList.toggle('hidden',mode === 'month');
+  cashEl('expense-end-label').classList.toggle('hidden',mode !== 'range');
+  cashEl('expense-start-label').firstChild.nodeValue = mode === 'day' ? 'Fecha ' : 'Desde ';
+  cashEl('expense-start').required = mode !== 'month';
+  cashEl('expense-end').required = mode === 'range';
+}
 function openExpenseModal(id){
   document.getElementById('expense-form').reset();
   document.getElementById('expense-id').value = id || '';
+  cashEl('expense-start').value = todayIso();
+  cashEl('expense-end').value = todayIso();
   if(id){
     const exp = appData.expenses.find(x=>x.id===id);
     if(!exp) return;
     document.getElementById('expense-modal-title').innerText = 'Editar gasto';
-    const [y,m] = exp.dateIso.split('-').map(Number);
-    populateExpenseMonthYearSelects(y, m);
+    const range = expenseDateRange(exp);
+    const [y,m] = range.from.split('-').map(Number);
+    cashEl('expense-period-type').value = exp.periodType || 'month';
+    cashEl('expense-start').value = range.from;
+    cashEl('expense-end').value = range.to;
+    populateExpenseMonthYearSelects(y,m);
     document.getElementById('expense-concept').value = exp.concept;
     document.getElementById('expense-category').value = exp.category;
     document.getElementById('expense-amount').value = exp.amount;
@@ -4010,6 +4115,7 @@ function openExpenseModal(id){
     const today = new Date();
     populateExpenseMonthYearSelects(today.getFullYear(), today.getMonth()+1);
   }
+  updateExpensePeriodFields();
   openModal('expense-modal');
 }
 
@@ -4027,15 +4133,22 @@ async function handleExpenseSubmit(e){
   if(!dataLoadSafe || !Number.isFinite(amount) || amount < 0) return;
   const original = id ? appData.expenses.find(item => item.id === id) : null;
   if(id && !original) return;
-  const lastDay = new Date(Number(year),Number(monthNum),0).getDate();
-  const day = Math.min(lastDay,Number(original?.dateIso.slice(8) || (monthValue === todayIso().slice(0,7) ? todayIso().slice(8) : 1)));
-  const record = {id:id || uid(),dateIso:monthValue + '-' + String(day).padStart(2,'0'),concept,category,amount};
+  const mode = cashEl('expense-period-type').value;
+  const first = cashEl('expense-start').value;
+  const last = mode === 'day' ? first : cashEl('expense-end').value;
+  if(mode !== 'month' && (!first || !last || first > last)){
+    showAlert('Revisa las fechas Desde y Hasta.','error');
+    return;
+  }
+  const {from,to} = mode === 'month' ? expenseMonthRange(monthValue) : {from:first,to:last};
+  const record = {id:id || uid(),dateIso:from,periodType:mode,periodStart:from,periodEnd:to,concept,category,amount};
   const linked = id ? cashLink('expense',id) : null;
-  const needsLink = amount > 0 && (!id || !!linked);
-  const selection = needsLink ? await chooseCashLink('expense',{total:amount},record.dateIso,linked) : null;
+  const preserveLink = !!linked && amount === original?.amount;
+  const needsLink = amount > 0 && (!id || (!!linked && !preserveLink));
+  const selection = needsLink ? await chooseCashLink('expense',{total:amount},todayIso(),linked) : null;
   if(needsLink && !selection) return;
   if(linked || selection){
-    try{ await window.dbCashExpense(record,selection,linked?.rev || 0,{newExpense:!id}); }
+    try{ await window.dbCashExpense(record,selection,linked?.rev || 0,{newExpense:!id,preserveLink}); }
     catch(error){ cashSaveError(error); return; }
   }else{
     appData.expenses = id ? appData.expenses.map(item => item.id === id ? record : item) : [record,...appData.expenses];
@@ -4099,7 +4212,7 @@ function updateReportRangeLabel(){
 
 function getReportData(from, to){
   const sales = appData.sales.filter(s => s.dateIso>=from && s.dateIso<=to);
-  const expenses = appData.expenses.filter(e => e.dateIso>=from && e.dateIso<=to);
+  const expenses = expensesOverlapping(from,to);
   const totalSales = sales.reduce((a,s)=>a+s.total,0);
   const totalProfit = sales.reduce((a,s)=>a+s.totalProfit,0);
   const totalExpenses = expenses.reduce((a,e)=>a+e.amount,0);
@@ -4161,7 +4274,7 @@ function downloadReportPDF(){
     doc.setFontSize(9);
     data.expenses.forEach(e=>{
       if(y>280){ doc.addPage(); y=18; }
-      doc.text(`${displayDate(e.dateIso)} — ${e.concept} (${e.category}) — ${fmt(e.amount)}`, 14, y); y+=5;
+      doc.text(`${expenseDateLabel(e)} — ${e.concept} (${e.category}) — ${fmt(e.amount)}`, 14, y); y+=5;
     });
   }
 
@@ -4200,7 +4313,7 @@ function downloadReportExcel(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prodRows), 'Productos');
 
   const expRows = [['Fecha','Concepto','Categoría','Monto']];
-  data.expenses.forEach(e=> expRows.push([displayDate(e.dateIso), e.concept, e.category, e.amount]));
+  data.expenses.forEach(e=> expRows.push([expenseDateLabel(e), e.concept, e.category, e.amount]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expRows), 'Gastos');
 
   XLSX.writeFile(wb, `reporte_tereapp_${data.from}_a_${data.to}.xlsx`);
@@ -4276,7 +4389,7 @@ function exportToExcel(){
     csv += `"${p.name}","${fabricName}",${p.fabricMeters!=null?p.fabricMeters:''},${getFabricCost(p).toFixed(2)},${p.extras},${p.labor},${p.price},${p.stock}\n`;
   });
   csv += "\n--- GASTOS ---\nFecha,Concepto,Categoría,Monto\n";
-  appData.expenses.forEach(e=>{ csv += `${displayDate(e.dateIso)},"${e.concept}",${e.category},${e.amount}\n`; });
+  appData.expenses.forEach(e=>{ csv += `${expenseDateLabel(e)},"${e.concept}",${e.category},${e.amount}\n`; });
   const link = document.createElement('a');
   link.setAttribute('href', encodeURI(csv));
   link.setAttribute('download','reporte_tereapp.csv');
@@ -4319,7 +4432,7 @@ function buildArchivePdf(candidates, cutoff){
   if(candidates.expenses.length===0){ doc.text('Sin gastos.', 14, y); y+=5; }
   candidates.expenses.forEach(e=>{
     if(y>280){ doc.addPage(); y=18; }
-    doc.text(`${displayDate(e.dateIso)} — ${e.concept} (${e.category}) — ${fmt(e.amount)}`, 14, y); y+=5;
+    doc.text(`${expenseDateLabel(e)} — ${e.concept} (${e.category}) — ${fmt(e.amount)}`, 14, y); y+=5;
   });
 
   y+=6;
@@ -4347,7 +4460,7 @@ function buildArchiveExcel(candidates, cutoff){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(salesRows), 'Ventas');
 
   const expRows = [['Fecha','Concepto','Categoría','Monto']];
-  candidates.expenses.forEach(e=> expRows.push([displayDate(e.dateIso), e.concept, e.category, e.amount]));
+  candidates.expenses.forEach(e=> expRows.push([expenseDateLabel(e), e.concept, e.category, e.amount]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expRows), 'Gastos');
 
   const batchRows = [['Fecha','Producto','Cantidad','Costo']];
@@ -4364,7 +4477,7 @@ async function archivePeriod(){
 
   const candidates = {
     sales: appData.sales.filter(s=>s.dateIso<cutoff),
-    expenses: appData.expenses.filter(e=>e.dateIso<cutoff),
+    expenses: appData.expenses.filter(e=>expenseDateRange(e).to<cutoff),
     batches: appData.batches.filter(b=>b.dateIso<cutoff)
   };
   const total = candidates.sales.length + candidates.expenses.length + candidates.batches.length;
@@ -4379,7 +4492,7 @@ async function archivePeriod(){
   if(candidates.sales.length){
     await window.dbDeleteSalesBatch(candidates.sales.map(s=>s.id));
   }
-  appData.expenses = appData.expenses.filter(e=>e.dateIso>=cutoff);
+  appData.expenses = appData.expenses.filter(e=>expenseDateRange(e).to>=cutoff);
   appData.batches = appData.batches.filter(b=>b.dateIso>=cutoff);
   await saveData();
   renderAll();
@@ -4663,7 +4776,7 @@ setReportPeriod('monthly');
       syncPublicCatalog();
     }
   };
-  window.dbCashExpense = async (record,selection,expectedRev,{remove=false,newExpense=false}={}) => {
+  window.dbCashExpense = async (record,selection,expectedRev,{remove=false,newExpense=false,preserveLink=false}={}) => {
     checkCashWrite();
     const result = await runTransaction(db,async tx => {
       const business = (await tx.get(DOC_REF)).data();
@@ -4674,11 +4787,11 @@ setReportPeriod('monthly');
       const current = business.expenses || [];
       if(current.some(item => item.id === record.id) === newExpense)
         throw new Error('El gasto cambió. Vuelve a cargar la lista.');
-      const updateCash = await prepareCashLink(tx,'expense',record.id,selection,expectedRev,record.concept);
+      const updateCash = preserveLink ? null : await prepareCashLink(tx,'expense',record.id,selection,expectedRev,record.concept);
       const expenses = newExpense ? [record,...current] :
         current.flatMap(item => item.id !== record.id ? [item] : remove ? [] : [record]);
       tx.update(DOC_REF,{expenses,_version:version+1});
-      updateCash();
+      updateCash?.();
       return {expenses,version:version+1};
     });
     window.__docVersion = result.version;
