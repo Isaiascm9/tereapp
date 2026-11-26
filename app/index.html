@@ -311,6 +311,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
       <button onclick="switchTab('products')" id="btn-products" class="tab-btn"><span class="msi">category</span><span class="rail-lbl">Catálogo</span></button>
       <button onclick="switchTab('inventory')" id="btn-inventory" class="tab-btn"><span class="msi">inventory_2</span><span class="rail-lbl">Stock</span><span id="lowstock-badge" class="hidden rail-count"></span></button>
       <button onclick="switchTab('clients')" id="btn-clients" class="tab-btn"><span class="msi">group</span><span class="rail-lbl">Clientes</span></button>
+      <button onclick="switchTab('cash')" id="btn-cash" class="tab-btn"><span class="msi">account_balance_wallet</span><span class="rail-lbl">Caja</span></button>
       <button onclick="switchTab('expenses')" id="btn-expenses" class="tab-btn"><span class="msi">receipt_long</span><span class="rail-lbl">Gastos</span></button>
       <button onclick="switchTab('reports')" id="btn-reports" class="tab-btn"><span class="msi">bar_chart</span><span class="rail-lbl">Reportes</span></button>
       <div class="rail-group-label">Cuenta</div>
@@ -615,6 +616,61 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
 </section>
 
+<section id="tab-cash" class="hidden space-y-4">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2" aria-label="Fecha de Caja">
+      <button type="button" class="btn-secondary px-2 py-2" onclick="shiftCashDay(-1)" aria-label="Día anterior"><span class="msi">chevron_left</span></button>
+      <input class="input" id="cash-day" type="date" aria-label="Fecha" onchange="renderCash()">
+      <button type="button" class="btn-secondary px-2 py-2" onclick="shiftCashDay(1)" aria-label="Día siguiente"><span class="msi">chevron_right</span></button>
+      <button type="button" class="btn-secondary px-3 py-2" onclick="cashEl('cash-day').value=todayIso();renderCash()">Hoy</button>
+    </div>
+    <label class="flex items-center gap-2 text-sm">Moneda
+      <select id="cash-currency" class="input" onchange="renderCash()">
+        <option>USD</option><option>VES</option><option>EUR</option><option>USDT</option>
+      </select>
+    </label>
+  </div>
+  <div class="card p-4">
+    <div class="flex justify-between items-center mb-3">
+      <div><h3 class="font-medium">Tasas del día</h3><p class="text-xs t-muted">Últimas tasas disponibles. Los saldos se muestran en su moneda.</p></div>
+      <button type="button" class="btn-secondary px-3 py-2 text-xs" onclick="fetchRates()">Actualizar</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="cash-rates"></div>
+  </div>
+  <p id="cash-status" class="text-sm t-muted" role="status"></p>
+  <div id="cash-balances" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+  <div class="card p-4">
+    <h3 class="font-medium mb-3">Resumen del día</h3>
+    <div class="grid grid-cols-3 gap-3" id="cash-summary"></div>
+  </div>
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+    <div class="card p-4 lg:col-span-2">
+      <div class="flex justify-between items-center gap-2 mb-3">
+        <h3 class="font-medium">Cuentas</h3>
+        <button type="button" class="btn-secondary px-3 py-2 text-xs" onclick="openCashAccount()">Nueva cuenta</button>
+      </div>
+      <div id="cash-accounts" class="space-y-2"></div>
+    </div>
+    <div class="card p-4 lg:col-span-3">
+      <div class="flex justify-between items-center gap-2 mb-3">
+        <h3 class="font-medium">Movimientos del día</h3>
+        <button type="button" class="btn-primary px-3 py-2 text-xs" onclick="openCashMovement()">Nuevo movimiento</button>
+      </div>
+      <div id="cash-movements" class="space-y-2"></div>
+    </div>
+  </div>
+</section>
+<dialog id="cash-dialog" class="card p-5 w-[min(94vw,34rem)] max-h-[90vh] overflow-auto t-primary" style="background:var(--surface);color:var(--text-primary)">
+  <form id="cash-form" class="space-y-3">
+    <h3 id="cash-dialog-title" class="text-lg font-semibold"></h3>
+    <div id="cash-fields" class="space-y-3"></div>
+    <p id="cash-dialog-error" role="alert" class="text-sm" style="color:var(--danger)"></p>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="btn-secondary px-3 py-2" onclick="cashEl('cash-dialog').close()">Cerrar</button>
+      <button id="cash-submit" type="submit" class="btn-primary px-3 py-2">Guardar</button>
+    </div>
+  </form>
+</dialog>
 <section id="tab-expenses" class="hidden space-y-6">
   <div class="card p-6">
     <div class="flex justify-between items-center mb-4">
@@ -790,6 +846,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
     <button onclick="switchTab('clients'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">group</span>Clientes</button>
     <button onclick="switchTab('orders'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">pending_actions</span>Pedidos preliminares</button>
     <button onclick="switchTab('weborders'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">shopping_cart</span>Pedidos Web</button>
+    <button onclick="switchTab('cash'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">account_balance_wallet</span>Caja</button>
     <button onclick="switchTab('expenses'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">receipt_long</span>Gastos</button>
     <button onclick="switchTab('reports'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">bar_chart</span>Reportes</button>
     <button onclick="switchTab('settings'); closeModal('more-sheet')" class="w-full flex items-center gap-3 py-3 text-sm t-primary"><span class="msi accent">settings</span>Ajustes</button>
@@ -1406,8 +1463,268 @@ function renderRatesCard(){
   else { eurEl.innerText = '—'; eurUpd.innerText = 'Sin datos'; }
   if(r.binanceP2P){ p2pEl.innerText = 'Bs ' + r.binanceP2P.value.toFixed(2); p2pUpd.innerText = 'Actualizado: ' + formatDateTime(r.binanceP2P.updatedAt); }
   else { p2pEl.innerText = '—'; p2pUpd.innerText = 'Sin datos'; }
+  renderCashRates();
   updateSaleCurrencyOptions();
   calculateGrandTotal();
+}
+
+const cashEl = id => document.getElementById(id);
+const cashLabels = {
+  opening:'Saldo inicial', income:'Entrada', expense:'Salida', transfer:'Traspaso',
+  reserve:'Apartar', release:'Liberar apartado', sale:'Cobro de venta', purchase:'Gasto pagado'
+};
+const cashMoney = (minor, currency) => currency === 'USDT'
+  ? new Intl.NumberFormat('es-VE', {minimumFractionDigits:2}).format(minor / 100) + ' USDT'
+  : new Intl.NumberFormat('es-VE', {style:'currency',currency}).format(minor / 100);
+const cashState = { accounts:[], movements:[], ready:false, error:'' };
+const cashMinor = amount => Math.round(Number(amount) * 100);
+const cashDateValid = value => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+  new Date(value + 'T12:00:00Z').toJSON()?.slice(0,10) === value && value <= todayIso();
+function shiftCashDay(step){
+  const input = cashEl('cash-day');
+  const next = new Date((input.value || todayIso()) + 'T12:00:00Z');
+  next.setUTCDate(next.getUTCDate() + step);
+  input.value = next.toISOString().slice(0,10);
+  renderCash();
+}
+function cashTotals(accounts, movements, day, currency){
+  const balances = new Map(accounts.filter(a => a.currency === currency && a.opened <= day)
+    .map(a => [a.id, { balance:0, reserved:0 }]));
+  let initial = 0, incoming = 0, outgoing = 0;
+  for(const row of movements){
+    if(row.voided || row.date > day) continue;
+    for(const leg of row.legs){
+      const account = balances.get(leg.account);
+      if(!account) continue;
+      account.balance += leg.amount;
+      account.reserved += leg.reserve;
+      if(row.date < day) initial += leg.amount;
+      else if(!['opening','transfer'].includes(row.kind)){
+        incoming += Math.max(0, leg.amount);
+        outgoing += Math.max(0, -leg.amount);
+      } else if(row.kind === 'opening') initial += leg.amount;
+    }
+  }
+  const total = [...balances.values()].reduce((sum,a) => sum + a.balance,0);
+  const reserved = [...balances.values()].reduce((sum,a) => sum + a.reserved,0);
+  return {balances,total,reserved,available:total-reserved,initial,incoming,outgoing};
+}
+function renderCashRates(){
+  const rates = appData.rates || {};
+  cashEl('cash-rates').innerHTML = [
+    ['Dólar BCV',rates.usdBcv], ['Euro BCV',rates.eurBcv], ['Binance P2P (venta USDT)',rates.binanceP2P]
+  ].map(([label, rate]) => '<div class="surface-alt rounded-xl p-3"><p class="text-xs t-muted">' + label +
+    '</p><p class="text-lg font-medium">' + (rate ? cashMoney(cashMinor(rate.value),'VES') : '—') +
+    '</p><p class="text-xs t-muted">' + (rate ? formatDateTime(rate.updatedAt) : 'Sin datos') + '</p></div>').join('');
+}
+function renderCash(){
+  const input = cashEl('cash-day');
+  if(!input) return;
+  input.max = todayIso();
+  if(!cashDateValid(input.value)) input.value = input.max;
+  const day = input.value;
+  const currency = cashEl('cash-currency').value;
+  const totals = cashTotals(cashState.accounts,cashState.movements,day,currency);
+  const tile = (label, value, css) => '<div class="' + css + '"><p class="text-xs t-muted">' + label +
+    '</p><p class="text-xl font-semibold">' + (cashState.ready ? cashMoney(value,currency) : '—') + '</p></div>';
+  cashEl('cash-status').textContent = cashState.error || (cashState.ready ? '' : 'Cargando datos de Caja…');
+  cashEl('cash-balances').innerHTML = [['Disponible',totals.available],['Apartado',totals.reserved],['Saldo total',totals.total]]
+    .map(([label,value]) => tile(label,value,'card p-4')).join('');
+  cashEl('cash-summary').innerHTML = [['Saldo inicial',totals.initial],['Entradas',totals.incoming],['Salidas',totals.outgoing]]
+    .map(([label,value]) => tile(label,value,'')).join('');
+  renderCashRates();
+  const accounts = cashEl('cash-accounts');
+  const rows = cashEl('cash-movements');
+  accounts.replaceChildren();
+  rows.replaceChildren();
+  if(!cashState.ready) return;
+  for(const account of cashState.accounts){
+    const balance = totals.balances.get(account.id);
+    if(!balance) continue;
+    const row = cashRow(accounts);
+    row.append(cashText(account.name + ' · ' + cashMoney(balance.balance,currency) +
+      (balance.reserved ? ' · Apartado: ' + cashMoney(balance.reserved,currency) : '')));
+    row.append(cashButton('Editar',() => openCashAccount(account)));
+  }
+  if(!accounts.children.length) accounts.append(cashText('No hay cuentas para esta fecha y moneda.'));
+  const movements = cashState.movements.filter(row => row.date === day &&
+    row.legs.some(leg => totals.balances.has(leg.account))).sort((a,b) => b.updatedAt - a.updatedAt);
+  for(const entry of movements){
+    const row = cashRow(rows);
+    const description = entry.legs.map(leg => {
+      const account = cashState.accounts.find(item => item.id === leg.account);
+      return account.name + ' ' + cashMoney(leg.amount || leg.reserve, account.currency);
+    }).join(' · ');
+    row.append(cashText((entry.voided ? 'Anulado · ' : '') + cashLabels[entry.kind] + ' · ' +
+      description + (entry.note ? ' · ' + entry.note : '')));
+    const actions = document.createElement('div');
+    actions.className = 'flex flex-wrap gap-1';
+    actions.append(cashButton('Historial',() => openCashHistory(entry.id)));
+    if(!entry.voided && entry.source === 'manual'){
+      actions.append(cashButton('Editar',() => openCashMovement(entry)),cashButton('Anular',() => voidCashMovement(entry)));
+    }
+    row.append(actions);
+  }
+  if(!rows.children.length) rows.append(cashText('No hay movimientos para este día.'));
+}
+function cashText(text){
+  const span = document.createElement('span');
+  span.textContent = text;
+  return span;
+}
+function cashRow(parent){
+  const row = document.createElement('div');
+  row.className = 'surface-alt rounded-xl p-3 flex flex-wrap gap-2 justify-between items-center text-sm';
+  parent.append(row);
+  return row;
+}
+function cashButton(text, handler){
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn-secondary px-2 py-1 text-xs';
+  button.textContent = text;
+  button.onclick = handler;
+  return button;
+}
+function cashField(name,label,value,options,attrs={}){
+  const field = document.createElement('label');
+  field.className = 'block text-sm space-y-1';
+  const input = document.createElement(options ? 'select' : 'input');
+  input.className = 'input w-full';
+  input.name = name;
+  if(options) for(const [key,text] of options) input.add(new Option(text,key));
+  Object.assign(input,attrs);
+  input.value = value ?? '';
+  field.append(cashText(label),input);
+  cashEl('cash-fields').append(field);
+  return input;
+}
+function cashDialog(title, submit, label='Guardar'){
+  const dialog = cashEl('cash-dialog'), form = cashEl('cash-form'), btn = cashEl('cash-submit');
+  cashEl('cash-dialog-title').textContent = title;
+  cashEl('cash-dialog-error').textContent = '';
+  cashEl('cash-fields').replaceChildren();
+  btn.hidden = !submit;
+  btn.textContent = label;
+  dialog.oncancel = event => { if(btn.disabled) event.preventDefault(); };
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if(!submit || btn.disabled) return;
+    btn.disabled = true;
+    form.querySelector('button[type=button]').disabled = true;
+    try{
+      await submit(Object.fromEntries(new FormData(form)));
+      dialog.close();
+    }catch(error){
+      cashEl('cash-dialog-error').textContent = error.message || 'No se pudo guardar.';
+    }finally{
+      btn.disabled = false;
+      form.querySelector('button[type=button]').disabled = false;
+    }
+  };
+  dialog.showModal();
+  return dialog;
+}
+function cashCanWrite(){
+  if(dataLoadSafe && cashState.ready && navigator.onLine) return true;
+  showAlert('Caja requiere conexión y una lectura confirmada de Firebase.', 'error');
+  return false;
+}
+function openCashAccount(account){
+  if(!cashCanWrite()) return;
+  const opening = account && cashState.movements.find(row => row.id === 'opening_' + account.id);
+  const id = account?.id || uid();
+  cashDialog(account ? 'Editar cuenta' : 'Nueva cuenta', values => window.dbCashAccount(
+    id, {name:values.name.trim(), currency:values.currency || account.currency, opened:values.date || account.opened},
+    cashMinor(values.amount), account?.rev || 0, opening?.rev || 0
+  ));
+  cashField('name','Nombre',account?.name,null,{required:true,maxLength:70});
+  const currency = cashField('currency','Moneda',account?.currency || cashEl('cash-currency').value,
+    ['USD','VES','EUR','USDT'].map(code => [code,code]));
+  currency.disabled = !!account;
+  const date = cashField('date','Fecha del saldo inicial',account?.opened || cashEl('cash-day').value,null,
+    {type:'date',required:true,max:todayIso()});
+  date.disabled = !!account;
+  cashField('amount','Saldo inicial',(opening?.legs[0].amount || 0) / 100,null,
+    {type:'number',step:'0.01',min:'0',required:true});
+}
+function openCashMovement(entry){
+  if(!cashCanWrite()) return;
+  if(!cashState.accounts.length){ showAlert('Crea una cuenta primero.','error'); return; }
+  const options = cashState.accounts.map(a => [a.id,a.name + ' · ' + a.currency]);
+  const id = entry?.id || 'manual_' + uid();
+  cashDialog(entry ? 'Corregir movimiento' : 'Nuevo movimiento', values => window.dbCashManual(id,values,entry?.rev || 0));
+  const kinds = ['income','expense','transfer','reserve','release'];
+  const kind = cashField('kind','Tipo',entry?.kind || 'income',kinds.map(key => [key,cashLabels[key]]));
+  cashField('date','Fecha',entry?.date || cashEl('cash-day').value,null,{type:'date',required:true,max:todayIso()});
+  cashField('account','Cuenta',entry?.legs[0].account || options[0][0],options,{required:true});
+  const destination = cashField('destination','Cuenta de destino',entry?.legs[1]?.account || options[0][0],options);
+  const update = () => { destination.parentElement.hidden = kind.value !== 'transfer'; };
+  kind.onchange = update;
+  update();
+  cashField('amount','Monto',Math.abs(entry?.legs[0].amount || entry?.legs[0].reserve || 0) / 100,null,
+    {type:'number',required:true,min:'0.01',step:'0.01'});
+  cashField('note','Concepto',entry?.note,null,{maxLength:160,required:true});
+}
+async function voidCashMovement(entry){
+  if(!cashCanWrite() || !await askConfirm('¿Anular este movimiento? Se revertirá su efecto en Caja.')) return;
+  try{ await window.dbCashVoid(entry.id,entry.rev); }
+  catch(error){ showAlert(error.message,'error'); }
+}
+async function openCashHistory(id){
+  cashDialog('Historial del movimiento',null);
+  const fields = cashEl('cash-fields');
+  fields.textContent = 'Cargando historial…';
+  try{
+    const revisions = await window.dbCashHistory(id);
+    if(!cashEl('cash-dialog').open || fields.textContent !== 'Cargando historial…') return;
+    fields.replaceChildren();
+    for(const rev of revisions){
+      const items = rev.legs.map(leg => {
+        const account = cashState.accounts.find(a => a.id === leg.account);
+        return (account?.name || leg.account) + ' ' + cashMoney(leg.amount || leg.reserve,account?.currency || 'USD');
+      });
+      cashRow(fields).append(cashText((rev.voided ? 'Anulación' : rev.rev === 1 ? 'Registro' : 'Corrección') +
+        ' · ' + formatDateTime(rev.updatedAt) + ' · ' + rev.date + ' · ' + items.join(' / ') + ' · ' + rev.note));
+    }
+  }catch(error){ fields.textContent = 'No se pudo leer el historial.'; }
+}
+function chooseCashLink(source,record,defaultDate,oldEntry){
+  if(!cashCanWrite()) return Promise.resolve(null);
+  if(!cashState.accounts.length){
+    showAlert('Crea una cuenta en Caja antes de registrar el pago.','error');
+    return Promise.resolve(null);
+  }
+  return new Promise(resolve => {
+    let selected = null;
+    const dialog = cashDialog(source === 'sale' ? 'Cuenta del cobro' : 'Cuenta del gasto',values => {
+      const amount = cashMinor(values.amount);
+      const account = cashState.accounts.find(a => a.id === values.account);
+      if(!cashDateValid(values.date) || values.date < account.opened || !Number.isSafeInteger(amount) || amount <= 0)
+        throw new Error('Revisa la fecha de apertura y el monto.');
+      selected = {account:values.account, date:values.date, amount, rev:oldEntry?.rev || 0};
+    },'Confirmar');
+    const options = cashState.accounts.map(a => [a.id,a.name + ' · ' + a.currency]);
+    const account = cashField('account','Cuenta',oldEntry?.legs[0].account || '',[['','Elige una cuenta'],...options],{required:true});
+    cashField('date','Fecha del pago',oldEntry?.date || defaultDate,null,{required:true,type:'date',max:todayIso()});
+    const amount = cashField('amount','Monto real en la moneda de la cuenta',oldEntry ? Math.abs(oldEntry.legs[0].amount)/100 : '',null,
+      {required:true,type:'number',min:'0.01',step:'0.01'});
+    account.onchange = () => {
+      const currency = cashState.accounts.find(a => a.id === account.value)?.currency;
+      const native = record.webCurrency || (record.rateType === 'BCV_EUR' ? 'EUR' : 'USD');
+      amount.value = currency && currency === native ? Math.round(record.total * 100)/100 :
+        currency === 'VES' && record.totalVES ? Math.round(record.totalVES * 100)/100 : '';
+    };
+    const field = cashEl('cash-fields');
+    field.prepend(cashText('Confirma el monto que entró o salió de esa cuenta.'));
+    dialog.addEventListener('close',() => resolve(selected),{once:true});
+  });
+}
+function cashLink(kind,id){
+  return cashState.movements.find(row => row.id === kind + '_' + id);
+}
+function cashSaveError(error){
+  showAlert(error.message || 'No se pudo guardar el movimiento en Caja.','error');
 }
 
 function formatDateTime(iso){
@@ -1512,9 +1829,9 @@ function showAlert(message, type='success'){
 }
 
 const BOTTOM_NAV_MAP = { dashboard:'bn-dashboard', inventory:'bn-inventory', products:'bn-products' };
-const DESKTOP_TAB_TITLES = { dashboard:'Resumen', sales:'Ventas', products:'Catálogo', inventory:'Stock', clients:'Clientes', orders:'Pedidos', weborders:'Pedidos Web', expenses:'Gastos', reports:'Reportes', settings:'Ajustes' };
+const DESKTOP_TAB_TITLES = { dashboard:'Resumen', sales:'Ventas', products:'Catálogo', inventory:'Stock', clients:'Clientes', orders:'Pedidos', weborders:'Pedidos Web', expenses:'Gastos', cash:'Caja', reports:'Reportes', settings:'Ajustes' };
 function switchTab(id){
-  ['dashboard','sales','products','inventory','clients','orders','weborders','expenses','reports','settings'].forEach(t=>{
+  ['dashboard','sales','products','inventory','clients','orders','weborders','cash','expenses','reports','settings'].forEach(t=>{
     document.getElementById('tab-'+t).classList.add('hidden');
     document.getElementById('btn-'+t).classList.remove('active');
   });
@@ -1526,13 +1843,14 @@ function switchTab(id){
   ['bn-dashboard','bn-inventory','bn-products','bn-more'].forEach(bid=>document.getElementById(bid).classList.remove('active'));
   const directBtn = BOTTOM_NAV_MAP[id];
   if(directBtn){ document.getElementById(directBtn).classList.add('active'); }
-  else if(['sales','clients','orders','weborders','expenses','reports','settings'].includes(id)){ document.getElementById('bn-more').classList.add('active'); }
+  else if(['sales','clients','orders','weborders','cash','expenses','reports','settings'].includes(id)){ document.getElementById('bn-more').classList.add('active'); }
 
   window.scrollTo({top:0, behavior:'smooth'});
   const desktopMain = document.querySelector('#desktop-layout main');
   if(desktopMain) desktopMain.scrollTop = 0;
   renderAll();
   if(id==='weborders'){ loadWebOrders(); }
+  if(id==='cash'){ renderCash(); }
   if(id==='settings'){ updatePushUI(); }
 }
 
@@ -1878,14 +2196,21 @@ function emitPaidEvents(rec){
 }
 
 async function markSaleAsPaidFromBanner(id){
-  const sale = appData.sales.find(s=>s.id===id);
-  if(!sale) return;
+  const original = appData.sales.find(s=>s.id===id);
+  if(!original || original.status === 'Pagado') return;
+  const sale = structuredClone(original);
+  const oldEntry = cashLink('sale',id);
+  const selection = sale.total > 0 ? await chooseCashLink('sale',sale,todayIso(),oldEntry) : null;
+  if(sale.total > 0 && !selection) return;
   const oldStatus = sale.status, oldDueDate = sale.dueDate;
   sale.status = 'Pagado';
   sale.dueDate = null;
   const emitPaid = needsPaidWebhook(sale, oldStatus);
   pushHistorial(sale, `Editado — Estado: ${oldStatus} → Pagado; Fecha de pago: ${oldDueDate ? displayDate(oldDueDate) : 'sin fecha'} → sin fecha`);
-  await window.dbSaveSale(sale);
+  try{
+    if(selection || oldEntry) await window.dbCashSale(sale,selection,oldEntry?.rev || 0);
+    else await window.dbSaveSale(sale);
+  }catch(error){ cashSaveError(error); return; }
   if(emitPaid) emitPaidEvents(sale);
   renderAll();
 }
@@ -2163,7 +2488,6 @@ async function handleMultiSaleSubmit(){
   let itemsSummary=[], total=0, totalCost=0;
   currentSaleItems.forEach(item=>{
     const p = appData.products.find(x=>x.id===item.productId);
-    p.stock -= item.qty;
     const cost = getCost(p);
     total += p.price*item.qty;
     totalCost += cost*item.qty;
@@ -2174,13 +2498,9 @@ async function handleMultiSaleSubmit(){
   const totalProfit = finalTotal - totalCost;
   const rate = getSelectedRate();
 
-  let orderNumber = null;
-  try { orderNumber = await withTimeout(window.dbGetNextOrderNumber(), 4000); }
-  catch(e) { console.warn('No se pudo asignar número de pedido (la venta igual se guarda):', e); }
-
   const sale = {
     id: uid(),
-    orderNumber,
+    orderNumber: null,
     dateIso: document.getElementById('sale-date').value || todayIso(),
     items: itemsSummary,
     total: finalTotal,
@@ -2196,10 +2516,33 @@ async function handleMultiSaleSubmit(){
     totalVES: rate ? finalTotal*rate.value : null,
     historial: []
   };
+  const paid = sale.status === 'Pagado' && sale.total > 0;
+  const selection = paid ? await chooseCashLink('sale',sale,sale.dateIso,null) : null;
+  if(paid && !selection) return;
+  if(!dataLoadSafe) return;
+  for(const item of itemsSummary){
+    if(appData.products.find(p => p.id === item.productId)?.stock < item.qty){
+      showAlert('El stock cambió. Revisa la venta.','error'); return;
+    }
+  }
+  let orderNumber = null;
+  try { orderNumber = await withTimeout(window.dbGetNextOrderNumber(), 4000); }
+  catch(e) { console.warn('No se pudo asignar número de pedido (la venta igual se guarda):', e); }
+
+  sale.orderNumber = orderNumber;
   pushHistorial(sale, 'Creado como venta directa');
   const emitPaid = needsPaidWebhook(sale, null);
-  await window.dbSaveSale(sale);
-  await saveData();
+  const stockDelta = new Map();
+  for(const item of itemsSummary) stockDelta.set(item.productId,(stockDelta.get(item.productId)||0)-item.qty);
+  try{
+    if(selection) await window.dbCashSale(sale,selection,0,{newSale:true,stockDelta});
+    else await window.dbSaveSale(sale);
+  }catch(error){ cashSaveError(error); return; }
+  if(!selection) for(const item of itemsSummary){
+    const product = appData.products.find(p => p.id === item.productId);
+    if(product) product.stock -= item.qty;
+  }
+  if(!selection) await saveData();
   if(emitPaid) emitPaidEvents(sale);
 
   currentSaleItems = [{ productId: appData.products[0]?appData.products[0].id:null, qty:1 }];
@@ -2329,8 +2672,9 @@ function calculateEditSaleTotal(){
 }
 
 async function saveEditedSale(){
-  const sale = appData.sales.find(s=>s.id===editSaleId);
-  if(!sale) return;
+  const original = appData.sales.find(s=>s.id===editSaleId);
+  if(!original) return;
+  const sale = structuredClone(original);
   const oldSaleSnapshot = { total: sale.total, payment: sale.payment, discount: sale.discount||0, status: sale.status, clientId: sale.clientId||null };
 
   const oldQtyMap = {};
@@ -2347,13 +2691,6 @@ async function saveEditedSale(){
     const resultingStock = product.stock + oldQty - newQty;
     if(resultingStock < 0){ showAlert(`No hay suficiente stock de "${product.name}" para este cambio`, 'error'); return; }
   }
-
-  allProductIds.forEach(pid=>{
-    const product = appData.products.find(p=>p.id===pid);
-    const oldQty = oldQtyMap[pid]||0;
-    const newQty = newQtyMap[pid]||0;
-    product.stock = product.stock + oldQty - newQty;
-  });
 
   let total=0, totalCost=0;
   const itemsSummary = editSaleItems.map(item=>{
@@ -2399,8 +2736,24 @@ async function saveEditedSale(){
   if(oldSaleSnapshot.clientId !== sale.clientId) changes.push('Cliente cambiado');
   if(changes.length) pushHistorial(sale, `Editado — ${changes.join('; ')}`);
 
-  await window.dbSaveSale(sale);
-  await saveData();
+  const oldEntry = cashLink('sale',sale.id);
+  const addsCash = sale.status === 'Pagado' && sale.total > 0 &&
+    (original.status !== 'Pagado' || !!oldEntry);
+  const selection = addsCash ? await chooseCashLink('sale',sale,todayIso(),oldEntry) : null;
+  if(addsCash && !selection) return;
+  const usesCash = !!(selection || oldEntry);
+  const stockDelta = allProductIds.map(id => [id,(oldQtyMap[id] || 0)-(newQtyMap[id] || 0)]);
+  try{
+    if(usesCash) await window.dbCashSale(sale,selection,oldEntry?.rev || 0,{stockDelta});
+    else await window.dbSaveSale(sale);
+  }catch(error){ cashSaveError(error); return; }
+  if(!usesCash) allProductIds.forEach(pid=>{
+    const product = appData.products.find(p=>p.id===pid);
+    const oldQty = oldQtyMap[pid]||0;
+    const newQty = newQtyMap[pid]||0;
+    product.stock = product.stock + oldQty - newQty;
+  });
+  if(!usesCash) await saveData();
   if(emitPaid) emitPaidEvents(sale);
   closeModal('edit-sale-modal');
   renderAll();
@@ -2417,12 +2770,13 @@ async function deleteSale(id){
   if(!sale) return false;
   const ok = await askConfirm('¿Seguro que querés eliminar esta venta? Esta acción no se puede deshacer. El stock de los productos vendidos se va a devolver.');
   if(!ok) return false;
-  sale.items.forEach(it=>{
-    const p = appData.products.find(x=>x.id===it.productId);
-    if(p) p.stock += it.qty;
-  });
-  await window.dbDeleteSale(id);
-  await saveData();
+  if(!cashCanWrite()) return false;
+  try{
+    const linked = cashLink('sale',id);
+    const stockDelta = new Map();
+    for(const item of sale.items) stockDelta.set(item.productId,(stockDelta.get(item.productId)||0)+item.qty);
+    await window.dbCashSale(sale,null,linked?.rev || 0,{remove:true,stockDelta});
+  }catch(error){ cashSaveError(error); return false; }
   emitWebhookEvent('order.cancelled', sale, 'cancelled');
   renderAll();
   showAlert('Venta eliminada y stock devuelto','error');
@@ -2694,7 +3048,7 @@ async function toggleEditSaleSent(){
   pushHistorial(sale, sale.sentFlag ? 'Marcado como enviado' : 'Desmarcado como enviado');
   updateEditSaleSentToggleUI(sale.sentFlag);
   renderEditSaleHistorial(sale);
-  await window.dbSaveSale(sale);
+  await window.dbUpdateSaleSent(sale);
   renderAll();
   syncSeguimientoStage(sale);
 }
@@ -3116,7 +3470,7 @@ async function confirmOrderAsSale(id){
     totalCost += p ? getCost(p)*it.qty : it.cost*it.qty;
   });
   const sale = {
-    id: uid(),
+    id: order.id,
     orderNumber: order.orderNumber || null,
     dateIso: order.dateIso || todayIso(),
     items: order.items,
@@ -3142,7 +3496,12 @@ async function confirmOrderAsSale(id){
   };
   pushHistorial(sale, 'Confirmado como venta');
   const emitPaid = needsPaidWebhook(sale, null);
-  await window.dbConfirmOrderAsSale(id, sale);
+  const selection = sale.total > 0 ? await chooseCashLink('sale',sale,todayIso(),null) : null;
+  if(sale.total > 0 && !selection) return;
+  try{
+    if(selection) await window.dbCashSale(sale,selection,0,{orderId:id,newSale:true});
+    else await window.dbConfirmOrderAsSale(id,sale);
+  }catch(error){ cashSaveError(error); return; }
   if(emitPaid) emitPaidEvents(sale);
   renderAll();
   syncSeguimientoStage(sale);
@@ -3634,20 +3993,23 @@ async function handleExpenseSubmit(e){
   const category = document.getElementById('expense-category').value;
   const amount = parseFloat(document.getElementById('expense-amount').value);
 
-  if(id){
-    const exp = appData.expenses.find(x=>x.id===id);
-    if(exp){
-      // Conserva el día original del gasto, solo cambia el mes/año elegido.
-      const originalDay = exp.dateIso.slice(8,10) || '01';
-      exp.dateIso = `${monthValue}-${originalDay}`;
-      exp.concept = concept;
-      exp.category = category;
-      exp.amount = amount;
-    }
-  } else {
-    appData.expenses.unshift({ id:uid(), dateIso: `${monthValue}-01`, concept, category, amount });
+  if(!dataLoadSafe || !Number.isFinite(amount) || amount < 0) return;
+  const original = id ? appData.expenses.find(item => item.id === id) : null;
+  if(id && !original) return;
+  const lastDay = new Date(Number(year),Number(monthNum),0).getDate();
+  const day = Math.min(lastDay,Number(original?.dateIso.slice(8) || (monthValue === todayIso().slice(0,7) ? todayIso().slice(8) : 1)));
+  const record = {id:id || uid(),dateIso:monthValue + '-' + String(day).padStart(2,'0'),concept,category,amount};
+  const linked = id ? cashLink('expense',id) : null;
+  const needsLink = amount > 0 && (!id || !!linked);
+  const selection = needsLink ? await chooseCashLink('expense',{total:amount},record.dateIso,linked) : null;
+  if(needsLink && !selection) return;
+  if(linked || selection){
+    try{ await window.dbCashExpense(record,selection,linked?.rev || 0,{newExpense:!id}); }
+    catch(error){ cashSaveError(error); return; }
+  }else{
+    appData.expenses = id ? appData.expenses.map(item => item.id === id ? record : item) : [record,...appData.expenses];
+    await saveData();
   }
-  await saveData();
   closeModal('expense-modal');
   renderAll();
   showAlert(id ? 'Gasto actualizado' : 'Gasto registrado');
@@ -3655,8 +4017,11 @@ async function handleExpenseSubmit(e){
 async function deleteExpense(id){
   const ok = await askConfirm('¿Seguro que querés eliminar este gasto? Esta acción no se puede deshacer.');
   if(!ok) return;
-  appData.expenses = appData.expenses.filter(x=>x.id!==id);
-  await saveData();
+  const record = appData.expenses.find(item => item.id === id);
+  if(!record || !cashCanWrite()) return;
+  const linked = cashLink('expense',id);
+  try{ await window.dbCashExpense(record,null,linked?.rev || 0,{remove:true}); }
+  catch(error){ cashSaveError(error); return; }
   renderAll();
   showAlert('Gasto eliminado','error');
 }
@@ -4078,6 +4443,217 @@ setReportPeriod('monthly');
   // guardado solo puede tocar el documento puntual que está editando.
   const VENTAS_COL = collection(db, 'ventas');
   const PEDIDOS_COL = collection(db, 'pedidos_preliminares');
+  const cashAccountsCol = collection(db,'caja_cuentas');
+  const cashMovesCol = collection(db,'caja_movimientos');
+  const cashAccountRef = id => doc(cashAccountsCol,id);
+  const cashMoveRef = id => doc(cashMovesCol,id);
+  const cashHistoryCol = id => collection(cashMoveRef(id),'historial');
+  let stopCashListeners = [];
+  function attachCashListeners(){
+    stopCashListeners.forEach(stop => stop());
+    cashState.ready = false;
+    cashState.error = '';
+    const confirmed = new Set();
+    const watch = (name,ref) => onSnapshot(ref,{includeMetadataChanges:true},snap => {
+      cashState[name] = snap.docs.map(item => ({...item.data(),id:item.id}));
+      if(!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) confirmed.add(name);
+      cashState.ready = confirmed.size === 2 && !cashState.error;
+      renderCash();
+    },() => {
+      cashState.ready = false;
+      cashState.error = 'No se pudo leer Caja. Revisa la conexión y las reglas de Firestore.';
+      renderCash();
+    });
+    stopCashListeners = [watch('accounts',cashAccountsCol),watch('movements',cashMovesCol)];
+  }
+  function detachCashListeners(){
+    stopCashListeners.forEach(stop => stop());
+    stopCashListeners = [];
+    Object.assign(cashState,{accounts:[],movements:[],ready:false,error:''});
+    cashEl('cash-dialog')?.close();
+    renderCash();
+  }
+  function checkCashWrite(){
+    if(!authReady || !dataLoadSafe || !cashState.ready || !navigator.onLine)
+      throw new Error('Conéctate a Firebase para guardar en Caja.');
+  }
+  function ensureCashRevision(current,rev){
+    if((current?.rev || 0) !== rev)
+      throw new Error('Otro dispositivo cambió este registro. Abre el formulario de nuevo.');
+  }
+  function cashWriteRevision(tx,id,before,after){
+    const value = {...after,rev:(before?.rev || 0) + 1,updatedAt:Date.now(),updatedBy:auth.currentUser.uid};
+    tx.set(cashMoveRef(id),value);
+    tx.set(doc(cashHistoryCol(id),String(value.rev)),value);
+  }
+  async function readCashAccount(tx,id,date){
+    const snapshot = await tx.get(cashAccountRef(id));
+    if(!snapshot.exists() || date < snapshot.data().opened)
+      throw new Error('El movimiento debe ser del día de apertura de la cuenta o posterior.');
+    return snapshot.data();
+  }
+  function cashLeg(account,amount=0,reserve=0){ return {account,amount,reserve}; }
+  window.dbCashAccount = async (id,account,amount,rev,openingRev) => {
+    checkCashWrite();
+    if(!account.name || !cashDateValid(account.opened) || !Number.isSafeInteger(amount) || amount < 0)
+      throw new Error('Revisa el nombre, la fecha y el saldo inicial.');
+    await runTransaction(db,async tx => {
+      const key = 'opening_' + id;
+      const [stored,opening] = await Promise.all([tx.get(cashAccountRef(id)),tx.get(cashMoveRef(key))]);
+      ensureCashRevision(stored.data(),rev);
+      ensureCashRevision(opening.data(),openingRev);
+      if(stored.exists() && (stored.data().currency !== account.currency || stored.data().opened !== account.opened))
+        throw new Error('La moneda y la fecha de apertura son fijas.');
+      tx.set(cashAccountRef(id),{...account,reservations:stored.data()?.reservations || {},rev:rev+1});
+      if(!opening.exists() || opening.data().legs[0].amount !== amount)
+        cashWriteRevision(tx,key,opening.data(),{kind:'opening',source:'opening',date:account.opened,
+          legs:[cashLeg(id,amount)],note:'Saldo inicial',voided:false});
+    });
+  };
+  async function prepareReservations(tx,before,after){
+    const change = new Map();
+    for(const [entry,direction] of [[before,-1],[after,1]]){
+      if(!entry || entry.voided) continue;
+      for(const leg of entry.legs){
+        if(!leg.reserve) continue;
+        if(!change.has(leg.account)) change.set(leg.account,new Map());
+        const days = change.get(leg.account);
+        days.set(entry.date,(days.get(entry.date) || 0) + direction * leg.reserve);
+      }
+    }
+    const updates = await Promise.all([...change].map(async ([id,days]) => {
+      const ref = cashAccountRef(id);
+      const account = (await tx.get(ref)).data();
+      if(!account) throw new Error('La cuenta ya no existe.');
+      const reservations = {...account.reservations};
+      for(const [day,amount] of days){
+        reservations[day] = (reservations[day] || 0) + amount;
+        if(!reservations[day]) delete reservations[day];
+      }
+      let balance = 0;
+      for(const day of Object.keys(reservations).sort()){
+        balance += reservations[day];
+        if(balance < 0) throw new Error('En esa fecha no hay suficiente monto apartado. Corrige primero las liberaciones relacionadas.');
+      }
+      return {ref,reservations,rev:account.rev+1};
+    }));
+    return () => { for(const {ref,reservations,rev} of updates) tx.update(ref,{reservations,rev}); };
+  }
+  window.dbCashManual = async (id,values,rev) => {
+    checkCashWrite();
+    const amount = cashMinor(values.amount), note = values.note.trim(), {kind,date,account,destination} = values;
+    if(!['income','expense','transfer','reserve','release'].includes(kind) || !cashDateValid(date) || !Number.isSafeInteger(amount) || amount <= 0 || !note)
+      throw new Error('Completa la fecha, el monto y el concepto.');
+    await runTransaction(db,async tx => {
+      const previous = (await tx.get(cashMoveRef(id))).data();
+      ensureCashRevision(previous,rev);
+      if(previous && (previous.source !== 'manual' || previous.voided))
+        throw new Error('Este movimiento no se puede editar.');
+      const origin = await readCashAccount(tx,account,date);
+      let legs = [cashLeg(account,kind === 'income' ? amount : kind === 'expense' ? -amount : 0,
+        kind === 'reserve' ? amount : kind === 'release' ? -amount : 0)];
+      if(kind === 'transfer'){
+        const target = await readCashAccount(tx,destination,date);
+        if(account === destination || origin.currency !== target.currency)
+          throw new Error('Elige dos cuentas distintas de la misma moneda.');
+        legs = [cashLeg(account,-amount),cashLeg(destination,amount)];
+      }
+      const next = {kind,source:'manual',date,legs,note,voided:false};
+      const writeReservations = await prepareReservations(tx,previous,next);
+      writeReservations();
+      cashWriteRevision(tx,id,previous,next);
+    });
+  };
+  window.dbCashVoid = async (id,rev) => {
+    checkCashWrite();
+    await runTransaction(db,async tx => {
+      const previous = (await tx.get(cashMoveRef(id))).data();
+      ensureCashRevision(previous,rev);
+      if(!previous || previous.source !== 'manual' || previous.voided)
+        throw new Error('Este movimiento ya no se puede anular.');
+      const next = {...previous,voided:true};
+      const writeReservations = await prepareReservations(tx,previous,next);
+      writeReservations();
+      cashWriteRevision(tx,id,previous,next);
+    });
+  };
+  window.dbCashHistory = async id => {
+    const snapshot = await getDocs(query(cashHistoryCol(id),orderBy('rev','desc')));
+    return snapshot.docs.map(item => item.data());
+  };
+  async function prepareCashLink(tx,kind,id,selection,expectedPanelRev,note){
+    const key = kind + '_' + id;
+    const previous = (await tx.get(cashMoveRef(key))).data();
+    ensureCashRevision(previous,expectedPanelRev);
+    if(selection){
+      await readCashAccount(tx,selection.account,selection.date);
+      return () => cashWriteRevision(tx,key,previous,{kind:kind === 'sale' ? 'sale' : 'purchase',source:kind,
+        date:selection.date,legs:[cashLeg(selection.account,kind === 'sale' ? selection.amount : -selection.amount)],
+        note,voided:false});
+    }
+    return () => { if(previous && !previous.voided) cashWriteRevision(tx,key,previous,{...previous,voided:true}); };
+  }
+  window.dbCashSale = async (sale,selection,expectedRev,{orderId=null,remove=false,newSale=false,stockDelta=null}={}) => {
+    checkCashWrite();
+    const stockResult = await runTransaction(db,async tx => {
+      const ref = doc(VENTAS_COL,sale.id);
+      const stored = await tx.get(ref);
+      const order = orderId ? await tx.get(doc(PEDIDOS_COL,orderId)) : null;
+      if(stored.exists() === newSale || (order && !order.exists()))
+        throw new Error('La venta o el pedido cambió. Vuelve a cargar la lista.');
+      let stock = null;
+      if(stockDelta){
+        const business = (await tx.get(DOC_REF)).data();
+        const version = business?._version || 0;
+        if(!business || version !== window.__docVersion)
+          throw new Error('Hay cambios recientes de inventario. Recarga y vuelve a intentar.');
+        const deltas = new Map(stockDelta);
+        const products = business.products.map(product => {
+          const stock = product.stock + (deltas.get(product.id) || 0);
+          deltas.delete(product.id);
+          if(stock < 0) throw new Error('Stock insuficiente para ' + product.name);
+          return {...product,stock};
+        });
+        if(deltas.size && !remove) throw new Error('Un producto ya no está disponible.');
+        stock = {products,version:version+1};
+      }
+      const updateCash = await prepareCashLink(tx,'sale',sale.id,selection,expectedRev,
+        sale.orderNumber ? 'Pedido #' + sale.orderNumber : 'Venta');
+      if(stock) tx.update(DOC_REF,{products:stock.products,_version:stock.version});
+      if(order) tx.delete(order.ref);
+      if(remove) tx.delete(ref);
+      else tx.set(ref,sale);
+      updateCash();
+      return stock;
+    });
+    if(stockResult){
+      window.__docVersion = stockResult.version;
+      appData.products = stockResult.products;
+      syncPublicCatalog();
+    }
+  };
+  window.dbCashExpense = async (record,selection,expectedRev,{remove=false,newExpense=false}={}) => {
+    checkCashWrite();
+    const result = await runTransaction(db,async tx => {
+      const business = (await tx.get(DOC_REF)).data();
+      if(!business) throw new Error('No se encontraron los datos del negocio.');
+      const version = business._version || 0;
+      if(version !== window.__docVersion)
+        throw new Error('Hay cambios recientes del negocio. Recarga antes de guardar el gasto.');
+      const current = business.expenses || [];
+      if(current.some(item => item.id === record.id) === newExpense)
+        throw new Error('El gasto cambió. Vuelve a cargar la lista.');
+      const updateCash = await prepareCashLink(tx,'expense',record.id,selection,expectedRev,record.concept);
+      const expenses = newExpense ? [record,...current] :
+        current.flatMap(item => item.id !== record.id ? [item] : remove ? [] : [record]);
+      tx.update(DOC_REF,{expenses,_version:version+1});
+      updateCash();
+      return {expenses,version:version+1};
+    });
+    window.__docVersion = result.version;
+    appData.expenses = result.expenses;
+  };
+
   let ventasListenerReady = false, pedidosListenerReady = false;
   function attachRealtimeListeners(){
     onSnapshot(VENTAS_COL, (snap)=>{
@@ -4130,6 +4706,16 @@ setReportPeriod('monthly');
       writePromise.catch(err => console.error('Un guardado tardó más de lo esperado y falló en segundo plano:', err));
     }
   }
+  window.dbUpdateSaleSent = async function(sale){
+    const ref = doc(VENTAS_COL,sale.id);
+    await runTransaction(db,async tx => {
+      const current = (await tx.get(ref)).data();
+      if(!current) throw new Error('La venta ya no existe.');
+      const next = {...current,sentFlag:sale.sentFlag};
+      pushHistorial(next,sale.sentFlag ? 'Marcado como enviado' : 'Desmarcado como enviado');
+      tx.update(ref,{sentFlag:next.sentFlag,historial:next.historial});
+    });
+  };
   window.dbSaveSale = async function(sale){ await writeWithTimeout(setDoc(doc(db,'ventas', sale.id), sale)); };
   window.dbDeleteSale = async function(id){ await writeWithTimeout(deleteDoc(doc(db,'ventas', id))); };
   window.dbDeleteSalesBatch = async function(ids){
@@ -4479,7 +5065,9 @@ setReportPeriod('monthly');
       ]);
       await finishDataLoadingReveal();
       attachRealtimeListeners();
+      attachCashListeners();
     } else {
+      detachCashListeners();
       authReady = false;
       const dataOverlay = document.getElementById('data-loading-overlay');
       if(dataOverlay){ dataOverlay.classList.add('hidden'); dataOverlay.classList.remove('flex'); }
