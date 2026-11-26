@@ -1689,7 +1689,39 @@ async function openCashHistory(id){
     }
   }catch(error){ fields.textContent = 'No se pudo leer el historial.'; }
 }
+// El campo Cobrar en define la moneda del cobro. Las tres tasas convierten a VES.
+function cashSaleAmount(record){
+  const convertsToVES = ['BCV_USD','BCV_EUR','BINANCE_P2P'].includes(record.rateType);
+  return {
+    currency: convertsToVES ? 'VES' : record.webCurrency || 'USD',
+    amount: cashMinor(convertsToVES ? record.totalVES : record.total)
+  };
+}
+function chooseNewSaleCashAccount(record,date){
+  if(!cashCanWrite()) return Promise.resolve(null);
+  const {currency,amount} = cashSaleAmount(record);
+  if(!cashDateValid(date) || !Number.isSafeInteger(amount) || amount <= 0){
+    showAlert('Revisa la fecha y el monto del cobro.','error');
+    return Promise.resolve(null);
+  }
+  const accounts = cashState.accounts.filter(account => account.currency === currency && account.opened <= date);
+  if(accounts.length === 1) return Promise.resolve({account:accounts[0].id,date,amount,rev:0});
+  if(!accounts.length){
+    showAlert('Crea una cuenta en ' + currency + ' en Caja con una fecha de apertura igual o anterior al cobro.','error');
+    return Promise.resolve(null);
+  }
+  return new Promise(resolve => {
+    let selection = null;
+    const dialog = cashDialog('Cuenta del cobro',values => {
+      selection = {account:values.account,date,amount,rev:0};
+    },'Confirmar');
+    cashEl('cash-fields').append(cashText([record.payment,cashMoney(amount,currency),displayDate(date)].filter(Boolean).join(' · ')));
+    cashField('account','¿En qué cuenta entró?', '', [['','Elige una cuenta'],...accounts.map(account => [account.id,account.name])],{required:true});
+    dialog.addEventListener('close',() => resolve(selection),{once:true});
+  });
+}
 function chooseCashLink(source,record,defaultDate,oldEntry){
+  if(source === 'sale' && !oldEntry) return chooseNewSaleCashAccount(record,defaultDate);
   if(!cashCanWrite()) return Promise.resolve(null);
   if(!cashState.accounts.length){
     showAlert('Crea una cuenta en Caja antes de registrar el pago.','error');
@@ -1711,9 +1743,8 @@ function chooseCashLink(source,record,defaultDate,oldEntry){
       {required:true,type:'number',min:'0.01',step:'0.01'});
     account.onchange = () => {
       const currency = cashState.accounts.find(a => a.id === account.value)?.currency;
-      const native = record.webCurrency || (record.rateType === 'BCV_EUR' ? 'EUR' : 'USD');
-      amount.value = currency && currency === native ? Math.round(record.total * 100)/100 :
-        currency === 'VES' && record.totalVES ? Math.round(record.totalVES * 100)/100 : '';
+      const expected = source === 'sale' ? cashSaleAmount(record) : {currency:'USD',amount:cashMinor(record.total)};
+      amount.value = currency && currency === expected.currency && expected.amount > 0 ? expected.amount / 100 : '';
     };
     const field = cashEl('cash-fields');
     field.prepend(cashText('Confirma el monto que entró o salió de esa cuenta.'));
