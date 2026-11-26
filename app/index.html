@@ -210,6 +210,33 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 .hidden{display:none;}
 ::-webkit-scrollbar{height:6px; width:6px;}
 ::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px;}
+/* Caja: las tasas siguen disponibles sin desplazamiento horizontal. */
+.cash-filters {display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem}
+.cash-filters select,.cash-filters input {width:auto;max-width:100%}
+.cash-filters label {min-width:0}
+.cash-rate-grid {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem}
+.cash-rate-button {min-width:0; text-align:left; border:1px solid var(--border); border-radius:.75rem; padding:.7rem; color:var(--text-primary); background:var(--surface-alt); overflow-wrap:anywhere}
+.cash-rate-button[aria-pressed="true"] {background:color-mix(in srgb,var(--surface-alt) 90%,#000); border-color:var(--accent)}
+.cash-rate-button:focus-visible {outline:2px solid var(--accent);outline-offset:2px}
+.cash-rate-label {display:block;font-size:.75rem;line-height:1.2}
+.cash-rate-value {display:block;font-size:1rem;font-weight:600;margin-top:.25rem;font-variant-numeric:tabular-nums}
+.cash-rate-button time {display:block;font-size:.68rem;line-height:1.2;margin-top:.25rem}
+.cash-reference {display:block;font-size:.72rem;line-height:1.25;margin-top:.2rem}
+.cash-amount-value {overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.cash-entry-description {min-width:0; overflow-wrap:anywhere}
+@media(max-width:639px){
+  #tab-cash .card {padding:.85rem}
+  .cash-filters {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.5rem}
+  .cash-filters select,.cash-filters input {width:100%}
+  .cash-filters input {grid-column:1/-1}
+  .cash-filters #cash-range-label {grid-column:1/-1}
+  .cash-rate-grid {gap:.35rem}
+  .cash-rate-button {padding:.45rem}
+  .cash-rate-label {font-size:.67rem}
+  .cash-rate-value {font-size:.78rem}
+  .cash-rate-button time {font-size:.62rem}
+  #cash-summary > div,#cash-balances > div {min-width:0}
+}
 </style>
 </head>
 <body class="min-h-screen pb-24 sm:pb-16">
@@ -617,31 +644,26 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 </section>
 
 <section id="tab-cash" class="hidden space-y-4">
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <div class="flex flex-wrap items-center gap-2">
-      <label class="sr-only" for="cash-period">Período de Caja</label>
-      <select id="cash-period" class="input" onchange="renderCash()">
-        <option value="today">Hoy</option><option value="yesterday">Ayer</option>
-        <option value="7">Últimos 7 días</option><option value="14">Últimos 14 días</option>
-        <option value="30">Últimos 30 días</option><option value="date">Elegir fecha</option>
+  <div class="cash-filters">
+    <label class="sr-only" for="cash-period">Período de Caja</label>
+    <select id="cash-period" class="input" onchange="renderCash()">
+      <option value="today">Hoy</option><option value="yesterday">Ayer</option><option value="7">Últimos 7 días</option>
+      <option value="14">Últimos 14 días</option><option value="30">Últimos 30 días</option><option value="date">Elegir fecha</option>
+    </select>
+    <label class="flex items-center gap-2 text-sm">Moneda
+      <select id="cash-currency" class="input" onchange="renderCash()">
+        <option value="all">Todas</option><option>USD</option><option>VES</option><option>EUR</option><option>USDT</option>
       </select>
-      <input id="cash-day" class="input hidden" type="date" aria-label="Fecha de Caja" onchange="renderCash()">
-    </div>
-    <div class="flex flex-wrap items-center gap-3">
-      <p id="cash-range-label" class="text-sm t-muted"></p>
-      <label class="flex items-center gap-2 text-sm">Moneda
-        <select id="cash-currency" class="input" onchange="renderCash()">
-          <option value="all">Todas</option><option>USD</option><option>VES</option><option>EUR</option><option>USDT</option>
-        </select>
-      </label>
-    </div>
+    </label>
+    <input id="cash-day" class="input hidden" type="date" aria-label="Fecha de Caja" onchange="renderCash()">
+    <p id="cash-range-label" class="text-sm t-muted"></p>
   </div>
   <div class="card p-4">
-    <div class="flex justify-between items-center mb-3">
-      <div><h3 class="font-medium">Tasas del día</h3><p class="text-xs t-muted">Equivalentes referenciales al último Dólar BCV, Euro BCV o Binance P2P disponible.</p></div>
+    <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+      <h3 class="text-sm font-medium t-secondary flex items-center gap-1.5"><span class="msi accent" aria-hidden="true" style="font-size:18px">currency_exchange</span>Tasas del día</h3>
       <button type="button" class="btn-secondary px-3 py-2 text-xs" onclick="fetchRates()">Actualizar</button>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="cash-rates"></div>
+    <div class="cash-rate-grid" id="cash-rates" role="group" aria-label="Tasa de referencia"></div>
   </div>
   <p id="cash-status" class="text-sm t-muted" role="status"></p>
   <div id="cash-balances" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
@@ -719,6 +741,29 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
   </div>
 
   <div id="report-kpis" class="grid grid-cols-2 lg:grid-cols-3 gap-3"></div>
+  <section class="card p-5 space-y-4" aria-labelledby="profitability-title">
+    <div><h3 id="profitability-title" class="font-semibold">Rentabilidad</h3>
+      <p class="text-xs t-muted">En USD, según las ventas pagadas y pendientes y los gastos del período.</p></div>
+    <div id="profitability-metrics" class="grid grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    <p id="profitability-note" class="text-sm t-muted" hidden></p>
+    <details>
+      <summary class="cursor-pointer font-medium">Ver ventas incluidas en la facturación del período</summary>
+      <div class="overflow-x-auto mt-2"><table class="w-full text-left">
+        <thead class="text-xs t-muted"><tr><th>Fecha</th><th>Pedido</th><th>Estado</th><th>Monto</th></tr></thead>
+        <tbody id="profitability-sales"></tbody>
+      </table></div>
+    </details>
+    <div>
+      <h4 class="font-medium">Comparativo de 6 meses</h4>
+      <p class="text-xs t-muted">Hasta la fecha final del filtro, en USD.</p>
+      <p id="profitability-month-note" class="text-xs t-muted" hidden>Hay meses con ventas en otras monedas o costos sin registrar. La utilidad de esos meses es parcial.</p>
+      <div style="position:relative;height:245px" class="mt-3"><canvas id="profitability-chart" role="img" aria-label="Comparativo mensual de ventas, gastos y utilidad en USD"></canvas></div>
+      <div class="overflow-x-auto mt-3"><table class="w-full text-left">
+        <thead class="text-xs t-muted"><tr><th>Mes</th><th>Ventas USD</th><th>Gastos</th><th>Utilidad neta</th></tr></thead>
+        <tbody id="profitability-months"></tbody>
+      </table></div>
+    </div>
+  </section>
   <p class="text-xs t-muted">Cobrado y Por cobrar se calculan según el estado actual de las ventas del período.</p>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <div class="card p-5"><h3 class="text-sm font-medium mb-3">Gráfico de ventas</h3><div id="report-revenue-chart"></div></div>
@@ -1020,7 +1065,7 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 </div>
 
 <div id="expense-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" style="background:rgba(0,0,0,.5)">
-  <div class="card max-w-sm w-full p-6 space-y-3">
+  <div class="card max-w-sm w-full p-6 space-y-3 max-h-[90vh] overflow-y-auto">
     <div class="flex justify-between items-center border-b b pb-3">
       <h3 id="expense-modal-title" class="font-medium text-lg">Nuevo gasto</h3>
       <button onclick="closeModal('expense-modal')" class="t-muted"><span class="msi">close</span></button>
@@ -1053,6 +1098,9 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
         <select id="expense-category" class="input">
           <option>Envíos</option><option>Empaques</option><option>Publicidad</option><option>Comisiones</option><option>Materiales</option><option>Otro</option>
         </select></div>
+      <div><label for="expense-type" class="block text-xs font-medium t-muted uppercase mb-1">Tipo de gasto</label>
+        <select id="expense-type" class="input"><option value="unclassified">Sin clasificar</option>
+          <option value="fixed">Fijo</option><option value="variable">Variable</option></select></div>
       <div><label class="block text-xs font-medium t-muted uppercase mb-1">Monto ($)</label>
         <input type="number" step="0.01" id="expense-amount" required class="input"></div>
       <div class="pt-2 flex space-x-3">
@@ -1555,13 +1603,56 @@ function cashTotals(accounts, movements, day, currency, from=day){
   const reserved = [...balances.values()].reduce((sum,a) => sum + a.reserved,0);
   return {balances,total,reserved,available:total-reserved,initial,incoming,outgoing};
 }
+const cashRateChoices = [
+  {currency:'USD',key:'usdBcv',label:'Dólar BCV'},
+  {currency:'EUR',key:'eurBcv',label:'Euro BCV'},
+  {currency:'USDT',key:'binanceP2P',label:'Binance P2P'}
+];
+let cashReferenceCurrency = 'USD';
+function cashVesReference(amount,rates){
+  const choice = cashRateChoices.find(rate=>rate.currency === cashReferenceCurrency);
+  const rate = rates[choice.currency];
+  if(!Number.isFinite(rate) || rate <= 0) return 'Sin tasa · '+choice.label;
+  return '≈ '+cashMoney(Math.round(amount/rate),choice.currency)+' · '+choice.label;
+}
+function appendCashAmount(container,amount,currency,rates){
+  const value = cashText(cashAmountLabel(amount,currency,rates));
+  value.className='cash-amount-value';
+  container.append(value);
+  if(currency === 'VES'){
+    const reference = cashText(cashVesReference(amount,rates));
+    reference.className='cash-reference t-muted';
+    container.append(reference);
+  }
+}
 function renderCashRates(){
-  const rates = appData.rates || {};
-  cashEl('cash-rates').innerHTML = [
-    ['Dólar BCV',rates.usdBcv], ['Euro BCV',rates.eurBcv], ['Binance P2P (venta USDT)',rates.binanceP2P]
-  ].map(([label, rate]) => '<div class="surface-alt rounded-xl p-3"><p class="text-xs t-muted">' + label +
-    '</p><p class="text-lg font-medium">' + (rate ? cashMoney(cashMinor(rate.value),'VES') : '—') +
-    '</p><p class="text-xs t-muted">' + (rate ? formatDateTime(rate.updatedAt) : 'Sin datos') + '</p></div>').join('');
+  const container = cashEl('cash-rates');
+  if(!container.children.length){
+    for(const choice of cashRateChoices){
+      const button = document.createElement('button');
+      button.type='button';
+      button.className='cash-rate-button';
+      const label=cashText(choice.label);
+      label.className='cash-rate-label';
+      const value=cashText('');
+      value.className='cash-rate-value';
+      const date=document.createElement('time');
+      date.className='t-muted';
+      button.append(label,value,date);
+      button.onclick=()=>{
+        cashReferenceCurrency=choice.currency;
+        renderCash();
+      };
+      container.append(button);
+    }
+  }
+  cashRateChoices.forEach((choice,index)=>{
+    const rate=appData.rates?.[choice.key];
+    const button=container.children[index];
+    button.setAttribute('aria-pressed',String(choice.currency === cashReferenceCurrency));
+    button.children[1].textContent=rate ? cashMoney(cashMinor(rate.value),'VES') : '—';
+    button.children[2].textContent=rate?.updatedAt ? formatDateTime(rate.updatedAt) : 'Sin datos';
+  });
 }
 function renderCash(){
   if(!cashEl('cash-day')) return;
@@ -1600,10 +1691,13 @@ function renderCash(){
     (missing.length ? 'no disponible. Falta la tasa para ' + missing.join(', ') + '.' :
       '≈ ' + cashMoney(Math.round(totalEquivalent),'VES') + ' con las tasas mostradas arriba.');
   const tile = (label,key,css) => {
-    const values = cashState.ready ? currencies.map(currency =>
-      '<div class="flex items-baseline gap-2 flex-wrap"><span class="text-xs t-muted">' + currency +
-      '</span><span class="text-lg font-semibold">' + cashMoney(totalsByCurrency.get(currency)[key],currency) +
-      '</span></div>').join('') : '<p class="text-lg">—</p>';
+    const values = cashState.ready ? currencies.map(currency=>{
+      const amount = totalsByCurrency.get(currency)[key];
+      const reference = currency === 'VES' ? '<span class="cash-reference t-muted">' + cashVesReference(amount,rates) + '</span>' : '';
+      return '<div><div class="flex items-baseline gap-x-2 flex-wrap"><span class="text-xs t-muted">' + currency +
+        '</span><span class="cash-amount-value text-lg font-semibold">' + cashMoney(amount,currency) +
+        '</span></div>' + reference + '</div>';
+    }).join('') : '<p class="text-lg">—</p>';
     return '<div class="' + css + '"><p class="text-xs t-muted mb-1">' + label + '</p>' + values + '</div>';
   };
   cashEl('cash-balances').innerHTML = [['Disponible','available'],['Apartado','reserved'],['Saldo total','total']]
@@ -1620,8 +1714,18 @@ function renderCash(){
     const balance = balances.get(account.id);
     if(!balance) continue;
     const row = cashRow(accounts);
-    row.append(cashText(account.name + ' · ' + cashAmountLabel(balance.balance,account.currency,rates) +
-      (balance.reserved ? ' · Apartado: ' + cashAmountLabel(balance.reserved,account.currency,rates) : '')));
+    const description = document.createElement('div');
+    description.className='cash-entry-description';
+    description.append(cashText(account.name+' · '));
+    appendCashAmount(description,balance.balance,account.currency,rates);
+    if(balance.reserved){
+      const reserve = document.createElement('div');
+      reserve.className='text-xs mt-1';
+      reserve.append(cashText('Apartado: '));
+      appendCashAmount(reserve,balance.reserved,account.currency,rates);
+      description.append(reserve);
+    }
+    row.append(description);
     row.append(cashButton('Editar',() => openCashAccount(account)));
   }
   if(!accounts.children.length) accounts.append(cashText('No hay cuentas abiertas para este período.'));
@@ -1631,12 +1735,21 @@ function renderCash(){
     .sort((a,b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt);
   for(const entry of movements){
     const row = cashRow(rows);
-    const description = entry.legs.map(leg => {
-      const account = accountMap.get(leg.account);
-      return account ? account.name + ' ' + cashAmountLabel(leg.amount || leg.reserve,account.currency,rates) : 'Cuenta no disponible';
-    }).join(' · ');
-    row.append(cashText(displayDate(entry.date) + ' · ' + (entry.voided ? 'Anulado · ' : '') + cashLabels[entry.kind] + ' · ' +
-      description + (entry.note ? ' · ' + entry.note : '')));
+    const description=document.createElement('div');
+    description.className='cash-entry-description';
+    description.append(cashText(displayDate(entry.date)+' · '+(entry.voided ? 'Anulado · ' : '')+cashLabels[entry.kind]+
+      (entry.note ? ' · '+entry.note : '')));
+    for(const leg of entry.legs){
+      const account=accountMap.get(leg.account);
+      const line=document.createElement('div');
+      line.className='text-xs mt-1';
+      if(account){
+        line.append(cashText(account.name+' · '));
+        appendCashAmount(line,leg.amount || leg.reserve,account.currency,rates);
+      }else line.append(cashText('Cuenta no disponible'));
+      description.append(line);
+    }
+    row.append(description);
     const actions = document.createElement('div');
     actions.className = 'flex flex-wrap gap-1';
     actions.append(cashButton('Historial',() => openCashHistory(entry.id)));
@@ -1961,7 +2074,7 @@ function switchTab(id){
   if(desktopMain) desktopMain.scrollTop = 0;
   renderAll();
   if(id==='weborders'){ loadWebOrders(); }
-  if(id==='cash'){ renderCash(); }
+  if(id==='cash'){ cashReferenceCurrency = 'USD'; renderCash(); }
   if(id==='settings'){ updatePushUI(); }
 }
 
@@ -4117,6 +4230,7 @@ function openExpenseModal(id){
     populateExpenseMonthYearSelects(y,m);
     document.getElementById('expense-concept').value = exp.concept;
     document.getElementById('expense-category').value = exp.category;
+    document.getElementById('expense-type').value = exp.expenseType || 'unclassified';
     document.getElementById('expense-amount').value = exp.amount;
   } else {
     document.getElementById('expense-modal-title').innerText = 'Nuevo gasto';
@@ -4149,7 +4263,7 @@ async function handleExpenseSubmit(e){
     return;
   }
   const {from,to} = mode === 'month' ? expenseMonthRange(monthValue) : {from:first,to:last};
-  const record = {id:id || uid(),dateIso:from,periodType:mode,periodStart:from,periodEnd:to,concept,category,amount};
+  const record = {id:id || uid(),dateIso:from,periodType:mode,periodStart:from,periodEnd:to,concept,category,amount,expenseType:document.getElementById('expense-type').value};
   const linked = id ? cashLink('expense',id) : null;
   const preserveLink = !!linked && amount === original?.amount;
   const needsLink = amount > 0 && (!id || (!!linked && !preserveLink));
@@ -4220,7 +4334,8 @@ function updateReportRangeLabel(){
 }
 
 function getReportData(from, to){
-  const sales = appData.sales.filter(s => s.dateIso>=from && s.dateIso<=to);
+  const activeSales = validReportSales(appData.sales);
+  const sales = activeSales.filter(s=>s.dateIso>=from && s.dateIso<=to);
   const expenses = expensesOverlapping(from,to);
   const totalSales = sales.reduce((a,s)=>a+s.total,0);
   const totalProfit = sales.reduce((a,s)=>a+s.totalProfit,0);
@@ -4238,8 +4353,8 @@ function getReportData(from, to){
   const totalUnitsSold = Object.values(productTotals).reduce((a,d)=>a+d.qty,0);
   const currencies = reportCurrencyTotals(sales);
   return {from,to,sales,expenses,totalSales,totalProfit,totalExpenses,netProfit,productTotals,totalUnitsSold,currencies,
-    activeCurrencies:reportCurrencyTotals(appData.sales),inventory:reportInventory(),rankings:reportProducts(sales),
-    hasForeignSales:[...currencies.keys()].some(currency=>currency !== 'USD')};
+    activeCurrencies:reportCurrencyTotals(activeSales),inventory:reportInventory(),rankings:reportProducts(sales),
+    profitability:profitability(sales,expenses)};
 }
 
 function downloadReportPDF(){
@@ -4261,9 +4376,17 @@ function downloadReportPDF(){
   }
   doc.text('Historial activo: '+reportMoneyLines(data.activeCurrencies,'total'),14,y); y+=5.5;
   doc.text('Inventario actual a costo: '+reportMoney(data.inventory.value),14,y); y+=5.5;
-  if(!data.hasForeignSales){ doc.text(`Ganancia bruta: ${fmt(data.totalProfit)}`, 14, y); y+=5.5; }
-  doc.text(`Gastos: ${fmt(data.totalExpenses)}`, 14, y); y+=5.5;
-  if(!data.hasForeignSales){ doc.text(`Ganancia neta: ${fmt(data.netProfit)}`, 14, y); y+=5.5; }
+  for(const [label,value] of profitabilityRows(data.profitability)){
+    doc.text(label+': '+reportMoney(value),14,y);
+    y+=5.5;
+  }
+  doc.text('Margen neto: '+(data.profitability.margin === null ? '—' : data.profitability.margin.toFixed(1)+'%'),14,y); y+=5.5;
+  const profitabilityWarning = profitabilityNote(data.profitability);
+  if(profitabilityWarning){
+    const warningLines=doc.splitTextToSize(profitabilityWarning,178);
+    doc.text(warningLines,14,y);
+    y+=5*warningLines.length;
+  }
   doc.text(`Total de productos vendidos: ${data.totalUnitsSold} unidades`, 14, y); y+=10;
 
   doc.setFontSize(12); doc.text('Productos vendidos', 14, y); y+=6;
@@ -4318,9 +4441,9 @@ function downloadReportExcel(){
     ['Promedio por venta',data.sales.length ? reportMoneyLines(data.currencies,'average') : '—'],
     ['Inventario actual a costo (USD)',data.inventory.value],
     ['Productos en stock sin costo registrado',data.inventory.missing],
-    ...(!data.hasForeignSales ? [['Ganancia bruta',data.totalProfit]] : []),
-    ['Gastos', data.totalExpenses],
-    ...(!data.hasForeignSales ? [['Ganancia neta',data.netProfit]] : []),
+    ...profitabilityRows(data.profitability),
+    ['Margen neto (%)',data.profitability.margin ?? ''],
+    ['Alcance de rentabilidad',profitabilityNote(data.profitability)],
     ['Total de productos vendidos', data.totalUnitsSold]
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), 'Resumen');
@@ -4339,10 +4462,14 @@ function downloadReportExcel(){
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(prodRows), 'Productos');
 
-  const expRows = [['Fecha','Concepto','Categoría','Monto']];
-  data.expenses.forEach(e=> expRows.push([expenseDateLabel(e), e.concept, e.category, e.amount]));
+  const expRows = [['Período del gasto','Concepto','Categoría','Tipo','Monto del reporte (USD)']];
+  data.expenses.forEach(e=>expRows.push([expenseDateLabel(e),e.concept,e.category,expenseTypeLabel(e.expenseType),e.amount]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expRows), 'Gastos');
 
+  const monthRows = [['Mes','Ventas USD','Gastos USD','Utilidad neta USD','Alcance']];
+  for(const {label,values} of profitabilityMonths(data))
+    monthRows.push([label,values.revenue,values.expenses,values.net,profitabilityNote(values)]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(monthRows),'Comparativo mensual');
   XLSX.writeFile(wb, `reporte_tereapp_${data.from}_a_${data.to}.xlsx`);
   showAlert('Excel descargado');
 }
@@ -4358,9 +4485,9 @@ function buildReportText(data){
   lines.push('Por cobrar: '+reportMoneyLines(data.currencies,'pending'));
   lines.push('Promedio por venta: '+(data.sales.length ? reportMoneyLines(data.currencies,'average') : '—'));
   lines.push('Inventario actual a costo: '+reportMoney(data.inventory.value));
-  if(!data.hasForeignSales) lines.push(`Ganancia bruta: ${fmt(data.totalProfit)}`);
-  lines.push(`Gastos: ${fmt(data.totalExpenses)}`);
-  if(!data.hasForeignSales) lines.push(`*Ganancia neta: ${fmt(data.netProfit)}*`);
+  for(const [label,value] of profitabilityRows(data.profitability)) lines.push(label+': '+reportMoney(value));
+  const warning = profitabilityNote(data.profitability);
+  if(warning) lines.push(warning);
   lines.push(`Total de productos vendidos: ${data.totalUnitsSold} unidades`);
   lines.push('');
   lines.push('*Productos vendidos:*');
@@ -4528,6 +4655,115 @@ function renderReportTimeline(data){
     }
   }
 }
+function validReportSales(sales){
+  return sales.filter(sale=>sale.status === 'Pagado' || sale.status === 'Pendiente');
+}
+function expenseTypeLabel(type){
+  return type === 'fixed' ? 'Fijo' : type === 'variable' ? 'Variable' : 'Sin clasificar';
+}
+function profitability(sales,expenses){
+  const stats = {revenue:0,cost:0,fixed:0,variable:0,unclassified:0,foreign:0,missingCost:0};
+  for(const sale of sales){
+    if(reportCurrency(sale) !== 'USD'){ stats.foreign++; continue; }
+    stats.revenue += sale.total;
+    if(Number.isFinite(sale.totalCost) && sale.totalCost >= 0) stats.cost += sale.totalCost;
+    else if(sale.items.length && sale.items.every(item=>Number.isFinite(item.cost) && item.cost >= 0)){
+      stats.cost += sale.items.reduce((sum,item)=>sum+item.cost*item.qty,0);
+    }else stats.missingCost++;
+  }
+  for(const expense of expenses){
+    const key = expense.expenseType === 'fixed' || expense.expenseType === 'variable' ? expense.expenseType : 'unclassified';
+    stats[key] += expense.amount;
+  }
+  stats.expenses = stats.fixed+stats.variable+stats.unclassified;
+  stats.gross = stats.revenue-stats.cost;
+  stats.net = stats.gross-stats.expenses;
+  stats.margin = stats.revenue > 0 ? stats.net/stats.revenue*100 : null;
+  return stats;
+}
+function profitabilityRows(p){
+  return [
+    ['Ingresos por ventas (USD)',p.revenue],['Costo de lo vendido',p.cost],['Utilidad bruta',p.gross],
+    ['Gastos fijos',p.fixed],['Gastos variables',p.variable],['Gastos sin clasificar',p.unclassified],
+    ['Total de gastos',p.expenses],['Utilidad neta o pérdida',p.net]
+  ];
+}
+function profitabilityNote(p){
+  const notes = [];
+  if(p.foreign) notes.push(p.foreign+' ventas en otras monedas fuera de la utilidad por falta de un tipo de cambio histórico a USD.');
+  if(p.missingCost) notes.push(p.missingCost+' ventas sin costo registrado. La utilidad de este cálculo puede estar sobreestimada.');
+  return notes.join(' ');
+}
+function profitabilityMonths(data){
+  const selectedEnd = data.to;
+  const month = new Date(selectedEnd.slice(0,7)+'-01T12:00:00Z');
+  month.setUTCMonth(month.getUTCMonth()-5);
+  const sales = validReportSales(appData.sales);
+  const rows = [];
+  for(let index=0;index<6;index++){
+    const key = month.toISOString().slice(0,7);
+    const range = expenseMonthRange(key);
+    const to = range.to > selectedEnd ? selectedEnd : range.to;
+    const values = profitability(sales.filter(s=>s.dateIso>=range.from && s.dateIso<=to),expensesOverlapping(range.from,to));
+    rows.push({label:new Intl.DateTimeFormat('es-VE',{month:'short',year:'numeric',timeZone:'UTC'}).format(month),values});
+    month.setUTCMonth(month.getUTCMonth()+1);
+  }
+  return rows;
+}
+let profitabilityChart;
+function renderProfitability(data){
+  const p = data.profitability;
+  const metrics = document.getElementById('profitability-metrics');
+  metrics.replaceChildren();
+  for(const [label,val] of [...profitabilityRows(p),['Margen neto',p.margin]]){
+    const tile = document.createElement('div');
+    tile.className='surface-alt rounded-xl p-3';
+    const title=cashText(label);
+    title.className='block text-xs t-muted';
+    const amount=cashText(label === 'Margen neto' ? (val === null ? '—' : val.toLocaleString('es-VE',{maximumFractionDigits:1})+' %') : reportMoney(val));
+    amount.className='block text-lg font-semibold';
+    if(label === 'Utilidad neta o pérdida' && val < 0) amount.style.color='var(--danger)';
+    tile.append(title,amount);
+    metrics.append(tile);
+  }
+  const note = document.getElementById('profitability-note');
+  note.textContent=profitabilityNote(p);
+  note.hidden=!note.textContent;
+
+  const comparison = profitabilityMonths(data);
+  const table = document.getElementById('profitability-months');
+  table.replaceChildren();
+  for(const {label,values} of comparison)
+    appendReportRow(table,[label,reportMoney(values.revenue),reportMoney(values.expenses),reportMoney(values.net)]);
+  const monthNote = document.getElementById('profitability-month-note');
+  monthNote.hidden=!comparison.some(({values})=>values.foreign || values.missingCost);
+  const canvas = document.getElementById('profitability-chart');
+  const chartFrame = canvas.parentElement;
+  if(profitabilityChart){ profitabilityChart.destroy(); profitabilityChart=null; }
+  chartFrame.hidden=!window.Chart;
+  if(window.Chart){
+    const colors=chartColors();
+    profitabilityChart=new window.Chart(canvas,{
+      type:'bar',
+      data:{labels:comparison.map(row=>row.label),datasets:[
+        {label:'Ventas',data:comparison.map(row=>row.values.revenue),backgroundColor:colors.accent},
+        {label:'Gastos',data:comparison.map(row=>row.values.expenses),backgroundColor:colors.text},
+        {label:'Utilidad neta',type:'line',data:comparison.map(row=>row.values.net),borderColor:colors.accent,borderDash:[4,3]}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{labels:{color:colors.text}},tooltip:{callbacks:{label:item=>item.dataset.label+': '+reportMoney(item.parsed.y)}}},
+        scales:{x:{ticks:{color:colors.text},grid:{display:false}},y:{ticks:{color:colors.text,callback:value=>reportMoney(value)},grid:{color:colors.grid}}}}
+    });
+  }
+  const details = document.getElementById('profitability-sales');
+  details.replaceChildren();
+  for(const sale of [...data.sales].sort((a,b)=>b.dateIso.localeCompare(a.dateIso))){
+    appendReportRow(details,[displayDate(sale.dateIso),sale.orderNumber ? '#'+sale.orderNumber : 'Sin número',
+      sale.status,reportMoney(sale.total,reportCurrency(sale))]);
+  }
+  if(!data.sales.length) appendReportRow(details,['Sin ventas en este período.','','','']);
+}
+
 function renderReports(){
   const {from,to} = getReportRange();
   const data = getReportData(from,to);
@@ -4561,6 +4797,7 @@ function renderReports(){
     cards.append(card);
   }
   renderReportTimeline(data);
+  renderProfitability(data);
   for(const [id,products,empty] of [
     ['report-best-products',data.rankings.most,'Sin ventas en el período.'],
     ['report-slow-products',data.rankings.slow,'Sin productos con stock.']
