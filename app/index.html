@@ -211,7 +211,8 @@ input[type="month"].input, input[type="date"].input{min-width:0;}
 ::-webkit-scrollbar{height:6px; width:6px;}
 ::-webkit-scrollbar-thumb{background:var(--border); border-radius:4px;}
 /* Caja: las tasas siguen disponibles sin desplazamiento horizontal. */
-.cash-filters {display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem}
+.cash-filters {display:flex; flex-wrap:wrap; align-items:center; gap:.75rem}
+@media(min-width:640px){.cash-filters #cash-range-label {margin-inline-start:auto}}
 .cash-filters select,.cash-filters input {width:auto;max-width:100%}
 .cash-filters label {min-width:0}
 .cash-rate-grid {display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem}
